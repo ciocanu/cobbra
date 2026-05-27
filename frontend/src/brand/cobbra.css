@@ -1,0 +1,283 @@
+/* ═══════════════════════════════════════════════════
+   COBBRA  —  Design Token System
+   Monochromatic precision. One venom moment.
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  /* ── Void palette ─────────────────────────────── */
+  --cb-void:        #050505;
+  --cb-bg:          #080808;
+  --cb-s0:          #0C0C0C;
+  --cb-s1:          #111111;
+  --cb-s2:          #181818;
+  --cb-s3:          #202020;
+  --cb-border:      #1E1E1E;
+  --cb-border-hi:   #2A2A2A;
+
+  /* ── Text ─────────────────────────────────────── */
+  --cb-text:        #EFEFEF;
+  --cb-text-2:      #7A7A7A;
+  --cb-text-3:      #3A3A3A;
+
+  /* ── The ONE color ────────────────────────────── */
+  --cb-venom:       #39FF14;
+  --cb-venom-dim:   rgba(57, 255, 20, 0.10);
+  --cb-venom-mid:   rgba(57, 255, 20, 0.20);
+  --cb-venom-glow:  0 0 20px rgba(57, 255, 20, 0.40), 0 0 60px rgba(57, 255, 20, 0.12);
+  --cb-venom-text:  0 0 16px rgba(57, 255, 20, 0.50);
+
+  /* ── Typography ───────────────────────────────── */
+  /* Barlow: compressed, precise, relentless — race timing board aesthetic */
+  --cb-font:            'Barlow', sans-serif;
+  --cb-font-condensed:  'Barlow Condensed', sans-serif;
+  --cb-mono:            'JetBrains Mono', 'Courier New', monospace;
+
+  /* ── Type scale ───────────────────────────────── */
+  --cb-size-2xs:    10px;
+  --cb-size-xs:     12px;
+  --cb-size-sm:     14px;
+  --cb-size-base:   16px;
+  --cb-size-lg:     20px;
+  --cb-size-xl:     28px;
+  --cb-size-2xl:    40px;
+  --cb-size-3xl:    56px;
+  --cb-size-4xl:    76px;
+  --cb-size-5xl:    100px;
+
+  /* ── Spacing ──────────────────────────────────── */
+  --cb-sp-1:  4px;
+  --cb-sp-2:  8px;
+  --cb-sp-3:  12px;
+  --cb-sp-4:  16px;
+  --cb-sp-6:  24px;
+  --cb-sp-8:  32px;
+  --cb-sp-10: 40px;
+  --cb-sp-12: 48px;
+  --cb-sp-16: 64px;
+  --cb-sp-20: 80px;
+  --cb-sp-24: 96px;
+
+  /* ── Radius ───────────────────────────────────── */
+  --cb-r-none: 0px;
+  --cb-r-sm:   2px;   /* almost-none — precision instrument feel */
+  --cb-r-md:   4px;
+  --cb-r-pill: 999px;
+
+  /* ── Motion ───────────────────────────────────── */
+  --cb-ease:       cubic-bezier(0.16, 1, 0.3, 1);   /* expo-out — entering elements */
+  --cb-ease-sharp: cubic-bezier(0.4, 0, 0.2, 1);    /* state toggles */
+  --cb-spring:     cubic-bezier(0.22, 1, 0.36, 1);  /* quint-out — smooth emphasis, no bounce */
+  --cb-dur-fast:   120ms;
+  --cb-dur:        260ms;
+  --cb-dur-slow:   500ms;
+  --cb-dur-xslow:  900ms;
+}
+
+/* ── Keyframes ────────────────────────────────────── */
+
+@keyframes cb-snake-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes cb-venom-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+
+@keyframes cb-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cb-slide-right {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes cb-chart-draw {
+  from { stroke-dashoffset: var(--cb-path-len, 1200); }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes cb-dot-ping {
+  0%   { transform: scale(1);   opacity: 1; }
+  70%  { transform: scale(2.5); opacity: 0; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* ── Utility classes ─────────────────────────────── */
+
+.cb-mono {
+  font-family: var(--cb-mono);
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-venom {
+  color: var(--cb-venom);
+}
+
+.cb-text-2 {
+  color: var(--cb-text-2);
+}
+
+/* ── CTA buttons ─────────────────────────────────── */
+
+.cb-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 26px;
+  background: var(--cb-venom);
+  color: #060606;
+  font-family: var(--cb-font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border: none;
+  border-radius: var(--cb-r-sm);
+  cursor: pointer;
+  transition: filter var(--cb-dur-fast) ease-out;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cb-btn-primary:hover {
+    filter: brightness(0.88);
+  }
+}
+
+.cb-btn-primary:active {
+  filter: brightness(0.78);
+}
+
+.cb-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 26px;
+  background: transparent;
+  color: var(--cb-text-2);
+  font-family: var(--cb-font);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border: 1px solid var(--cb-border-hi);
+  border-radius: var(--cb-r-sm);
+  cursor: pointer;
+  transition:
+    color var(--cb-dur-fast) ease-out,
+    border-color var(--cb-dur-fast) ease-out,
+    background-color var(--cb-dur-fast) ease-out;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cb-btn-ghost:hover {
+    color: var(--cb-text);
+    border-color: var(--cb-text-3);
+  }
+}
+
+/* ── Grid background texture ─────────────────────── */
+.cb-grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Reduced motion ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ── Layout grid classes ─────────────────────────── */
+
+.cb-hero-grid {
+  display: grid;
+  grid-template-columns: 55% 1fr;
+  gap: 0 80px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .cb-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 64px 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .cb-nav-link {
+    display: none;
+  }
+}
+
+/* ── Navigation links ────────────────────────────── */
+
+.cb-nav-link {
+  font-family: var(--cb-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cb-text-2);
+  text-decoration: none;
+  padding: 7px 14px;
+  border-radius: var(--cb-r-sm);
+  transition: color var(--cb-dur-fast);
+}
+
+.cb-nav-link:hover {
+  color: var(--cb-text);
+}
+
+.cb-nav-link:focus-visible {
+  outline: 1.5px solid var(--cb-venom);
+  outline-offset: 2px;
+}
+
+/* ── Footer links ────────────────────────────────── */
+
+.cb-footer-link {
+  font-family: var(--cb-mono);
+  font-size: 10px;
+  color: var(--cb-text-3);
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color var(--cb-dur-fast);
+}
+
+.cb-footer-link:hover {
+  color: var(--cb-text-2);
+}
+
+.cb-footer-link:focus-visible {
+  outline: 1.5px solid var(--cb-venom);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+/* ── Button focus and active states ─────────────── */
+
+.cb-btn-ghost:active {
+  background: color-mix(in srgb, var(--cb-border-hi) 60%, transparent);
+  color: var(--cb-text);
+}
+
+.cb-btn-primary:focus-visible,
+.cb-btn-ghost:focus-visible {
+  outline: 1.5px solid var(--cb-venom);
+  outline-offset: 3px;
+}
