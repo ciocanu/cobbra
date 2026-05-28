@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 _VALID_EXPERIENCE = {"beginner", "intermediate", "advanced"}
-_VALID_BIKE_TYPE  = {"road", "gravel", "mtb", "other"}
+_VALID_BIKE_TYPE  = {"road", "gravel", "mtb", "tt", "ebike", "other"}
 
 
 @router.get("/", response_model=schemas.SettingsOut)
@@ -27,6 +27,10 @@ def get_settings(db: Session = Depends(get_db), current_user=Depends(get_current
         ftp=user.ftp,
         experience_level=user.experience_level,
         bike_type=user.bike_type,
+        bike_weight_kg=user.bike_weight_kg,
+        calibrated_cda=user.calibrated_cda,
+        calibrated_crr=user.calibrated_crr,
+        calibration_source=user.calibration_source,
     )
 
 
@@ -73,6 +77,11 @@ def update_settings(
             raise HTTPException(status_code=400, detail="Invalid bike type.")
         user.bike_type = body.bike_type
 
+    if body.bike_weight_kg is not None:
+        if not (3 <= body.bike_weight_kg <= 50):
+            raise HTTPException(status_code=400, detail="Bike weight must be between 3 and 50 kg.")
+        user.bike_weight_kg = body.bike_weight_kg
+
     db.commit()
     db.refresh(user)
     return schemas.SettingsOut(
@@ -83,6 +92,10 @@ def update_settings(
         ftp=user.ftp,
         experience_level=user.experience_level,
         bike_type=user.bike_type,
+        bike_weight_kg=user.bike_weight_kg,
+        calibrated_cda=user.calibrated_cda,
+        calibrated_crr=user.calibrated_crr,
+        calibration_source=user.calibration_source,
     )
 
 

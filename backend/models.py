@@ -35,6 +35,11 @@ class User(Base):
     strava_refresh_token    = Column(String, nullable=True)
     strava_token_expires_at = Column(DateTime, nullable=True)
     strava_last_sync_at     = Column(DateTime, nullable=True)
+    # Power calibration
+    calibrated_crr          = Column(Float, nullable=True)
+    calibrated_cda          = Column(Float, nullable=True)
+    calibration_source      = Column(String, nullable=True)
+    bike_weight_kg          = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -82,10 +87,15 @@ class Activity(Base):
     weather_desc = Column(String, nullable=True)
     ai_analysis = Column(Text, nullable=True)
     file_type = Column(String, default="gpx")
+    # Climb summary
+    total_climbing_power_avg_w = Column(Float, nullable=True)
+    total_climbing_wkg_avg     = Column(Float, nullable=True)
+    climb_count                = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
     laps = relationship("Lap", back_populates="activity", cascade="all, delete-orphan")
+    climb_detections = relationship("ClimbDetection", back_populates="activity", cascade="all, delete-orphan")
 
 
 class TrackPoint(Base):
@@ -172,6 +182,49 @@ class TrainingPlan(Base):
     extra_notes = Column(Text, nullable=True)
     plan_text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ClimbDetection(Base):
+    __tablename__ = "climb_detections"
+
+    id = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), nullable=False)
+
+    # Location in ride
+    start_trackpoint_idx = Column(Integer)
+    end_trackpoint_idx   = Column(Integer)
+    start_distance_m     = Column(Float)
+    end_distance_m       = Column(Float)
+
+    # Climb metrics
+    distance_m        = Column(Float)
+    elevation_gain_m  = Column(Float)
+    avg_gradient_pct  = Column(Float)
+    max_gradient_pct  = Column(Float)
+    duration_seconds  = Column(Integer)
+
+    # Speed & HR
+    avg_speed_kmh  = Column(Float)
+    avg_heart_rate = Column(Integer, nullable=True)
+    max_heart_rate = Column(Integer, nullable=True)
+
+    # VAM
+    vam_m_per_hour = Column(Float)
+
+    # Power estimation
+    estimated_power_w     = Column(Float, nullable=True)
+    estimated_power_low_w = Column(Float, nullable=True)
+    estimated_power_high_w = Column(Float, nullable=True)
+    estimated_wkg         = Column(Float, nullable=True)
+    estimation_quality    = Column(String, nullable=True)
+    estimation_method     = Column(String, default="physics")
+
+    # Pacing
+    pacing_type        = Column(String, nullable=True)
+    first_half_speed   = Column(Float, nullable=True)
+    second_half_speed  = Column(Float, nullable=True)
+
+    activity = relationship("Activity", back_populates="climb_detections")
 
 
 class SegmentEffort(Base):

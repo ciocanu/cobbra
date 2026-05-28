@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount } from '../services/api'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, calibratePower, resetPowerCalibration } from '../services/api'
 import { markLoggedOut } from '../services/auth'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
@@ -116,9 +116,20 @@ export default function Settings() {
   const [ftp,             setFtp]             = useState('')
   const [experienceLevel, setExperienceLevel] = useState('')
   const [bikeType,        setBikeType]        = useState('')
+  const [bikeWeightKg,    setBikeWeightKg]    = useState('')
   const [fitnessSaving,   setFitnessSaving]   = useState(false)
   const [fitnessSaved,    setFitnessSaved]    = useState(false)
   const [fitnessError,    setFitnessError]    = useState('')
+
+  // Power calibration
+  const [calibSource,     setCalibSource]     = useState(null)
+  const [calibCda,        setCalibCda]        = useState(null)
+  const [calibFtp,        setCalibFtp]        = useState('')
+  const [calibClimbId,    setCalibClimbId]    = useState('')
+  const [calibPower,      setCalibPower]      = useState('')
+  const [calibSaving,     setCalibSaving]     = useState(false)
+  const [calibMsg,        setCalibMsg]        = useState('')
+  const [calibMsgType,    setCalibMsgType]    = useState('')
 
   // Upgrade
   const [checking, setChecking] = useState(null)
@@ -167,6 +178,9 @@ export default function Settings() {
         setFtp(s.data.ftp ?? '')
         setExperienceLevel(s.data.experience_level ?? '')
         setBikeType(s.data.bike_type ?? '')
+        setBikeWeightKg(s.data.bike_weight_kg ?? '')
+        setCalibSource(s.data.calibration_source ?? null)
+        setCalibCda(s.data.calibrated_cda ?? null)
         setUser(u.data)
         setStravaConnected(sv.data.connected)
         setStravaAthleteId(sv.data.athlete_id || null)
@@ -228,6 +242,11 @@ export default function Settings() {
     }
     if (experienceLevel) payload.experience_level = experienceLevel
     if (bikeType)        payload.bike_type        = bikeType
+    if (bikeWeightKg !== '') {
+      const v = parseFloat(bikeWeightKg)
+      if (isNaN(v) || v < 3 || v > 50) { setFitnessError('Bike weight must be between 3 and 50 kg.'); return }
+      payload.bike_weight_kg = v
+    }
     setFitnessSaving(true)
     try {
       await updateSettings(payload)
@@ -235,6 +254,44 @@ export default function Settings() {
     } catch (e) {
       setFitnessError(e.response?.data?.detail || 'Failed to save.')
     } finally { setFitnessSaving(false) }
+  }
+
+  const handleCalibratePower = async (method) => {
+    setCalibMsg(''); setCalibSaving(true)
+    try {
+      const payload = { method }
+      if (method === 'ftp') {
+        const v = parseInt(calibFtp, 10)
+        if (isNaN(v) || v < 50 || v > 600) { setCalibMsg('FTP must be between 50 and 600 W.'); setCalibMsgType('error'); setCalibSaving(false); return }
+        payload.value = v
+      } else {
+        const v = parseFloat(calibPower)
+        const cid = parseInt(calibClimbId, 10)
+        if (isNaN(v) || v < 50) { setCalibMsg('Enter a valid power value (W).'); setCalibMsgType('error'); setCalibSaving(false); return }
+        if (isNaN(cid)) { setCalibMsg('Enter a valid climb ID.'); setCalibMsgType('error'); setCalibSaving(false); return }
+        payload.value = v
+        payload.climb_id = cid
+      }
+      const res = await calibratePower(payload)
+      setCalibSource(method === 'ftp' ? 'manual_ftp' : 'known_climb')
+      setCalibCda(res.data.calibrated_cda)
+      setCalibMsg(`Calibration applied. ${res.data.climbs_recalculated} climb(s) recalculated.`)
+      setCalibMsgType('success')
+    } catch (e) {
+      setCalibMsg(e.response?.data?.detail || 'Calibration failed.')
+      setCalibMsgType('error')
+    } finally { setCalibSaving(false) }
+  }
+
+  const handleResetCalibration = async () => {
+    setCalibSaving(true)
+    try {
+      await resetPowerCalibration()
+      setCalibSource(null); setCalibCda(null)
+      setCalibMsg('Calibration reset to defaults.')
+      setCalibMsgType('success')
+    } catch { setCalibMsg('Reset failed.'); setCalibMsgType('error') }
+    finally { setCalibSaving(false) }
   }
 
   const handleUpgrade = async (tier) => {
@@ -615,11 +672,13 @@ export default function Settings() {
           {/* Bike type */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Bike Type</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {[
                 { value: 'road',   label: 'Road' },
                 { value: 'gravel', label: 'Gravel' },
                 { value: 'mtb',    label: 'MTB' },
+                { value: 'tt',     label: 'TT' },
+                { value: 'ebike',  label: 'E-Bike' },
                 { value: 'other',  label: 'Other' },
               ].map(opt => (
                 <button
@@ -636,6 +695,23 @@ export default function Settings() {
                   {opt.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Bike weight */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              Bike Weight <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(for climb power estimates)</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number" className="filter-input" style={{ width: 90 }}
+                value={bikeWeightKg} onChange={e => { setBikeWeightKg(e.target.value); setFitnessError('') }}
+                placeholder={bikeType === 'mtb' ? '13' : bikeType === 'ebike' ? '22' : bikeType === 'gravel' ? '10' : '9'}
+                min={3} max={50} step={0.1}
+              />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leave blank to use default for bike type</span>
             </div>
           </div>
 
@@ -681,6 +757,52 @@ export default function Settings() {
             <Save size={13} />
             {fitnessSaving ? 'Saving…' : 'Save Profile'}
           </button>
+
+          {/* Power Calibration */}
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+              Power Calibration <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(optional)</span>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+              Fine-tune estimated climb power using a known FTP or a climb where you know your actual power output.
+            </p>
+
+            {calibSource && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#6dffb810', border: '1px solid #6dffb830', fontSize: 12, color: '#6dffb8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Calibrated from {calibSource === 'manual_ftp' ? 'FTP' : 'known climb'} — CdA: {calibCda?.toFixed(3)}</span>
+                <button className="btn" style={{ fontSize: 11, padding: '2px 8px', color: 'var(--text-muted)' }} onClick={handleResetCalibration} disabled={calibSaving}>Reset</button>
+              </div>
+            )}
+            {!calibSource && (
+              <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-muted)' }}>Current: Default parameters for bike type</div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>Option 1: Calibrate from FTP</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="number" className="filter-input" style={{ width: 90 }} value={calibFtp} onChange={e => setCalibFtp(e.target.value)} placeholder="280" min={50} max={600} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
+                  <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => handleCalibratePower('ftp')} disabled={calibSaving}>Calibrate</button>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>Option 2: Known power on a specific climb</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="number" className="filter-input" style={{ width: 90 }} value={calibClimbId} onChange={e => setCalibClimbId(e.target.value)} placeholder="Climb ID" min={1} />
+                  <input type="number" className="filter-input" style={{ width: 90 }} value={calibPower} onChange={e => setCalibPower(e.target.value)} placeholder="Watts" min={50} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
+                  <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => handleCalibratePower('climb')} disabled={calibSaving}>Calibrate</button>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Find Climb ID in the activity detail page (expand a climb card).</div>
+              </div>
+            </div>
+
+            {calibMsg && (
+              <Alert variant={calibMsgType === 'error' ? 'error' : 'success'} style={{ marginTop: 10, fontSize: 12 }}>{calibMsg}</Alert>
+            )}
+          </div>
         </Card>
 
         {/* HR Zones */}
