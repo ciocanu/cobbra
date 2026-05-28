@@ -99,6 +99,12 @@ class Activity(Base):
     power_correction_factor = Column(Float, nullable=True)   # e.g. 1.08 = indoor power adjusted +8%
     hr_correction_factor    = Column(Float, nullable=True)   # e.g. 0.95 = indoor HR adjusted -5%
     corrected_tss           = Column(Float, nullable=True)   # TSS after indoor/outdoor correction
+    # Adjusted decoupling (Phase A)
+    decoupling_raw              = Column(Float, nullable=True)   # Coggan-style raw Pw:HR or Pa:HR drift
+    decoupling_adjusted         = Column(Float, nullable=True)   # terrain+heat+hydration-corrected drift
+    decoupling_components_json  = Column(Text, nullable=True)    # breakdown JSON
+    decoupling_quality          = Column(String, nullable=True)  # "high" | "medium" | "low"
+    decoupling_warning          = Column(String, nullable=True)  # null or human-readable caveat
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
