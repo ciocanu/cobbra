@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { ArrowLeft, Trash2, Pencil, Download, FileText, Cloud, Wind, Thermometer, Sparkles, RefreshCw, Droplets, Home, Trees } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Download, FileText, Cloud, Wind, Thermometer, Sparkles, RefreshCw, Droplets, Home, Trees, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import InfoTip from './InfoTip'
 import { colors } from '../tokens'
 
@@ -576,6 +576,8 @@ export default function ActivityDetail() {
   const [intakeMsg,    setIntakeMsg]    = useState('')
   const [durabilityData, setDurabilityData] = useState(null)
   const [durabilityLoading, setDurabilityLoading] = useState(true)
+  const [climbs,    setClimbs]    = useState([])
+  const [expandedClimb, setExpandedClimb] = useState(null)
   const notesTimer = useRef(null)
 
   useEffect(() => {
@@ -589,6 +591,7 @@ export default function ActivityDetail() {
       .finally(() => setLoading(false))
     getActivitySegments(id).then(r => setSegmentEfforts(r.data)).catch(() => {})
     getAnalysis(id).then(r => setAnalysis(r.data.analysis)).catch(() => {})
+    getActivityClimbs(id).then(r => setClimbs(r.data)).catch(() => {})
     getSettings().then(r => {
       setFtp(r.data.ftp || null)
       setWeightKg(r.data.weight_kg || null)
@@ -1677,6 +1680,130 @@ export default function ActivityDetail() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Climbs */}
+      {(climbs.length > 0 || !weightKg) && (
+        <div className="chart-section">
+          <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
+            Climbs Detected
+            {climbs.length > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
+                {climbs.length} climb{climbs.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {!weightKg && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)', fontSize: 13, color: 'var(--text-secondary)', marginBottom: climbs.length ? 14 : 0 }}>
+              Add your weight in <a href="/settings" style={{ color: 'var(--accent)' }}>Settings</a> to see estimated power for climbs.
+            </div>
+          )}
+
+          {climbs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {climbs.map((c, i) => {
+                const expanded = expandedClimb === c.id
+                const qColor = c.estimation_quality === 'high' ? '#6dffb8' : c.estimation_quality === 'medium' ? '#ffd93d' : '#ff8c42'
+                const pacingLabel = c.pacing_type === 'negative' ? 'Negative split ✓' : c.pacing_type === 'positive' ? 'Positive split (started too fast)' : c.pacing_type === 'even' ? 'Even split' : null
+                const mins = Math.floor((c.duration_seconds || 0) / 60)
+                const secs = (c.duration_seconds || 0) % 60
+                return (
+                  <div key={c.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                    <button
+                      onClick={() => setExpandedClimb(expanded ? null : c.id)}
+                      style={{ width: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', padding: '12px 14px', textAlign: 'left' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>Climb {i + 1}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{((c.distance_m || 0) / 1000).toFixed(1)} km</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{(c.avg_gradient_pct || 0).toFixed(1)}% avg</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{mins}:{String(secs).padStart(2, '0')}</span>
+                          {c.vam_m_per_hour != null && (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VAM {Math.round(c.vam_m_per_hour)} m/h</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                          {c.estimation_quality && (
+                            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: `${qColor}18`, border: `1px solid ${qColor}40`, color: qColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {c.estimation_quality}
+                            </span>
+                          )}
+                          {expanded ? <ChevronUp size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />}
+                        </div>
+                      </div>
+
+                      {c.estimated_power_w != null && (
+                        <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--accent)' }}>
+                            {Math.round(c.estimated_power_w)}W
+                          </span>
+                          {c.estimated_power_low_w != null && c.estimated_power_high_w != null && (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'flex-end', paddingBottom: 2 }}>
+                              ({Math.round(c.estimated_power_low_w)}–{Math.round(c.estimated_power_high_w)}W range)
+                            </span>
+                          )}
+                          {c.estimated_wkg != null && (
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--text-secondary)', alignSelf: 'flex-end', paddingBottom: 1 }}>
+                              {c.estimated_wkg.toFixed(2)} W/kg
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+
+                    {expanded && (
+                      <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Elevation Gain</div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{Math.round(c.elevation_gain_m || 0)} m</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Max Gradient</div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{(c.max_gradient_pct || 0).toFixed(1)}%</div>
+                        </div>
+                        {c.avg_speed_kmh != null && (
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Avg Speed</div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--speed)' }}>{c.avg_speed_kmh.toFixed(1)} km/h</div>
+                          </div>
+                        )}
+                        {c.avg_heart_rate != null && (
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Avg HR</div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--heart)' }}>{c.avg_heart_rate} bpm</div>
+                          </div>
+                        )}
+                        {c.max_heart_rate != null && (
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Max HR</div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--heart)' }}>{c.max_heart_rate} bpm</div>
+                          </div>
+                        )}
+                        {pacingLabel && (
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Pacing</div>
+                            <div style={{ fontSize: 13, color: c.pacing_type === 'negative' ? '#6dffb8' : c.pacing_type === 'positive' ? '#ff8c42' : 'var(--text-secondary)' }}>
+                              {pacingLabel}
+                            </div>
+                          </div>
+                        )}
+                        {c.estimation_method && (
+                          <div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--text-muted)', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                            Power estimated via physics model{c.estimation_method === 'calibrated' ? ' (calibrated)' : ''}. Not measured data.
+                            {' '}Climb ID: <code style={{ fontFamily: 'monospace', background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: 3 }}>{c.id}</code>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

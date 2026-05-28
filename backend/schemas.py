@@ -164,6 +164,10 @@ class SettingsOut(BaseModel):
     ftp: Optional[int] = None
     experience_level: Optional[str] = None
     bike_type: Optional[str] = None
+    bike_weight_kg: Optional[float] = None
+    calibrated_cda: Optional[float] = None
+    calibrated_crr: Optional[float] = None
+    calibration_source: Optional[str] = None
 
 class SettingsIn(BaseModel):
     max_hr: Optional[int] = None
@@ -173,6 +177,37 @@ class SettingsIn(BaseModel):
     ftp: Optional[int] = None
     experience_level: Optional[str] = None
     bike_type: Optional[str] = None
+    bike_weight_kg: Optional[float] = None
+
+
+class ClimbDetectionOut(BaseModel):
+    id: int
+    activity_id: int
+    start_trackpoint_idx: Optional[int]
+    end_trackpoint_idx: Optional[int]
+    start_distance_m: Optional[float]
+    end_distance_m: Optional[float]
+    distance_m: Optional[float]
+    elevation_gain_m: Optional[float]
+    avg_gradient_pct: Optional[float]
+    max_gradient_pct: Optional[float]
+    duration_seconds: Optional[int]
+    avg_speed_kmh: Optional[float]
+    avg_heart_rate: Optional[int]
+    max_heart_rate: Optional[int]
+    vam_m_per_hour: Optional[float]
+    estimated_power_w: Optional[float]
+    estimated_power_low_w: Optional[float]
+    estimated_power_high_w: Optional[float]
+    estimated_wkg: Optional[float]
+    estimation_quality: Optional[str]
+    estimation_method: Optional[str]
+    pacing_type: Optional[str]
+    first_half_speed: Optional[float]
+    second_half_speed: Optional[float]
+
+    class Config:
+        from_attributes = True
 
 
 # ── Hydration ────────────────────────────────────────────────────────────────

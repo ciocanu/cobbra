@@ -39,6 +39,11 @@ class User(Base):
     sweat_rate_ml_per_hour  = Column(Float, nullable=True)    # calibrated via sweat test
     heat_adaptation_level   = Column(String, nullable=True)   # "low" | "moderate" | "high"
     heat_rides_last_14d     = Column(Integer, default=0)
+    # Power calibration (Phase B)
+    calibrated_crr          = Column(Float, nullable=True)
+    calibrated_cda          = Column(Float, nullable=True)
+    calibration_source      = Column(String, nullable=True)
+    bike_weight_kg          = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -105,12 +110,17 @@ class Activity(Base):
     decoupling_components_json  = Column(Text, nullable=True)    # breakdown JSON
     decoupling_quality          = Column(String, nullable=True)  # "high" | "medium" | "low"
     decoupling_warning          = Column(String, nullable=True)  # null or human-readable caveat
+    # Climb summary (Phase B)
+    total_climbing_power_avg_w = Column(Float, nullable=True)
+    total_climbing_wkg_avg     = Column(Float, nullable=True)
+    climb_count                = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
     laps = relationship("Lap", back_populates="activity", cascade="all, delete-orphan")
     hydration_analysis = relationship("HydrationAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
     durability_analysis = relationship("DurabilityAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
+    climb_detections = relationship("ClimbDetection", back_populates="activity", cascade="all, delete-orphan")
     # indoor_outdoor relationship is accessed via IndoorOutdoorProfile.user_id, not per-activity
 
 
@@ -274,6 +284,49 @@ class DurabilityAnalysis(Base):
     quality_reason = Column(String, nullable=True)
 
     activity = relationship("Activity", back_populates="durability_analysis")
+
+
+class ClimbDetection(Base):
+    __tablename__ = "climb_detections"
+
+    id = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), nullable=False)
+
+    # Location in ride
+    start_trackpoint_idx = Column(Integer)
+    end_trackpoint_idx   = Column(Integer)
+    start_distance_m     = Column(Float)
+    end_distance_m       = Column(Float)
+
+    # Climb metrics
+    distance_m        = Column(Float)
+    elevation_gain_m  = Column(Float)
+    avg_gradient_pct  = Column(Float)
+    max_gradient_pct  = Column(Float)
+    duration_seconds  = Column(Integer)
+
+    # Speed & HR
+    avg_speed_kmh  = Column(Float)
+    avg_heart_rate = Column(Integer, nullable=True)
+    max_heart_rate = Column(Integer, nullable=True)
+
+    # VAM
+    vam_m_per_hour = Column(Float)
+
+    # Power estimation
+    estimated_power_w      = Column(Float, nullable=True)
+    estimated_power_low_w  = Column(Float, nullable=True)
+    estimated_power_high_w = Column(Float, nullable=True)
+    estimated_wkg          = Column(Float, nullable=True)
+    estimation_quality     = Column(String, nullable=True)
+    estimation_method      = Column(String, default="physics")
+
+    # Pacing
+    pacing_type        = Column(String, nullable=True)
+    first_half_speed   = Column(Float, nullable=True)
+    second_half_speed  = Column(Float, nullable=True)
+
+    activity = relationship("Activity", back_populates="climb_detections")
 
 
 class SegmentEffort(Base):

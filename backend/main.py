@@ -9,7 +9,7 @@ from starlette.requests import Request
 from sqlalchemy import text
 from database import engine
 import models
-from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor
+from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor, climbs
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -150,6 +150,42 @@ _MIGRATIONS = [
         last_calculated DATETIME,
         calculation_json TEXT
     )""",
+    # Climb summary on Activity (Phase B)
+    "ALTER TABLE activities ADD COLUMN total_climbing_power_avg_w FLOAT",
+    "ALTER TABLE activities ADD COLUMN total_climbing_wkg_avg FLOAT",
+    "ALTER TABLE activities ADD COLUMN climb_count INTEGER DEFAULT 0",
+    # Power calibration on User (Phase B)
+    "ALTER TABLE users ADD COLUMN calibrated_crr FLOAT",
+    "ALTER TABLE users ADD COLUMN calibrated_cda FLOAT",
+    "ALTER TABLE users ADD COLUMN calibration_source VARCHAR",
+    "ALTER TABLE users ADD COLUMN bike_weight_kg FLOAT",
+    # climb_detections table (Phase B)
+    """CREATE TABLE IF NOT EXISTS climb_detections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+        start_trackpoint_idx INTEGER,
+        end_trackpoint_idx INTEGER,
+        start_distance_m FLOAT,
+        end_distance_m FLOAT,
+        distance_m FLOAT,
+        elevation_gain_m FLOAT,
+        avg_gradient_pct FLOAT,
+        max_gradient_pct FLOAT,
+        duration_seconds INTEGER,
+        avg_speed_kmh FLOAT,
+        avg_heart_rate INTEGER,
+        max_heart_rate INTEGER,
+        vam_m_per_hour FLOAT,
+        estimated_power_w FLOAT,
+        estimated_power_low_w FLOAT,
+        estimated_power_high_w FLOAT,
+        estimated_wkg FLOAT,
+        estimation_quality VARCHAR,
+        estimation_method VARCHAR DEFAULT 'physics',
+        pacing_type VARCHAR,
+        first_half_speed FLOAT,
+        second_half_speed FLOAT
+    )""",
 ]
 
 # Assign all legacy (pre-multi-user) records to user id=1
@@ -219,9 +255,10 @@ app.include_router(admin.router,      prefix="/api/admin",      tags=["admin"])
 app.include_router(payments.router,   prefix="/api/payments",   tags=["payments"])
 app.include_router(strava.router,     prefix="/api/strava",     tags=["strava"])
 app.include_router(dashboard.router,  prefix="/api/dashboard",  tags=["dashboard"])
-app.include_router(hydration.router,  prefix="/api",            tags=["hydration"])
-app.include_router(durability.router,      prefix="/api",            tags=["durability"])
-app.include_router(indoor_outdoor.router,  prefix="/api",            tags=["indoor_outdoor"])
+app.include_router(hydration.router,      prefix="/api",  tags=["hydration"])
+app.include_router(durability.router,     prefix="/api",  tags=["durability"])
+app.include_router(indoor_outdoor.router, prefix="/api",  tags=["indoor_outdoor"])
+app.include_router(climbs.router,         prefix="/api",  tags=["climbs"])
 
 
 @app.get("/health")

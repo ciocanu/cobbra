@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getActivities, getActivity, getDurabilityAnalysis, compareDurability } from '../services/api'
+import { getActivities, getActivity, getDurabilityAnalysis, compareDurability, getActivityClimbs } from '../services/api'
 import { format } from 'date-fns'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
@@ -92,6 +92,8 @@ export default function Compare() {
   const [id2, setId2] = useState('')
   const [act1, setAct1] = useState(null)
   const [act2, setAct2] = useState(null)
+  const [climbs1, setClimbs1] = useState([])
+  const [climbs2, setClimbs2] = useState([])
   const [loading, setLoading] = useState(false)
   const [dur1, setDur1] = useState(null)
   const [dur2, setDur2] = useState(null)
@@ -102,15 +104,17 @@ export default function Compare() {
   }, [])
 
   useEffect(() => {
-    if (!id1) { setAct1(null); setDur1(null); return }
+    if (!id1) { setAct1(null); setDur1(null); setClimbs1([]); return }
     getActivity(id1).then(r => setAct1(r.data)).catch(console.error)
     getDurabilityAnalysis(id1).then(r => setDur1(r.data)).catch(() => setDur1(null))
+    getActivityClimbs(id1).then(r => setClimbs1(r.data)).catch(() => setClimbs1([]))
   }, [id1])
 
   useEffect(() => {
-    if (!id2) { setAct2(null); setDur2(null); return }
+    if (!id2) { setAct2(null); setDur2(null); setClimbs2([]); return }
     getActivity(id2).then(r => setAct2(r.data)).catch(console.error)
     getDurabilityAnalysis(id2).then(r => setDur2(r.data)).catch(() => setDur2(null))
+    getActivityClimbs(id2).then(r => setClimbs2(r.data)).catch(() => setClimbs2([]))
   }, [id2])
 
   useEffect(() => {
@@ -145,6 +149,12 @@ export default function Compare() {
     ] : []),
     ...(dur1 && dur2 && dur1.fade_rate_pct_per_hour != null && dur2.fade_rate_pct_per_hour != null ? [
       { label: 'Fade Rate /h', v1: `${dur1.fade_rate_pct_per_hour.toFixed(1)}%`, v2: `${dur2.fade_rate_pct_per_hour.toFixed(1)}%`, win: dur1.fade_rate_pct_per_hour < dur2.fade_rate_pct_per_hour ? 1 : dur2.fade_rate_pct_per_hour < dur1.fade_rate_pct_per_hour ? 2 : 0 },
+    ] : []),
+    ...(act1.climb_count > 0 || act2.climb_count > 0 ? [
+      { label: 'Climbs', v1: act1.climb_count || 0, v2: act2.climb_count || 0, win: (act1.climb_count || 0) > (act2.climb_count || 0) ? 1 : (act2.climb_count || 0) > (act1.climb_count || 0) ? 2 : 0 },
+    ] : []),
+    ...(act1.total_climbing_wkg_avg != null && act2.total_climbing_wkg_avg != null ? [
+      { label: 'Climb W/kg', v1: `${act1.total_climbing_wkg_avg.toFixed(2)} W/kg`, v2: `${act2.total_climbing_wkg_avg.toFixed(2)} W/kg`, win: act1.total_climbing_wkg_avg > act2.total_climbing_wkg_avg ? 1 : act2.total_climbing_wkg_avg > act1.total_climbing_wkg_avg ? 2 : 0 },
     ] : []),
   ] : []
 
@@ -276,6 +286,55 @@ export default function Compare() {
             <div style={{ marginTop: 8, padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Durability Comparison</span>
               {compareNote}
+            </div>
+          )}
+
+          {/* Climbs comparison */}
+          {(climbs1.length > 0 || climbs2.length > 0) && (
+            <div className="chart-section">
+              <div className="chart-title">Climbs</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C1, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Activity A — {climbs1.length} climb{climbs1.length !== 1 ? 's' : ''}</div>
+                  {climbs1.map((c, i) => (
+                    <div key={c.id} style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C1}30`, background: `${C1}08` }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Climb {i + 1} — {((c.distance_m || 0) / 1000).toFixed(1)} km @ {(c.avg_gradient_pct || 0).toFixed(1)}%</div>
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {c.estimated_power_w != null && (
+                          <span style={{ fontSize: 13, fontFamily: 'var(--font-display)', color: C1 }}>{Math.round(c.estimated_power_w)}W</span>
+                        )}
+                        {c.estimated_wkg != null && (
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.estimated_wkg.toFixed(2)} W/kg</span>
+                        )}
+                        {c.vam_m_per_hour != null && (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VAM {Math.round(c.vam_m_per_hour)}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {climbs1.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No climbs detected</div>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Activity B — {climbs2.length} climb{climbs2.length !== 1 ? 's' : ''}</div>
+                  {climbs2.map((c, i) => (
+                    <div key={c.id} style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C2}30`, background: `${C2}08` }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Climb {i + 1} — {((c.distance_m || 0) / 1000).toFixed(1)} km @ {(c.avg_gradient_pct || 0).toFixed(1)}%</div>
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {c.estimated_power_w != null && (
+                          <span style={{ fontSize: 13, fontFamily: 'var(--font-display)', color: C2 }}>{Math.round(c.estimated_power_w)}W</span>
+                        )}
+                        {c.estimated_wkg != null && (
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.estimated_wkg.toFixed(2)} W/kg</span>
+                        )}
+                        {c.vam_m_per_hour != null && (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VAM {Math.round(c.vam_m_per_hour)}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {climbs2.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No climbs detected</div>}
+                </div>
+              </div>
             </div>
           )}
         </>
