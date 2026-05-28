@@ -116,6 +116,24 @@ def update_hydration_intake(
     return row
 
 
+@router.patch("/user/sweat-rate", response_model=schemas.HeatProfileOut)
+def set_sweat_rate_directly(
+    sweat_rate_ml_per_hour: int = Body(..., embed=True, ge=100, le=4000),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Set sweat rate directly (ml/h) without a formal sweat test."""
+    current_user.sweat_rate_ml_per_hour = float(sweat_rate_ml_per_hour)
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "heat_adaptation_level":   current_user.heat_adaptation_level,
+        "heat_rides_last_14d":     current_user.heat_rides_last_14d or 0,
+        "sweat_rate_ml_per_hour":  current_user.sweat_rate_ml_per_hour,
+        "has_calibrated_rate":     True,
+    }
+
+
 @router.get("/user/heat-profile", response_model=schemas.HeatProfileOut)
 def get_heat_profile(
     db: Session = Depends(get_db),

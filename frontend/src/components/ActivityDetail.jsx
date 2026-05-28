@@ -646,6 +646,8 @@ export default function ActivityDetail() {
     try {
       const res = await updateHydrationIntake(id, ml)
       setHydration(res.data)
+      // Refresh activity to pick up updated decoupling values (hydration affects the correction)
+      getActivity(id).then(r => setActivity(r.data)).catch(() => {})
       setIntakeMsg('Saved.')
       setTimeout(() => setIntakeMsg(''), 2500)
     } catch { setIntakeMsg('Failed to save intake.') }
@@ -1296,37 +1298,110 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      {/* HR Decoupling + VAM — shown when applicable regardless of power */}
-      {(hrDecoupling || vam) && (
-        <div className="chart-section">
-          <div className="chart-title">Aerobic Metrics <InfoTip text="HR Decoupling: how much your heart rate drifts up relative to pace across the ride. Below 5% = good aerobic base. Above 5% = fatigue, heat, or went too hard. VAM: your average climbing speed in m/h — 800 = solid endurance, 1500+ = pro climber." /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
-            {hrDecoupling && (
-              <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${hrDecoupling.aerobic ? '#6dffb840' : '#ff4d6d40'}`, borderRadius: 10, padding: '14px 16px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{hrDecoupling.label} Decoupling</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: hrDecoupling.aerobic ? '#6dffb8' : '#ff8c42', fontFamily: 'var(--font-display)' }}>
-                  {hrDecoupling.pct > 0 ? '+' : ''}{hrDecoupling.pct}%
+      {/* Adjusted Decoupling + VAM */}
+      {(activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
+        const adjVal   = activity.decoupling_adjusted
+        const rawVal   = activity.decoupling_raw
+        const quality  = activity.decoupling_quality
+        const warning  = activity.decoupling_warning
+        const components = (() => { try { return JSON.parse(activity.decoupling_components_json || 'null') } catch { return null } })()
+
+        const adjColor = adjVal == null ? '#aaa' : adjVal < 5 ? '#6dffb8' : adjVal < 8 ? '#ffd93d' : '#ff8c42'
+        const qualityColor = quality === 'high' ? '#6dffb8' : quality === 'medium' ? '#ffd93d' : '#aaa'
+
+        const infoText = adjVal != null
+          ? 'Adjusted Decoupling measures genuine aerobic drift by looking only at flat terrain segments and subtracting expected drift from heat and dehydration. <5% = good aerobic efficiency. The raw value is what the numbers show before corrections.'
+          : 'HR Decoupling: how much your heart rate drifts up relative to pace across the ride. Below 5% = good aerobic base. Above 5% = fatigue, heat, or went too hard. VAM: your average climbing speed in m/h — 800 = solid endurance, 1500+ = pro climber.'
+
+        return (
+          <div className="chart-section">
+            <div className="chart-title">Aerobic Metrics <InfoTip text={infoText} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+
+              {/* Adjusted decoupling card — preferred over raw */}
+              {adjVal != null ? (
+                <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${adjColor}40`, borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Adjusted Decoupling</div>
+                    {quality && (
+                      <span style={{ marginLeft: 'auto', padding: '1px 7px', borderRadius: 8, fontSize: 9, fontWeight: 700, background: `${qualityColor}18`, border: `1px solid ${qualityColor}45`, color: qualityColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        {quality}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: adjColor, fontFamily: 'var(--font-display)' }}>
+                    {adjVal > 0 ? '+' : ''}{adjVal.toFixed(1)}%
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {components?.category ?? (adjVal < 5 ? 'Good aerobic efficiency' : adjVal < 8 ? 'Moderate drift' : 'Significant drift')}
+                    {' · '}&lt;5% = well-conditioned
+                  </div>
+                  {/* Correction breakdown */}
+                  {components && (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Raw drift</span>
+                        <span style={{ fontFamily: 'var(--font-display)', color: 'var(--text-secondary)' }}>
+                          {rawVal != null ? `${rawVal > 0 ? '+' : ''}${rawVal.toFixed(1)}%` : '—'}
+                        </span>
+                      </div>
+                      {components.expected_heat_drift_pct > 0 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>− Heat drift</span>
+                          <span style={{ fontFamily: 'var(--font-display)', color: '#ff8c42' }}>
+                            {components.expected_heat_drift_pct.toFixed(1)}%
+                          </span>
+                        </div>
+                      )}
+                      {components.expected_hydration_drift_pct > 0 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>− Hydration drift</span>
+                          <span style={{ fontFamily: 'var(--font-display)', color: '#4da6ff' }}>
+                            {components.expected_hydration_drift_pct.toFixed(1)}%
+                          </span>
+                        </div>
+                      )}
+                      {components.flat_minutes_analyzed != null && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                          {components.flat_minutes_analyzed} min flat terrain analyzed
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {warning && (
+                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 6, background: '#ffd93d12', border: '1px solid #ffd93d30', fontSize: 10, color: '#ffd93d', lineHeight: 1.4 }}>
+                      ⚠ {warning}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  {hrDecoupling.aerobic ? 'Good aerobic efficiency' : 'Aerobic drift — fatigue or underfuelled'}
-                  {' · '}&lt;5% = well-conditioned
+              ) : hrDecoupling ? (
+                <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${hrDecoupling.aerobic ? '#6dffb840' : '#ff4d6d40'}`, borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{hrDecoupling.label} Decoupling</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: hrDecoupling.aerobic ? '#6dffb8' : '#ff8c42', fontFamily: 'var(--font-display)' }}>
+                    {hrDecoupling.pct > 0 ? '+' : ''}{hrDecoupling.pct}%
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {hrDecoupling.aerobic ? 'Good aerobic efficiency' : 'Aerobic drift — fatigue or underfuelled'}
+                    {' · '}&lt;5% = well-conditioned
+                  </div>
                 </div>
-              </div>
-            )}
-            {vam && (
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>VAM</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--elevation)', fontFamily: 'var(--font-display)' }}>
-                  {vam.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)' }}>m/h</span>
+              ) : null}
+
+              {vam && (
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>VAM</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--elevation)', fontFamily: 'var(--font-display)' }}>
+                    {vam.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)' }}>m/h</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Climbing rate on ascending segments · 800 endurance · 1500+ pro climber
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Climbing rate on ascending segments · 800 endurance · 1500+ pro climber
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* HR Zones */}
       {hrZones && (

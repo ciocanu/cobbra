@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor } from '../services/api'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor } from '../services/api'
 import { markLoggedOut } from '../services/auth'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
@@ -149,15 +149,19 @@ export default function Settings() {
   const [deleteError,      setDeleteError]      = useState('')
 
   // Heat & Hydration
-  const [heatProfile,      setHeatProfile]      = useState(null)
-  const [sweatTestOpen,    setSweatTestOpen]    = useState(false)
-  const [sweatBefore,      setSweatBefore]      = useState('')
-  const [sweatAfter,       setSweatAfter]       = useState('')
-  const [sweatIntake,      setSweatIntake]      = useState('')
-  const [sweatDuration,    setSweatDuration]    = useState('')
-  const [sweatSaving,      setSweatSaving]      = useState(false)
-  const [sweatMsg,         setSweatMsg]         = useState('')
-  const [sweatMsgType,     setSweatMsgType]     = useState('')
+  const [heatProfile,         setHeatProfile]         = useState(null)
+  const [sweatTestOpen,       setSweatTestOpen]       = useState(false)
+  const [sweatBefore,         setSweatBefore]         = useState('')
+  const [sweatAfter,          setSweatAfter]          = useState('')
+  const [sweatIntake,         setSweatIntake]         = useState('')
+  const [sweatDuration,       setSweatDuration]       = useState('')
+  const [sweatSaving,         setSweatSaving]         = useState(false)
+  const [sweatMsg,            setSweatMsg]            = useState('')
+  const [sweatMsgType,        setSweatMsgType]        = useState('')
+  const [directSweatRate,     setDirectSweatRate]     = useState('')
+  const [directSweatSaving,   setDirectSweatSaving]   = useState(false)
+  const [directSweatMsg,      setDirectSweatMsg]      = useState('')
+  const [directSweatMsgType,  setDirectSweatMsgType]  = useState('')
 
   // Indoor / Outdoor profile
   const [indoorProfile,      setIndoorProfile]      = useState(null)
@@ -234,6 +238,27 @@ export default function Settings() {
       setSweatMsgType('error')
     } finally { setSweatSaving(false) }
   }
+
+  const handleDirectSweatRate = async () => {
+    const ml_h = parseInt(directSweatRate, 10)
+    if (isNaN(ml_h) || ml_h < 100 || ml_h > 4000) {
+      setDirectSweatMsg('Enter a value between 100 and 4000 ml/h.')
+      setDirectSweatMsgType('error')
+      return
+    }
+    setDirectSweatSaving(true); setDirectSweatMsg('')
+    try {
+      const res = await setSweatRateDirect(ml_h)
+      setHeatProfile(res.data)
+      setDirectSweatMsg(`Saved: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h.`)
+      setDirectSweatMsgType('success')
+      setDirectSweatRate('')
+    } catch (e) {
+      setDirectSweatMsg(e.response?.data?.detail || 'Failed to save.')
+      setDirectSweatMsgType('error')
+    } finally { setDirectSweatSaving(false) }
+  }
+
 
   const handleRecalculateIndoor = async () => {
     setRecalculating(true); setIndoorMsg('')
@@ -990,6 +1015,32 @@ export default function Settings() {
             {sweatSaving ? 'Calculating…' : 'Calculate & Save'}
           </button>
         </CollapsibleRow>
+
+        {/* Direct sweat rate entry */}
+        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Already know your sweat rate?
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+            Enter it directly (e.g. from a lab test or a previous calibration). Typical range: 500–2000 ml/h.
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="number" min={100} max={4000} step={50}
+              value={directSweatRate}
+              onChange={e => { setDirectSweatRate(e.target.value); setDirectSweatMsg('') }}
+              placeholder="e.g. 900"
+              style={{ width: 100, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ml/h</span>
+            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleDirectSweatRate} disabled={directSweatSaving}>
+              {directSweatSaving ? 'Saving…' : 'Set Rate'}
+            </button>
+            {directSweatMsg && (
+              <span style={{ fontSize: 12, color: directSweatMsgType === 'error' ? '#ff8c42' : '#6dffb8' }}>{directSweatMsg}</span>
+            )}
+          </div>
+        </div>
       </Card>
 
       {/* ── Indoor / Outdoor Profile ─────────────────────────────────── */}
