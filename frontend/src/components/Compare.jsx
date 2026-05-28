@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { getActivities, getActivity } from '../services/api'
+import { getActivities, getActivity, getDurabilityAnalysis, compareDurability } from '../services/api'
 import { format } from 'date-fns'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
-import { GitCompare } from 'lucide-react'
+import { GitCompare, Home, Trees } from 'lucide-react'
 import { colors } from '../tokens'
 
 function fmtDuration(s) {
@@ -62,6 +62,30 @@ const CompareTooltip = ({ active, payload, label }) => {
 const C1 = colors.accent  // activity 1 — venom
 const C2 = '#4da6ff'  // activity 2 — blue
 
+const PLATFORM_LABELS = {
+  zwift: 'Zwift', trainerroad: 'TrainerRoad', wahoo: 'Wahoo SYSTM',
+  mywhoosh: 'MyWhoosh', rolo: 'Trainer', other: 'Indoor',
+}
+
+function envLabel(act) {
+  if (!act?.ride_environment || act.ride_environment === 'unknown') return null
+  if (act.ride_environment === 'indoor') return PLATFORM_LABELS[act.indoor_platform] || 'Indoor'
+  return 'Outdoor'
+}
+
+function EnvTag({ act, color }) {
+  const label = envLabel(act)
+  if (!label) return null
+  const isIndoor = act.ride_environment === 'indoor'
+  const c = isIndoor ? '#a78bfa' : '#6dffb8'
+  const Icon = isIndoor ? Home : Trees
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: c, background: `${c}18`, border: `1px solid ${c}40`, borderRadius: 5, padding: '2px 6px', marginLeft: 6 }}>
+      <Icon size={9} /> {label}
+    </span>
+  )
+}
+
 export default function Compare() {
   const [activities, setActivities] = useState([])
   const [id1, setId1] = useState('')
@@ -69,20 +93,32 @@ export default function Compare() {
   const [act1, setAct1] = useState(null)
   const [act2, setAct2] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [dur1, setDur1] = useState(null)
+  const [dur2, setDur2] = useState(null)
+  const [compareNote, setCompareNote] = useState('')
 
   useEffect(() => {
     getActivities({ limit: 200 }).then(r => setActivities(r.data)).catch(console.error)
   }, [])
 
   useEffect(() => {
-    if (!id1) { setAct1(null); return }
+    if (!id1) { setAct1(null); setDur1(null); return }
     getActivity(id1).then(r => setAct1(r.data)).catch(console.error)
+    getDurabilityAnalysis(id1).then(r => setDur1(r.data)).catch(() => setDur1(null))
   }, [id1])
 
   useEffect(() => {
-    if (!id2) { setAct2(null); return }
+    if (!id2) { setAct2(null); setDur2(null); return }
     getActivity(id2).then(r => setAct2(r.data)).catch(console.error)
+    getDurabilityAnalysis(id2).then(r => setDur2(r.data)).catch(() => setDur2(null))
   }, [id2])
+
+  useEffect(() => {
+    if (!id1 || !id2) { setCompareNote(''); return }
+    compareDurability([Number(id1), Number(id2)])
+      .then(r => setCompareNote(r.data.comparison_note))
+      .catch(() => setCompareNote(''))
+  }, [id1, id2])
 
   const chartData = act1 && act2 ? merge(resample(act1.track_points), resample(act2.track_points)) : []
   const hasHR  = chartData.some(d => d.hr1 != null || d.hr2 != null)
@@ -103,6 +139,12 @@ export default function Compare() {
     { label: 'Elevation ↑', v1: `${act1.elevation_gain_m.toFixed(0)} m`,      v2: `${act2.elevation_gain_m.toFixed(0)} m`,      win: act1.elevation_gain_m > act2.elevation_gain_m ? 1 : act2.elevation_gain_m > act1.elevation_gain_m ? 2 : 0 },
     ...(act1.suffer_score != null && act2.suffer_score != null ? [
       { label: 'Suffer Score', v1: act1.suffer_score, v2: act2.suffer_score, win: act1.suffer_score > act2.suffer_score ? 1 : act2.suffer_score > act1.suffer_score ? 2 : 0 },
+    ] : []),
+    ...(dur1 && dur2 && dur1.durability_index != null && dur2.durability_index != null ? [
+      { label: 'Durability Index', v1: `${dur1.durability_index.toFixed(1)}`, v2: `${dur2.durability_index.toFixed(1)}`, win: dur1.durability_index > dur2.durability_index ? 1 : dur2.durability_index > dur1.durability_index ? 2 : 0 },
+    ] : []),
+    ...(dur1 && dur2 && dur1.fade_rate_pct_per_hour != null && dur2.fade_rate_pct_per_hour != null ? [
+      { label: 'Fade Rate /h', v1: `${dur1.fade_rate_pct_per_hour.toFixed(1)}%`, v2: `${dur2.fade_rate_pct_per_hour.toFixed(1)}%`, win: dur1.fade_rate_pct_per_hour < dur2.fade_rate_pct_per_hour ? 1 : dur2.fade_rate_pct_per_hour < dur1.fade_rate_pct_per_hour ? 2 : 0 },
     ] : []),
   ] : []
 
@@ -156,9 +198,19 @@ export default function Compare() {
             <table className="compare-table">
               <thead>
                 <tr>
-                  <th style={{ color: C1, textAlign: 'left' }}>{act1.name}<br /><span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act1.date), 'dd MMM yyyy')}</span></th>
+                  <th style={{ color: C1, textAlign: 'left' }}>
+                    {act1.name}
+                    <EnvTag act={act1} color={C1} />
+                    <br />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act1.date), 'dd MMM yyyy')}</span>
+                  </th>
                   <th style={{ textAlign: 'center', color: 'var(--text-muted)' }}></th>
-                  <th style={{ color: C2, textAlign: 'right' }}>{act2.name}<br /><span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act2.date), 'dd MMM yyyy')}</span></th>
+                  <th style={{ color: C2, textAlign: 'right' }}>
+                    {act2.name}
+                    <EnvTag act={act2} color={C2} />
+                    <br />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act2.date), 'dd MMM yyyy')}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -201,6 +253,30 @@ export default function Compare() {
                 </div>
               ))}
             </>
+          )}
+
+          {/* Mixed indoor/outdoor warning */}
+          {act1.ride_environment && act2.ride_environment
+            && act1.ride_environment !== 'unknown' && act2.ride_environment !== 'unknown'
+            && act1.ride_environment !== act2.ride_environment && (
+            <div style={{ marginTop: 8, padding: '12px 16px', background: '#a78bfa0a', border: '1px solid #a78bfa28', borderRadius: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, display: 'flex', gap: 8 }}>
+              <Home size={14} style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }} />
+              <span>
+                You are comparing an <strong style={{ color: '#a78bfa' }}>indoor</strong> and an <strong style={{ color: '#6dffb8' }}>outdoor</strong> ride.
+                Power and TSS values are not directly comparable — indoor rides typically produce 5–15% less power at the same perceived effort.
+                {(act1.corrected_tss != null || act2.corrected_tss != null) && (
+                  <> Corrected TSS (if available) accounts for this gap.</>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Durability comparison note */}
+          {compareNote && (
+            <div style={{ marginTop: 8, padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Durability Comparison</span>
+              {compareNote}
+            </div>
           )}
         </>
       )}

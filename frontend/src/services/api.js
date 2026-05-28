@@ -91,6 +91,25 @@ export const stravaStatus     = ()     => api.get('/strava/status')
 export const stravaDisconnect = ()     => api.post('/strava/disconnect')
 export const stravaSync       = ()     => api.post('/strava/sync', {}, { timeout: 60000 })
 
+// Durability
+export const getDurabilityAnalysis  = (id)           => api.get(`/activities/${id}/durability`)
+export const getDurabilityTrend     = (weeks = 12)   => api.get('/stats/durability-trend', { params: { weeks } })
+export const compareDurability      = (activity_ids) => api.post('/stats/durability-compare', { activity_ids })
+
+// Indoor / Outdoor
+export const getIndoorOutdoorProfile      = ()     => api.get('/user/indoor-outdoor-profile')
+export const recalculateIndoorOutdoor     = ()     => api.post('/user/indoor-outdoor-profile/recalculate')
+export const calibrateIndoorOutdoor       = (data) => api.post('/user/indoor-outdoor-calibrate', data)
+export const overrideEnvironment          = (id, data) => api.patch(`/activities/${id}/environment`, data)
+export const getTrainingLoadComparison    = (days = 90) => api.get('/stats/training-load-comparison', { params: { days } })
+
+// Hydration
+export const getHydrationAnalysis  = (id)        => api.get(`/activities/${id}/hydration`)
+export const updateHydrationIntake = (id, intake_ml) => api.patch(`/activities/${id}/hydration`, { intake_ml })
+export const getHeatProfile        = ()           => api.get('/user/heat-profile')
+export const recordSweatTest       = (data)       => api.post('/user/sweat-test', data)
+export const setSweatRateDirect    = (ml_h)       => api.patch('/user/sweat-rate', { sweat_rate_ml_per_hour: ml_h })
+
 // Dashboard AI insights
 export const getDashboardRideInsight    = (data) => api.post('/dashboard/ride-insight', data)
 export const getDashboardFitnessInsight = (data) => api.post('/dashboard/fitness-insight', data)

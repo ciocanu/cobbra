@@ -35,6 +35,10 @@ class User(Base):
     strava_refresh_token    = Column(String, nullable=True)
     strava_token_expires_at = Column(DateTime, nullable=True)
     strava_last_sync_at     = Column(DateTime, nullable=True)
+    # Hydration & heat
+    sweat_rate_ml_per_hour  = Column(Float, nullable=True)    # calibrated via sweat test
+    heat_adaptation_level   = Column(String, nullable=True)   # "low" | "moderate" | "high"
+    heat_rides_last_14d     = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -82,10 +86,32 @@ class Activity(Base):
     weather_desc = Column(String, nullable=True)
     ai_analysis = Column(Text, nullable=True)
     file_type = Column(String, default="gpx")
+    # Hydration input (entered by user post-ride)
+    hydration_ml = Column(Integer, nullable=True)
+    # Open-Meteo extras fetched at upload
+    weather_humidity_pct = Column(Float, nullable=True)
+    # Durability profiling
+    durability_index = Column(Float, nullable=True)
+    # Indoor/outdoor classification
+    ride_environment        = Column(String, nullable=True)  # "indoor" | "outdoor" | "unknown"
+    ride_environment_source = Column(String, nullable=True)  # "auto_detected" | "user_override" | "strava"
+    indoor_platform         = Column(String, nullable=True)  # "zwift" | "trainerroad" | "wahoo" | "mywhoosh" | "rolo" | "other"
+    power_correction_factor = Column(Float, nullable=True)   # e.g. 1.08 = indoor power adjusted +8%
+    hr_correction_factor    = Column(Float, nullable=True)   # e.g. 0.95 = indoor HR adjusted -5%
+    corrected_tss           = Column(Float, nullable=True)   # TSS after indoor/outdoor correction
+    # Adjusted decoupling (Phase A)
+    decoupling_raw              = Column(Float, nullable=True)   # Coggan-style raw Pw:HR or Pa:HR drift
+    decoupling_adjusted         = Column(Float, nullable=True)   # terrain+heat+hydration-corrected drift
+    decoupling_components_json  = Column(Text, nullable=True)    # breakdown JSON
+    decoupling_quality          = Column(String, nullable=True)  # "high" | "medium" | "low"
+    decoupling_warning          = Column(String, nullable=True)  # null or human-readable caveat
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
     laps = relationship("Lap", back_populates="activity", cascade="all, delete-orphan")
+    hydration_analysis = relationship("HydrationAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
+    durability_analysis = relationship("DurabilityAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
+    # indoor_outdoor relationship is accessed via IndoorOutdoorProfile.user_id, not per-activity
 
 
 class TrackPoint(Base):
@@ -174,6 +200,82 @@ class TrainingPlan(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class HydrationAnalysis(Base):
+    __tablename__ = "hydration_analyses"
+
+    id          = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    # Conditions
+    avg_temperature_c  = Column(Float)
+    max_temperature_c  = Column(Float, nullable=True)
+    humidity_pct       = Column(Float, nullable=True)
+    wind_speed_kmh     = Column(Float, nullable=True)
+
+    # Sweat loss estimates
+    estimated_sweat_rate_ml_h = Column(Float)
+    estimated_total_sweat_ml  = Column(Float)
+
+    # User intake (mirrors activity.hydration_ml, kept here for query convenience)
+    reported_intake_ml = Column(Integer, nullable=True)
+
+    # Deficit
+    deficit_ml        = Column(Float, nullable=True)
+    deficit_body_pct  = Column(Float, nullable=True)
+
+    # HR impact
+    estimated_hr_drift_heat_bpm         = Column(Float)
+    estimated_hr_drift_dehydration_bpm  = Column(Float, nullable=True)
+    estimated_performance_loss_pct      = Column(Float, nullable=True)
+
+    # Classification
+    risk_level        = Column(String)           # "low" | "moderate" | "high" | "critical"
+    analysis_quality  = Column(String)           # "high" | "medium" | "low"
+
+    # Recommendations JSON
+    recommendations_json = Column(Text, nullable=True)
+
+    activity = relationship("Activity", back_populates="hydration_analysis")
+
+
+class DurabilityAnalysis(Base):
+    __tablename__ = "durability_analyses"
+
+    id          = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    # Method used for the calculation
+    method   = Column(String, nullable=False)   # "power" | "hr_speed" | "climbing_power"
+
+    # Main metric
+    durability_index    = Column(Float, nullable=True)   # 0-100
+    durability_category = Column(String, nullable=True)  # "excellent"|"good"|"moderate"|"poor"|"very_poor"
+
+    # Per-quarter output values
+    q1_output   = Column(Float, nullable=True)
+    q2_output   = Column(Float, nullable=True)
+    q3_output   = Column(Float, nullable=True)
+    q4_output   = Column(Float, nullable=True)
+    output_unit = Column(String, nullable=True)  # "watts" | "speed_hr_ratio" | "vam"
+
+    # Fade
+    fade_rate_pct_per_hour = Column(Float, nullable=True)
+
+    # Context
+    total_work_kj      = Column(Float, nullable=True)
+    tsb_at_start       = Column(Float, nullable=True)
+    temperature_avg_c  = Column(Float, nullable=True)
+
+    # Full JSON breakdown
+    analysis_json = Column(Text, nullable=True)
+
+    # Confidence
+    quality        = Column(String, nullable=True)   # "high" | "medium" | "low"
+    quality_reason = Column(String, nullable=True)
+
+    activity = relationship("Activity", back_populates="durability_analysis")
+
+
 class SegmentEffort(Base):
     __tablename__ = "segment_efforts"
 
@@ -186,3 +288,34 @@ class SegmentEffort(Base):
     set_at = Column(DateTime, nullable=False)
 
     segment = relationship("Segment", back_populates="efforts")
+
+
+class IndoorOutdoorProfile(Base):
+    __tablename__ = "indoor_outdoor_profiles"
+
+    id      = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    # Calculated gap
+    power_gap_pct        = Column(Float, nullable=True)   # e.g. -10.0 = indoor 10% below outdoor
+    hr_gap_bpm           = Column(Float, nullable=True)   # e.g. +7.0 = indoor 7 bpm higher
+    power_gap_confidence = Column(String, nullable=True)  # "high" | "medium" | "low" | "insufficient_data"
+
+    # Z3 reference values used for calculation
+    indoor_avg_wkg_z3  = Column(Float, nullable=True)
+    outdoor_avg_wkg_z3 = Column(Float, nullable=True)
+    indoor_avg_hr_z3   = Column(Float, nullable=True)
+    outdoor_avg_hr_z3  = Column(Float, nullable=True)
+
+    # Ride counts used
+    indoor_rides_analyzed  = Column(Integer, default=0)
+    outdoor_rides_analyzed = Column(Integer, default=0)
+
+    # Manual calibration override
+    manual_power_gap_pct = Column(Float, nullable=True)
+    calibration_date     = Column(DateTime, nullable=True)
+    calibration_method   = Column(String, nullable=True)  # "same_route_test" | "ftp_comparison" | "manual"
+
+    # Metadata
+    last_calculated  = Column(DateTime, nullable=True)
+    calculation_json = Column(Text, nullable=True)

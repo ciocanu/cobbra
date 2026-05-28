@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount } from '../services/api'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor } from '../services/api'
 import { markLoggedOut } from '../services/auth'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
   User, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Mail, Send, Bike,
-  RefreshCw, Link2, Link2Off, Download, Trash2, AlertTriangle,
+  RefreshCw, Link2, Link2Off, Download, Trash2, AlertTriangle, Droplets, Thermometer, Home,
 } from 'lucide-react'
 import Alert from './Alert'
 
@@ -148,6 +148,32 @@ export default function Settings() {
   const [deleting,         setDeleting]         = useState(false)
   const [deleteError,      setDeleteError]      = useState('')
 
+  // Heat & Hydration
+  const [heatProfile,         setHeatProfile]         = useState(null)
+  const [sweatTestOpen,       setSweatTestOpen]       = useState(false)
+  const [sweatBefore,         setSweatBefore]         = useState('')
+  const [sweatAfter,          setSweatAfter]          = useState('')
+  const [sweatIntake,         setSweatIntake]         = useState('')
+  const [sweatDuration,       setSweatDuration]       = useState('')
+  const [sweatSaving,         setSweatSaving]         = useState(false)
+  const [sweatMsg,            setSweatMsg]            = useState('')
+  const [sweatMsgType,        setSweatMsgType]        = useState('')
+  const [directSweatRate,     setDirectSweatRate]     = useState('')
+  const [directSweatSaving,   setDirectSweatSaving]   = useState(false)
+  const [directSweatMsg,      setDirectSweatMsg]      = useState('')
+  const [directSweatMsgType,  setDirectSweatMsgType]  = useState('')
+
+  // Indoor / Outdoor profile
+  const [indoorProfile,      setIndoorProfile]      = useState(null)
+  const [recalculating,      setRecalculating]      = useState(false)
+  const [indoorMsg,          setIndoorMsg]          = useState('')
+  const [indoorMsgType,      setIndoorMsgType]      = useState('')
+  const [ftpCalibOpen,       setFtpCalibOpen]       = useState(false)
+  const [indoorFtp,          setIndoorFtp]          = useState('')
+  const [outdoorFtp,         setOutdoorFtp]         = useState('')
+  const [ftpCalibSaving,     setFtpCalibSaving]     = useState(false)
+  const [ftpCalibResult,     setFtpCalibResult]     = useState(null)
+
   // Strava
   const [stravaConnected,  setStravaConnected]  = useState(false)
   const [stravaAthleteId,  setStravaAthleteId]  = useState(null)
@@ -158,6 +184,8 @@ export default function Settings() {
   const [stravaMsgType,    setStravaMsgType]    = useState('')
 
   useEffect(() => {
+    getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})
+    getIndoorOutdoorProfile().then(r => setIndoorProfile(r.data)).catch(() => {})
     Promise.all([getSettings(), getMe(), stravaStatus().catch(() => ({ data: { connected: false } }))])
       .then(([s, u, sv]) => {
         setMaxHr(s.data.max_hr ?? '')
@@ -189,6 +217,80 @@ export default function Settings() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  const handleSweatTest = async () => {
+    setSweatMsg('')
+    const before = parseFloat(sweatBefore), after = parseFloat(sweatAfter)
+    const intake = parseInt(sweatIntake, 10), dur = parseFloat(sweatDuration)
+    if (isNaN(before) || before <= 0) { setSweatMsg('Enter a valid pre-ride weight.'); setSweatMsgType('error'); return }
+    if (isNaN(after)  || after  <= 0) { setSweatMsg('Enter a valid post-ride weight.'); setSweatMsgType('error'); return }
+    if (isNaN(intake) || intake < 0)  { setSweatMsg('Enter fluid intake (0 if none).'); setSweatMsgType('error'); return }
+    if (isNaN(dur)    || dur   <= 0)  { setSweatMsg('Enter a valid duration in hours.'); setSweatMsgType('error'); return }
+    setSweatSaving(true)
+    try {
+      const res = await recordSweatTest({ weight_before_kg: before, weight_after_kg: after, intake_ml_during: intake, duration_h: dur })
+      setHeatProfile(res.data)
+      setSweatMsg(`Calibrated: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h saved.`)
+      setSweatMsgType('success')
+      setSweatBefore(''); setSweatAfter(''); setSweatIntake(''); setSweatDuration('')
+    } catch (e) {
+      setSweatMsg(e.response?.data?.detail || 'Calculation failed — check your inputs.')
+      setSweatMsgType('error')
+    } finally { setSweatSaving(false) }
+  }
+
+  const handleDirectSweatRate = async () => {
+    const ml_h = parseInt(directSweatRate, 10)
+    if (isNaN(ml_h) || ml_h < 100 || ml_h > 4000) {
+      setDirectSweatMsg('Enter a value between 100 and 4000 ml/h.')
+      setDirectSweatMsgType('error')
+      return
+    }
+    setDirectSweatSaving(true); setDirectSweatMsg('')
+    try {
+      const res = await setSweatRateDirect(ml_h)
+      setHeatProfile(res.data)
+      setDirectSweatMsg(`Saved: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h.`)
+      setDirectSweatMsgType('success')
+      setDirectSweatRate('')
+    } catch (e) {
+      setDirectSweatMsg(e.response?.data?.detail || 'Failed to save.')
+      setDirectSweatMsgType('error')
+    } finally { setDirectSweatSaving(false) }
+  }
+
+
+  const handleRecalculateIndoor = async () => {
+    setRecalculating(true); setIndoorMsg('')
+    try {
+      const res = await recalculateIndoorOutdoor()
+      setIndoorProfile(res.data)
+      setIndoorMsg('Profile recalculated.')
+      setIndoorMsgType('success')
+    } catch (e) {
+      setIndoorMsg(e.response?.data?.detail || 'Recalculation failed.')
+      setIndoorMsgType('error')
+    } finally { setRecalculating(false) }
+  }
+
+  const handleFtpCalib = async () => {
+    setIndoorMsg('')
+    const iF = parseFloat(indoorFtp), oF = parseFloat(outdoorFtp)
+    if (isNaN(iF) || iF <= 0) { setIndoorMsg('Enter a valid indoor FTP.'); setIndoorMsgType('error'); return }
+    if (isNaN(oF) || oF <= 0) { setIndoorMsg('Enter a valid outdoor FTP.'); setIndoorMsgType('error'); return }
+    setFtpCalibSaving(true)
+    try {
+      const res = await calibrateIndoorOutdoor({ method: 'ftp_comparison', indoor_ftp: iF, outdoor_ftp: oF })
+      setFtpCalibResult(res.data)
+      const freshProfile = await getIndoorOutdoorProfile()
+      setIndoorProfile(freshProfile.data)
+      setIndoorMsg('Calibration saved.')
+      setIndoorMsgType('success')
+    } catch (e) {
+      setIndoorMsg(e.response?.data?.detail || 'Calibration failed.')
+      setIndoorMsgType('error')
+    } finally { setFtpCalibSaving(false) }
+  }
 
   const handleSaveHr = async () => {
     const val = parseInt(maxHr, 10)
@@ -844,6 +946,226 @@ export default function Settings() {
             </div>
           )}
         </div>
+      </Card>
+
+      {/* ── Heat & Hydration ──────────────────────────────────────── */}
+      <Card style={{ marginBottom: 24 }}>
+        <CardTitle icon={Droplets} color="#4da6ff">Heat &amp; Hydration</CardTitle>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+          Your personal sweat rate calibrates hydration targets. Run a sweat test by weighing yourself before and after a 1-hour effort.
+        </p>
+
+        {/* Current status */}
+        {heatProfile && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Sweat Rate</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#4da6ff', fontFamily: 'var(--font-display)' }}>
+                {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : 'Not set'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                {heatProfile.has_calibrated_rate ? 'From sweat test' : 'Run a sweat test below'}
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Heat Adaptation</div>
+              <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-display)', color: heatProfile.heat_adaptation_level === 'high' ? '#6dffb8' : heatProfile.heat_adaptation_level === 'moderate' ? '#ffd93d' : '#aaa' }}>
+                {heatProfile.heat_adaptation_level
+                  ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1)
+                  : 'Low'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{heatProfile.heat_rides_last_14d} hot rides (≥27°C) in 14 days</div>
+            </div>
+          </div>
+        )}
+
+        {/* Sweat Test form */}
+        <CollapsibleRow
+          icon={Thermometer} label="Run a Sweat Test"
+          open={sweatTestOpen}
+          onToggle={() => { setSweatTestOpen(o => !o); setSweatMsg('') }}
+        >
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+            Ride at a steady effort for exactly 1 hour with no fluid intake — or log any intake below. Weigh yourself (dry, no kit) immediately before and after.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { id: 'sweat-before', label: 'Weight before', unit: 'kg', val: sweatBefore, set: setSweatBefore, placeholder: '72.4', step: '0.1' },
+              { id: 'sweat-after',  label: 'Weight after',  unit: 'kg', val: sweatAfter,  set: setSweatAfter,  placeholder: '71.1', step: '0.1' },
+              { id: 'sweat-intake', label: 'Fluid intake',  unit: 'ml', val: sweatIntake, set: setSweatIntake, placeholder: '500',  step: '50' },
+              { id: 'sweat-dur',    label: 'Duration',      unit: 'h',  val: sweatDuration, set: setSweatDuration, placeholder: '1.0', step: '0.25' },
+            ].map(({ id, label, unit, val, set, placeholder, step }) => (
+              <div key={id}>
+                <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input id={id} type="number" className="filter-input" style={{ flex: 1 }}
+                    value={val} onChange={e => { set(e.target.value); setSweatMsg('') }}
+                    placeholder={placeholder} step={step} min="0"
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {sweatMsg && (
+            <Alert variant={sweatMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 10, fontSize: 12 }}>{sweatMsg}</Alert>
+          )}
+          <button className="btn btn-primary" onClick={handleSweatTest} disabled={sweatSaving}>
+            <Droplets size={12} />
+            {sweatSaving ? 'Calculating…' : 'Calculate & Save'}
+          </button>
+        </CollapsibleRow>
+
+        {/* Direct sweat rate entry */}
+        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Already know your sweat rate?
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+            Enter it directly (e.g. from a lab test or a previous calibration). Typical range: 500–2000 ml/h.
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="number" min={100} max={4000} step={50}
+              value={directSweatRate}
+              onChange={e => { setDirectSweatRate(e.target.value); setDirectSweatMsg('') }}
+              placeholder="e.g. 900"
+              style={{ width: 100, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ml/h</span>
+            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleDirectSweatRate} disabled={directSweatSaving}>
+              {directSweatSaving ? 'Saving…' : 'Set Rate'}
+            </button>
+            {directSweatMsg && (
+              <span style={{ fontSize: 12, color: directSweatMsgType === 'error' ? '#ff8c42' : '#6dffb8' }}>{directSweatMsg}</span>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Indoor / Outdoor Profile ─────────────────────────────────── */}
+      <Card style={{ marginBottom: 24 }}>
+        <CardTitle icon={Home} color="#a78bfa">Indoor / Outdoor Profile</CardTitle>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+          Cobbra automatically detects whether each ride was indoor or outdoor and calculates your personal power gap —
+          the difference in sustainable power between environments. This corrects your TSS and CTL/ATL/TSB for more accurate fitness tracking.
+        </p>
+
+        {indoorProfile && (
+          <>
+            {/* Gap metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+              {[
+                {
+                  label: 'Power Gap',
+                  value: indoorProfile.effective_power_gap_pct != null
+                    ? `${indoorProfile.effective_power_gap_pct.toFixed(1)}%`
+                    : '—',
+                  color: '#a78bfa',
+                  hint: indoorProfile.manual_power_gap_pct != null ? 'manually calibrated' : 'auto-calculated',
+                },
+                {
+                  label: 'Confidence',
+                  value: indoorProfile.power_gap_confidence
+                    ? indoorProfile.power_gap_confidence.replace('_', ' ')
+                    : '—',
+                  color: indoorProfile.power_gap_confidence === 'high' ? '#6dffb8'
+                    : indoorProfile.power_gap_confidence === 'medium' ? '#ffd93d'
+                    : indoorProfile.power_gap_confidence === 'low' ? '#ff8c42'
+                    : '#aaa',
+                  hint: '',
+                },
+                {
+                  label: 'Indoor rides',
+                  value: indoorProfile.indoor_rides_analyzed,
+                  color: '#a78bfa',
+                  hint: 'analysed',
+                },
+                {
+                  label: 'Outdoor rides',
+                  value: indoorProfile.outdoor_rides_analyzed,
+                  color: '#6dffb8',
+                  hint: 'analysed',
+                },
+              ].map(({ label, value, color, hint }) => (
+                <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{value}</div>
+                  {hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{hint}</div>}
+                </div>
+              ))}
+            </div>
+
+            {indoorProfile.last_calculated && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
+                Last calculated: {new Date(indoorProfile.last_calculated).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
+
+            {(indoorProfile.indoor_rides_analyzed < 3 || indoorProfile.outdoor_rides_analyzed < 3) && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#a78bfa10', border: '1px solid #a78bfa28', fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                <Home size={13} style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }} />
+                Need at least 3 indoor and 3 outdoor rides with power data (at Z3 intensity) for automatic gap calculation.
+                Use the FTP calibration below as a shortcut.
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: indoorMsg ? 12 : 0 }}>
+          <button className="btn btn-ghost" onClick={handleRecalculateIndoor} disabled={recalculating} style={{ fontSize: 13 }}>
+            <RefreshCw size={13} style={recalculating ? { animation: 'spin 1s linear infinite' } : {}} />
+            {recalculating ? 'Recalculating…' : 'Recalculate Gap'}
+          </button>
+        </div>
+
+        {indoorMsg && (
+          <Alert variant={indoorMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 12, fontSize: 12 }}>{indoorMsg}</Alert>
+        )}
+
+        {/* FTP Calibration */}
+        <CollapsibleRow
+          icon={Zap} label="Calibrate via FTP Comparison"
+          open={ftpCalibOpen}
+          onToggle={() => { setFtpCalibOpen(o => !o); setFtpCalibResult(null); setIndoorMsg('') }}
+        >
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+            If you know your indoor and outdoor FTP values (e.g. from separate 20-min tests), enter them to manually calibrate your power gap.
+            The calibrated gap overrides the auto-calculated one.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            {[
+              { id: 'indoor-ftp',  label: 'Indoor FTP',  val: indoorFtp,  set: setIndoorFtp,  placeholder: '200' },
+              { id: 'outdoor-ftp', label: 'Outdoor FTP', val: outdoorFtp, set: setOutdoorFtp, placeholder: '230' },
+            ].map(({ id, label, val, set, placeholder }) => (
+              <div key={id}>
+                <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input id={id} type="number" className="filter-input" style={{ flex: 1 }}
+                    value={val} onChange={e => { set(e.target.value); setIndoorMsg('') }}
+                    placeholder={placeholder} min={50} max={600}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {ftpCalibResult && (
+            <div style={{ padding: '12px 14px', borderRadius: 8, background: '#a78bfa10', border: '1px solid #a78bfa28', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginBottom: 4 }}>
+                Gap: {ftpCalibResult.power_gap_pct?.toFixed(1)}%
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{ftpCalibResult.interpretation}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{ftpCalibResult.recommendation}</div>
+            </div>
+          )}
+
+          <button className="btn btn-primary" onClick={handleFtpCalib} disabled={ftpCalibSaving}>
+            <Zap size={12} />
+            {ftpCalibSaving ? 'Calibrating…' : 'Calibrate & Save'}
+          </button>
+        </CollapsibleRow>
       </Card>
 
       {/* ── Row 3: Strava Connect ────────────────────────────────────── */}

@@ -13,6 +13,11 @@ import schemas
 from parsers.gpx_parser import parse_gpx
 from parsers.fit_parser import parse_fit
 from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss
+from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
+from utils.durability import validate_durability_calculation, calculate_durability
+from utils.decoupling import calculate_adjusted_decoupling
+from utils.indoor_detection import detect_ride_environment
+from utils.indoor_outdoor_gap import apply_correction_factors, update_indoor_outdoor_gap
 from typing import List, Optional
 import httpx
 
@@ -75,7 +80,7 @@ async def _fetch_weather(lat: float, lon: float, dt: datetime) -> dict:
         f"https://archive-api.open-meteo.com/v1/archive"
         f"?latitude={lat:.4f}&longitude={lon:.4f}"
         f"&start_date={date_str}&end_date={date_str}"
-        f"&hourly=temperature_2m,windspeed_10m,weathercode&timezone=auto"
+        f"&hourly=temperature_2m,windspeed_10m,weathercode,relative_humidity_2m&timezone=auto"
     )
     try:
         async with httpx.AsyncClient(timeout=8) as client:
@@ -86,17 +91,205 @@ async def _fetch_weather(lat: float, lon: float, dt: datetime) -> dict:
         temps = hourly.get("temperature_2m", [])
         winds = hourly.get("windspeed_10m", [])
         codes = hourly.get("weathercode", [])
-        code = codes[idx] if idx < len(codes) else None
+        hum   = hourly.get("relative_humidity_2m", [])
+        code  = codes[idx] if idx < len(codes) else None
         return {
-            "weather_temp_c": round(temps[idx], 1) if idx < len(temps) else None,
-            "weather_wind_kmh": round(winds[idx], 1) if idx < len(winds) else None,
-            "weather_desc": _WMO.get(int(code), f"Code {code}") if code is not None else None,
+            "weather_temp_c":    round(temps[idx], 1) if idx < len(temps) else None,
+            "weather_wind_kmh":  round(winds[idx], 1) if idx < len(winds) else None,
+            "weather_desc":      _WMO.get(int(code), f"Code {code}") if code is not None else None,
+            "weather_humidity_pct": round(hum[idx], 1) if idx < len(hum) else None,
         }
     except Exception:
         return {}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _run_hydration_analysis(db: Session, activity: models.Activity, user: models.User) -> None:
+    """Create or replace HydrationAnalysis for the given activity."""
+    temp_c = activity.weather_temp_c if activity.weather_temp_c is not None else 20.0
+    duration_h = (activity.duration_seconds or 0) / 3600
+
+    if duration_h < 0.1:
+        return  # not worth analysing sub-6-min efforts
+
+    # Intensity factor: NP/FTP preferred, HR-based fallback
+    if activity.normalized_power_w and user.ftp and user.ftp > 0:
+        intensity_factor = min(1.0, activity.normalized_power_w / user.ftp)
+    elif activity.avg_heart_rate_bpm and user.max_hr and user.max_hr > 0:
+        lthr = 0.85 * user.max_hr
+        intensity_factor = min(1.0, activity.avg_heart_rate_bpm / lthr)
+    else:
+        intensity_factor = 0.65  # conservative moderate-effort default
+
+    analysis_data = build_hydration_analysis(
+        temp_c=temp_c,
+        humidity_pct=activity.weather_humidity_pct,
+        wind_speed_kmh=activity.weather_wind_kmh,
+        max_temp_c=None,
+        duration_h=duration_h,
+        intensity_factor=intensity_factor,
+        intake_ml=activity.hydration_ml,
+        weight_kg=user.weight_kg,
+        user_calibrated_ml_h=user.sweat_rate_ml_per_hour,
+        heat_adaptation=user.heat_adaptation_level,
+    )
+
+    existing = db.query(models.HydrationAnalysis).filter(
+        models.HydrationAnalysis.activity_id == activity.id
+    ).first()
+    if existing:
+        for k, v in analysis_data.items():
+            setattr(existing, k, v)
+    else:
+        db.add(models.HydrationAnalysis(activity_id=activity.id, **analysis_data))
+
+    # Update user heat-adaptation counter (hot = ≥ 27°C)
+    current_rides = user.heat_rides_last_14d or 0
+    new_rides, new_level = update_heat_adaptation(current_rides, False, temp_c)
+    user.heat_rides_last_14d = new_rides
+    user.heat_adaptation_level = new_level
+
+
+def _get_tsb_at_date(db: Session, user_id: int, target_date: datetime) -> float | None:
+    """Compute TSB (CTL − ATL) using the Banister EMA model up to the day before target_date."""
+    from datetime import date as date_type, timedelta
+    activities = (
+        db.query(models.Activity)
+        .filter(
+            models.Activity.user_id == user_id,
+            models.Activity.date < target_date,
+        )
+        .order_by(models.Activity.date)
+        .all()
+    )
+    if not activities:
+        return None
+
+    daily_load: dict = {}
+    for a in activities:
+        d = a.date.date()
+        load = a.tss or a.suffer_score or 0
+        daily_load[d] = daily_load.get(d, 0) + load
+
+    start = activities[0].date.date()
+    end   = target_date.date() - timedelta(days=1)
+    ctl = atl = 0.0
+    cur = start
+    while cur <= end:
+        load = daily_load.get(cur, 0.0)
+        ctl += (load - ctl) / 42
+        atl += (load - atl) / 7
+        cur += timedelta(days=1)
+
+    return round(ctl - atl, 1)
+
+
+def _run_durability_analysis(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user: models.User,
+) -> None:
+    """Compute and persist DurabilityAnalysis if the ride is eligible."""
+    if (activity.duration_seconds or 0) < 2700:
+        return
+
+    can_calc, _, reason = validate_durability_calculation(
+        activity.duration_seconds,
+        len(track_points),
+        activity.notes,
+        activity.avg_heart_rate_bpm,
+        activity.max_heart_rate_bpm or user.max_hr,
+    )
+    if not can_calc:
+        log.debug("Durability skipped for activity %s: %s", activity.id, reason)
+        return
+
+    tsb = _get_tsb_at_date(db, user.id, activity.date)
+
+    result = calculate_durability(
+        duration_seconds=activity.duration_seconds,
+        track_points=track_points,
+        climb_detections=[],          # Phase B not on this branch; graceful fallback
+        max_hr=float(activity.max_heart_rate_bpm or user.max_hr or 0) or None,
+        ftp=user.ftp,
+        weight_kg=user.weight_kg,
+        tsb_at_start=tsb,
+        temperature_avg_c=activity.weather_temp_c,
+        notes=activity.notes,
+    )
+
+    if result is None:
+        return
+
+    existing = db.query(models.DurabilityAnalysis).filter(
+        models.DurabilityAnalysis.activity_id == activity.id
+    ).first()
+
+    db_fields = {k: v for k, v in result.items() if k != "context"}
+    if existing:
+        for k, v in db_fields.items():
+            setattr(existing, k, v)
+    else:
+        db.add(models.DurabilityAnalysis(activity_id=activity.id, **db_fields))
+
+    activity.durability_index = result["durability_index"]
+
+
+def _run_decoupling_analysis(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user: models.User,
+) -> None:
+    """Compute and persist adjusted decoupling if the ride is eligible."""
+    result = calculate_adjusted_decoupling(activity, track_points, user)
+    if result is None:
+        return
+    activity.decoupling_raw             = result.get("decoupling_raw")
+    activity.decoupling_adjusted        = result.get("decoupling_adjusted")
+    activity.decoupling_components_json = result.get("decoupling_components_json")
+    activity.decoupling_quality         = result.get("decoupling_quality")
+    activity.decoupling_warning         = result.get("decoupling_warning")
+
+
+def _run_indoor_detection(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user,
+    file_metadata: dict | None = None,
+) -> None:
+    """Detect indoor/outdoor environment, apply correction if gap is known."""
+    env = detect_ride_environment(
+        track_points,
+        activity_name=activity.name,
+        file_metadata=file_metadata or {},
+    )
+    activity.ride_environment        = env["environment"]
+    activity.ride_environment_source = "auto_detected"
+    activity.indoor_platform         = env.get("platform")
+
+    if env["environment"] == "indoor":
+        profile = db.query(models.IndoorOutdoorProfile).filter(
+            models.IndoorOutdoorProfile.user_id == user.id
+        ).first()
+        if profile and (
+            profile.power_gap_pct is not None
+            or profile.manual_power_gap_pct is not None
+        ):
+            correction = apply_correction_factors(activity, profile)
+            activity.power_correction_factor = correction["power_correction_factor"]
+            activity.hr_correction_factor    = correction["hr_correction_factor"]
+            activity.corrected_tss           = correction["corrected_tss"]
+
+    # Refresh the per-user gap profile with this new ride included
+    try:
+        update_indoor_outdoor_gap(user.id, db)
+    except Exception as _gap_err:
+        log.warning("Gap update failed for user %s: %s", user.id, _gap_err)
+
 
 def _match_segments(db: Session, track_points: list, activity: models.Activity):
     for seg in db.query(models.Segment).all():
@@ -228,6 +421,30 @@ async def upload_activity(
         activity.normalized_power_w = np
         if current_user.ftp:
             activity.tss = compute_tss(np, activity.duration_seconds, current_user.ftp)
+
+    # Indoor/outdoor detection + correction
+    try:
+        _run_indoor_detection(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Indoor/outdoor detection failed for activity %s: %s", activity.id, _e)
+
+    # Hydration & heat strain analysis
+    try:
+        _run_hydration_analysis(db, activity, current_user)
+    except Exception as _e:
+        log.warning("Hydration analysis failed for activity %s: %s", activity.id, _e)
+
+    # Durability profiling
+    try:
+        _run_durability_analysis(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Durability analysis failed for activity %s: %s", activity.id, _e)
+
+    # Adjusted decoupling
+    try:
+        _run_decoupling_analysis(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Decoupling analysis failed for activity %s: %s", activity.id, _e)
 
     db.commit()
     db.refresh(activity)
