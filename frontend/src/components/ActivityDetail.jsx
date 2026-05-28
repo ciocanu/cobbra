@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment } from '../services/api'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { ArrowLeft, Trash2, Pencil, Download, FileText, Cloud, Wind, Thermometer, Sparkles, RefreshCw, Droplets } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Download, FileText, Cloud, Wind, Thermometer, Sparkles, RefreshCw, Droplets, Home, Trees } from 'lucide-react'
 import InfoTip from './InfoTip'
 import { colors } from '../tokens'
 
@@ -39,6 +39,87 @@ const ChartTooltip = ({ active, payload, label }) => {
         </div>
       ))}
     </div>
+  )
+}
+
+const PLATFORM_LABELS = {
+  zwift: 'Zwift', trainerroad: 'TrainerRoad', wahoo: 'Wahoo SYSTM',
+  mywhoosh: 'MyWhoosh', rolo: 'Trainer', other: 'Indoor',
+}
+
+function EnvBadge({ activity, onOverride }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const isIndoor = activity.ride_environment === 'indoor'
+  const label = isIndoor
+    ? (PLATFORM_LABELS[activity.indoor_platform] || 'Indoor')
+    : 'Outdoor'
+  const color = isIndoor ? '#a78bfa' : '#6dffb8'
+  const Icon  = isIndoor ? Home : Trees
+
+  const doOverride = async (env, platform = null) => {
+    setSaving(true)
+    try {
+      const res = await overrideEnvironment(activity.id, { environment: env, platform })
+      onOverride({
+        ride_environment: env,
+        ride_environment_source: 'user_override',
+        indoor_platform: platform,
+        corrected_tss: res.data.corrected_tss,
+      })
+      setOpen(false)
+    } catch { /* silently ignore */ } finally { setSaving(false) }
+  }
+
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+          background: `${color}18`, border: `1px solid ${color}55`, borderRadius: 6,
+          padding: '2px 8px', fontSize: 11, fontWeight: 600, color }}
+        onClick={() => setOpen(v => !v)}
+      >
+        <Icon size={10} /> {label}
+        {activity.ride_environment_source === 'user_override' && (
+          <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>✎</span>
+        )}
+      </span>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '110%', left: 0, zIndex: 50, minWidth: 160,
+          background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
+          borderRadius: 8, padding: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
+            Change classification
+          </div>
+          {[
+            { env: 'outdoor', platform: null,    label: '🌳 Outdoor' },
+            { env: 'indoor',  platform: 'zwift', label: '🏠 Zwift' },
+            { env: 'indoor',  platform: 'trainerroad', label: '🏠 TrainerRoad' },
+            { env: 'indoor',  platform: 'rolo',  label: '🏠 Trainer / Rolo' },
+            { env: 'indoor',  platform: 'other', label: '🏠 Other Indoor' },
+          ].map(opt => (
+            <div key={opt.label}
+              onClick={() => !saving && doOverride(opt.env, opt.platform)}
+              style={{
+                padding: '5px 8px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer',
+                fontSize: 12, color: 'var(--text-primary)',
+                background: activity.ride_environment === opt.env && activity.indoor_platform === opt.platform
+                  ? 'var(--bg-secondary)' : 'transparent',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              onMouseLeave={e => e.currentTarget.style.background =
+                activity.ride_environment === opt.env && activity.indoor_platform === opt.platform
+                  ? 'var(--bg-secondary)' : 'transparent'}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -709,6 +790,9 @@ export default function ActivityDetail() {
             {format(new Date(activity.date), 'EEEE, d MMMM yyyy')}
             {' · '}
             <span className={`badge badge-${activity.file_type}`}>{activity.file_type.toUpperCase()}</span>
+            {activity.ride_environment && activity.ride_environment !== 'unknown' && (
+              <EnvBadge activity={activity} onOverride={env => setActivity(a => ({ ...a, ...env }))} />
+            )}
             {hasWeather && (
               <span className="weather-badge">
                 {activity.weather_temp_c != null && (
@@ -755,6 +839,54 @@ export default function ActivityDetail() {
           </div>
         ))}
       </div>
+
+      {/* Indoor correction card */}
+      {activity.ride_environment === 'indoor' && (
+        <div className="chart-section" style={{ padding: '14px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <Home size={14} style={{ color: '#a78bfa' }} />
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#a78bfa' }}>Indoor Ride — Power Correction</span>
+          </div>
+          {activity.power_correction_factor != null && activity.corrected_tss != null ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Correction factor</div>
+                <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#a78bfa' }}>
+                  +{((activity.power_correction_factor - 1) * 100).toFixed(1)}%
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>applied to TSS</div>
+              </div>
+              {activity.tss != null && (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Training Stress Score</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)' }}>
+                    <span style={{ fontSize: 18, color: 'var(--text-secondary)', textDecoration: 'line-through' }}>
+                      {Math.round(activity.tss)}
+                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>→</span>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: '#6dffb8' }}>
+                      {Math.round(activity.corrected_tss)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>corrected TSS</div>
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 280, lineHeight: 1.5, alignSelf: 'center' }}>
+                Indoor rides produce less power at the same perceived effort due to heat accumulation and lack of air cooling.
+                Your personal indoor/outdoor gap is used to scale TSS for accurate fitness tracking.
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              No indoor/outdoor correction applied yet.
+              <br />
+              Complete at least 5 indoor and 5 outdoor rides with power data, then visit{' '}
+              <Link to="/settings" style={{ color: '#a78bfa' }}>Settings → Indoor/Outdoor Profile</Link>{' '}
+              to calibrate your personal gap.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Map */}
       {mapPoints.length > 0 && (

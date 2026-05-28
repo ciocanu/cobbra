@@ -96,6 +96,13 @@ export const getDurabilityAnalysis  = (id)           => api.get(`/activities/${i
 export const getDurabilityTrend     = (weeks = 12)   => api.get('/stats/durability-trend', { params: { weeks } })
 export const compareDurability      = (activity_ids) => api.post('/stats/durability-compare', { activity_ids })
 
+// Indoor / Outdoor
+export const getIndoorOutdoorProfile      = ()     => api.get('/user/indoor-outdoor-profile')
+export const recalculateIndoorOutdoor     = ()     => api.post('/user/indoor-outdoor-profile/recalculate')
+export const calibrateIndoorOutdoor       = (data) => api.post('/user/indoor-outdoor-calibrate', data)
+export const overrideEnvironment          = (id, data) => api.patch(`/activities/${id}/environment`, data)
+export const getTrainingLoadComparison    = (days = 90) => api.get('/stats/training-load-comparison', { params: { days } })
+
 // Hydration
 export const getHydrationAnalysis  = (id)        => api.get(`/activities/${id}/hydration`)
 export const updateHydrationIntake = (id, intake_ml) => api.patch(`/activities/${id}/hydration`, { intake_ml })

@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
-import { GitCompare } from 'lucide-react'
+import { GitCompare, Home, Trees } from 'lucide-react'
 import { colors } from '../tokens'
 
 function fmtDuration(s) {
@@ -61,6 +61,30 @@ const CompareTooltip = ({ active, payload, label }) => {
 
 const C1 = colors.accent  // activity 1 — venom
 const C2 = '#4da6ff'  // activity 2 — blue
+
+const PLATFORM_LABELS = {
+  zwift: 'Zwift', trainerroad: 'TrainerRoad', wahoo: 'Wahoo SYSTM',
+  mywhoosh: 'MyWhoosh', rolo: 'Trainer', other: 'Indoor',
+}
+
+function envLabel(act) {
+  if (!act?.ride_environment || act.ride_environment === 'unknown') return null
+  if (act.ride_environment === 'indoor') return PLATFORM_LABELS[act.indoor_platform] || 'Indoor'
+  return 'Outdoor'
+}
+
+function EnvTag({ act, color }) {
+  const label = envLabel(act)
+  if (!label) return null
+  const isIndoor = act.ride_environment === 'indoor'
+  const c = isIndoor ? '#a78bfa' : '#6dffb8'
+  const Icon = isIndoor ? Home : Trees
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: c, background: `${c}18`, border: `1px solid ${c}40`, borderRadius: 5, padding: '2px 6px', marginLeft: 6 }}>
+      <Icon size={9} /> {label}
+    </span>
+  )
+}
 
 export default function Compare() {
   const [activities, setActivities] = useState([])
@@ -174,9 +198,19 @@ export default function Compare() {
             <table className="compare-table">
               <thead>
                 <tr>
-                  <th style={{ color: C1, textAlign: 'left' }}>{act1.name}<br /><span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act1.date), 'dd MMM yyyy')}</span></th>
+                  <th style={{ color: C1, textAlign: 'left' }}>
+                    {act1.name}
+                    <EnvTag act={act1} color={C1} />
+                    <br />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act1.date), 'dd MMM yyyy')}</span>
+                  </th>
                   <th style={{ textAlign: 'center', color: 'var(--text-muted)' }}></th>
-                  <th style={{ color: C2, textAlign: 'right' }}>{act2.name}<br /><span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act2.date), 'dd MMM yyyy')}</span></th>
+                  <th style={{ color: C2, textAlign: 'right' }}>
+                    {act2.name}
+                    <EnvTag act={act2} color={C2} />
+                    <br />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{format(new Date(act2.date), 'dd MMM yyyy')}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -219,6 +253,22 @@ export default function Compare() {
                 </div>
               ))}
             </>
+          )}
+
+          {/* Mixed indoor/outdoor warning */}
+          {act1.ride_environment && act2.ride_environment
+            && act1.ride_environment !== 'unknown' && act2.ride_environment !== 'unknown'
+            && act1.ride_environment !== act2.ride_environment && (
+            <div style={{ marginTop: 8, padding: '12px 16px', background: '#a78bfa0a', border: '1px solid #a78bfa28', borderRadius: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, display: 'flex', gap: 8 }}>
+              <Home size={14} style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }} />
+              <span>
+                You are comparing an <strong style={{ color: '#a78bfa' }}>indoor</strong> and an <strong style={{ color: '#6dffb8' }}>outdoor</strong> ride.
+                Power and TSS values are not directly comparable — indoor rides typically produce 5–15% less power at the same perceived effort.
+                {(act1.corrected_tss != null || act2.corrected_tss != null) && (
+                  <> Corrected TSS (if available) accounts for this gap.</>
+                )}
+              </span>
+            </div>
           )}
 
           {/* Durability comparison note */}

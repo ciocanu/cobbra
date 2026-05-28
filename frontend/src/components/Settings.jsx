@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest } from '../services/api'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor } from '../services/api'
 import { markLoggedOut } from '../services/auth'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
   User, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Mail, Send, Bike,
-  RefreshCw, Link2, Link2Off, Download, Trash2, AlertTriangle, Droplets, Thermometer,
+  RefreshCw, Link2, Link2Off, Download, Trash2, AlertTriangle, Droplets, Thermometer, Home,
 } from 'lucide-react'
 import Alert from './Alert'
 
@@ -159,6 +159,17 @@ export default function Settings() {
   const [sweatMsg,         setSweatMsg]         = useState('')
   const [sweatMsgType,     setSweatMsgType]     = useState('')
 
+  // Indoor / Outdoor profile
+  const [indoorProfile,      setIndoorProfile]      = useState(null)
+  const [recalculating,      setRecalculating]      = useState(false)
+  const [indoorMsg,          setIndoorMsg]          = useState('')
+  const [indoorMsgType,      setIndoorMsgType]      = useState('')
+  const [ftpCalibOpen,       setFtpCalibOpen]       = useState(false)
+  const [indoorFtp,          setIndoorFtp]          = useState('')
+  const [outdoorFtp,         setOutdoorFtp]         = useState('')
+  const [ftpCalibSaving,     setFtpCalibSaving]     = useState(false)
+  const [ftpCalibResult,     setFtpCalibResult]     = useState(null)
+
   // Strava
   const [stravaConnected,  setStravaConnected]  = useState(false)
   const [stravaAthleteId,  setStravaAthleteId]  = useState(null)
@@ -170,6 +181,7 @@ export default function Settings() {
 
   useEffect(() => {
     getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})
+    getIndoorOutdoorProfile().then(r => setIndoorProfile(r.data)).catch(() => {})
     Promise.all([getSettings(), getMe(), stravaStatus().catch(() => ({ data: { connected: false } }))])
       .then(([s, u, sv]) => {
         setMaxHr(s.data.max_hr ?? '')
@@ -221,6 +233,38 @@ export default function Settings() {
       setSweatMsg(e.response?.data?.detail || 'Calculation failed — check your inputs.')
       setSweatMsgType('error')
     } finally { setSweatSaving(false) }
+  }
+
+  const handleRecalculateIndoor = async () => {
+    setRecalculating(true); setIndoorMsg('')
+    try {
+      const res = await recalculateIndoorOutdoor()
+      setIndoorProfile(res.data)
+      setIndoorMsg('Profile recalculated.')
+      setIndoorMsgType('success')
+    } catch (e) {
+      setIndoorMsg(e.response?.data?.detail || 'Recalculation failed.')
+      setIndoorMsgType('error')
+    } finally { setRecalculating(false) }
+  }
+
+  const handleFtpCalib = async () => {
+    setIndoorMsg('')
+    const iF = parseFloat(indoorFtp), oF = parseFloat(outdoorFtp)
+    if (isNaN(iF) || iF <= 0) { setIndoorMsg('Enter a valid indoor FTP.'); setIndoorMsgType('error'); return }
+    if (isNaN(oF) || oF <= 0) { setIndoorMsg('Enter a valid outdoor FTP.'); setIndoorMsgType('error'); return }
+    setFtpCalibSaving(true)
+    try {
+      const res = await calibrateIndoorOutdoor({ method: 'ftp_comparison', indoor_ftp: iF, outdoor_ftp: oF })
+      setFtpCalibResult(res.data)
+      const freshProfile = await getIndoorOutdoorProfile()
+      setIndoorProfile(freshProfile.data)
+      setIndoorMsg('Calibration saved.')
+      setIndoorMsgType('success')
+    } catch (e) {
+      setIndoorMsg(e.response?.data?.detail || 'Calibration failed.')
+      setIndoorMsgType('error')
+    } finally { setFtpCalibSaving(false) }
   }
 
   const handleSaveHr = async () => {
@@ -944,6 +988,131 @@ export default function Settings() {
           <button className="btn btn-primary" onClick={handleSweatTest} disabled={sweatSaving}>
             <Droplets size={12} />
             {sweatSaving ? 'Calculating…' : 'Calculate & Save'}
+          </button>
+        </CollapsibleRow>
+      </Card>
+
+      {/* ── Indoor / Outdoor Profile ─────────────────────────────────── */}
+      <Card style={{ marginBottom: 24 }}>
+        <CardTitle icon={Home} color="#a78bfa">Indoor / Outdoor Profile</CardTitle>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+          Cobbra automatically detects whether each ride was indoor or outdoor and calculates your personal power gap —
+          the difference in sustainable power between environments. This corrects your TSS and CTL/ATL/TSB for more accurate fitness tracking.
+        </p>
+
+        {indoorProfile && (
+          <>
+            {/* Gap metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+              {[
+                {
+                  label: 'Power Gap',
+                  value: indoorProfile.effective_power_gap_pct != null
+                    ? `${indoorProfile.effective_power_gap_pct.toFixed(1)}%`
+                    : '—',
+                  color: '#a78bfa',
+                  hint: indoorProfile.manual_power_gap_pct != null ? 'manually calibrated' : 'auto-calculated',
+                },
+                {
+                  label: 'Confidence',
+                  value: indoorProfile.power_gap_confidence
+                    ? indoorProfile.power_gap_confidence.replace('_', ' ')
+                    : '—',
+                  color: indoorProfile.power_gap_confidence === 'high' ? '#6dffb8'
+                    : indoorProfile.power_gap_confidence === 'medium' ? '#ffd93d'
+                    : indoorProfile.power_gap_confidence === 'low' ? '#ff8c42'
+                    : '#aaa',
+                  hint: '',
+                },
+                {
+                  label: 'Indoor rides',
+                  value: indoorProfile.indoor_rides_analyzed,
+                  color: '#a78bfa',
+                  hint: 'analysed',
+                },
+                {
+                  label: 'Outdoor rides',
+                  value: indoorProfile.outdoor_rides_analyzed,
+                  color: '#6dffb8',
+                  hint: 'analysed',
+                },
+              ].map(({ label, value, color, hint }) => (
+                <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{value}</div>
+                  {hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{hint}</div>}
+                </div>
+              ))}
+            </div>
+
+            {indoorProfile.last_calculated && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
+                Last calculated: {new Date(indoorProfile.last_calculated).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
+
+            {(indoorProfile.indoor_rides_analyzed < 3 || indoorProfile.outdoor_rides_analyzed < 3) && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#a78bfa10', border: '1px solid #a78bfa28', fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                <Home size={13} style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }} />
+                Need at least 3 indoor and 3 outdoor rides with power data (at Z3 intensity) for automatic gap calculation.
+                Use the FTP calibration below as a shortcut.
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: indoorMsg ? 12 : 0 }}>
+          <button className="btn btn-ghost" onClick={handleRecalculateIndoor} disabled={recalculating} style={{ fontSize: 13 }}>
+            <RefreshCw size={13} style={recalculating ? { animation: 'spin 1s linear infinite' } : {}} />
+            {recalculating ? 'Recalculating…' : 'Recalculate Gap'}
+          </button>
+        </div>
+
+        {indoorMsg && (
+          <Alert variant={indoorMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 12, fontSize: 12 }}>{indoorMsg}</Alert>
+        )}
+
+        {/* FTP Calibration */}
+        <CollapsibleRow
+          icon={Zap} label="Calibrate via FTP Comparison"
+          open={ftpCalibOpen}
+          onToggle={() => { setFtpCalibOpen(o => !o); setFtpCalibResult(null); setIndoorMsg('') }}
+        >
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+            If you know your indoor and outdoor FTP values (e.g. from separate 20-min tests), enter them to manually calibrate your power gap.
+            The calibrated gap overrides the auto-calculated one.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            {[
+              { id: 'indoor-ftp',  label: 'Indoor FTP',  val: indoorFtp,  set: setIndoorFtp,  placeholder: '200' },
+              { id: 'outdoor-ftp', label: 'Outdoor FTP', val: outdoorFtp, set: setOutdoorFtp, placeholder: '230' },
+            ].map(({ id, label, val, set, placeholder }) => (
+              <div key={id}>
+                <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input id={id} type="number" className="filter-input" style={{ flex: 1 }}
+                    value={val} onChange={e => { set(e.target.value); setIndoorMsg('') }}
+                    placeholder={placeholder} min={50} max={600}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {ftpCalibResult && (
+            <div style={{ padding: '12px 14px', borderRadius: 8, background: '#a78bfa10', border: '1px solid #a78bfa28', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginBottom: 4 }}>
+                Gap: {ftpCalibResult.power_gap_pct?.toFixed(1)}%
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{ftpCalibResult.interpretation}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{ftpCalibResult.recommendation}</div>
+            </div>
+          )}
+
+          <button className="btn btn-primary" onClick={handleFtpCalib} disabled={ftpCalibSaving}>
+            <Zap size={12} />
+            {ftpCalibSaving ? 'Calibrating…' : 'Calibrate & Save'}
           </button>
         </CollapsibleRow>
       </Card>
