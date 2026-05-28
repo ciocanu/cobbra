@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis } from '../services/api'
 import { format } from 'date-fns'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
+  LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
 } from 'recharts'
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet'
@@ -493,6 +493,8 @@ export default function ActivityDetail() {
   const [intakeInput,  setIntakeInput]  = useState('')
   const [intakeSaving, setIntakeSaving] = useState(false)
   const [intakeMsg,    setIntakeMsg]    = useState('')
+  const [durabilityData, setDurabilityData] = useState(null)
+  const [durabilityLoading, setDurabilityLoading] = useState(true)
   const notesTimer = useRef(null)
 
   useEffect(() => {
@@ -514,6 +516,7 @@ export default function ActivityDetail() {
       setHydration(r.data)
       setIntakeInput(r.data.reported_intake_ml != null ? String(r.data.reported_intake_ml) : '')
     }).catch(() => {})
+    getDurabilityAnalysis(id).then(r => setDurabilityData(r.data)).catch(() => {}).finally(() => setDurabilityLoading(false))
   }, [id])
 
   const handleDelete = async () => {
@@ -1327,6 +1330,118 @@ export default function ActivityDetail() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Durability Analysis */}
+      {(() => {
+        const DUR_COLORS = { excellent: '#6dffb8', good: '#4da6ff', moderate: '#ffd93d', poor: '#ff8c42', very_poor: '#ff4d6d' }
+        const catColor = durabilityData?.durability_category ? (DUR_COLORS[durabilityData.durability_category] ?? 'var(--text-primary)') : 'var(--text-muted)'
+        const methodLabel = { power: 'Power meter', hr_speed: 'HR + Speed proxy', climbing_power: 'Estimated climbing power' }
+
+        if (durabilityLoading) return (
+          <div className="chart-section">
+            <div className="chart-title">Durability Index</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
+              <div className="spinner" style={{ width: 16, height: 16 }} /> Analysing…
+            </div>
+          </div>
+        )
+
+        if (!durabilityData) return (
+          <div className="chart-section">
+            <div className="chart-title">Durability Index</div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+              Not available — ride too short or missing HR / speed data.
+            </p>
+          </div>
+        )
+
+        const quarters = [
+          { label: 'Q1', value: durabilityData.q1_output },
+          { label: 'Q2', value: durabilityData.q2_output },
+          { label: 'Q3', value: durabilityData.q3_output },
+          { label: 'Q4', value: durabilityData.q4_output },
+        ].filter(q => q.value != null)
+
+        const unit = durabilityData.output_unit ?? ''
+
+        return (
+          <div className="chart-section">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div className="chart-title" style={{ marginBottom: 0 }}>Durability Index</div>
+              {durabilityData.quality && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
+                  {durabilityData.quality === 'good' ? 'Good quality' : durabilityData.quality === 'fair' ? 'Fair quality' : durabilityData.quality}
+                </span>
+              )}
+            </div>
+
+            {/* Index badge + category */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 18 }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 800, color: catColor, lineHeight: 1 }}>
+                {durabilityData.durability_index != null ? durabilityData.durability_index.toFixed(1) : '—'}
+              </span>
+              {durabilityData.durability_category && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: catColor, textTransform: 'capitalize' }}>
+                  {durabilityData.durability_category.replace('_', ' ')}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
+            </div>
+
+            {/* Quarter bar chart */}
+            {quarters.length === 4 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Output per quarter ({unit}) — lower Q4 = more fatigue
+                </div>
+                <ResponsiveContainer width="100%" height={120}>
+                  <BarChart data={quarters} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+                    <Tooltip
+                      content={({ active, payload }) => active && payload?.length ? (
+                        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-bright)', borderRadius: 6, padding: '6px 10px', fontSize: 12 }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, color: catColor }}>{payload[0].value?.toFixed(1)}</span>
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>{unit}</span>
+                        </div>
+                      ) : null}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {quarters.map((q, i) => (
+                        <Cell key={q.label} fill={i === 0 ? catColor : `color-mix(in srgb, ${catColor} ${Math.round(100 - i * 15)}%, var(--bg-secondary))`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Context row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              {durabilityData.fade_rate_pct_per_hour != null && (
+                <span>Fade rate: <strong style={{ color: durabilityData.fade_rate_pct_per_hour > 10 ? '#ff8c42' : 'var(--text-primary)' }}>{durabilityData.fade_rate_pct_per_hour.toFixed(1)}%/h</strong></span>
+              )}
+              {durabilityData.total_work_kj != null && (
+                <span>Work: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(durabilityData.total_work_kj)} kJ</strong></span>
+              )}
+              {durabilityData.tsb_at_start != null && (
+                <span>TSB at start: <strong style={{ color: durabilityData.tsb_at_start >= 5 ? '#6dffb8' : durabilityData.tsb_at_start <= -20 ? '#ff4d6d' : 'var(--text-primary)' }}>{durabilityData.tsb_at_start > 0 ? '+' : ''}{durabilityData.tsb_at_start.toFixed(0)}</strong></span>
+              )}
+              {durabilityData.temperature_avg_c != null && (
+                <span>Avg temp: <strong style={{ color: 'var(--text-primary)' }}>{durabilityData.temperature_avg_c.toFixed(0)}°C</strong></span>
+              )}
+              <span style={{ color: 'var(--text-muted)' }}>via {methodLabel[durabilityData.method] ?? durabilityData.method}</span>
+            </div>
+
+            {durabilityData.quality_reason && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                {durabilityData.quality_reason}
               </div>
             )}
           </div>

@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   getActivities, getFitnessStats, getWeeklyStats,
-  getDashboardFitnessInsight, getHeatProfile,
+  getDashboardFitnessInsight, getHeatProfile, getDurabilityTrend,
 } from '../services/api'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { format } from 'date-fns'
-import { Route, Droplets } from 'lucide-react'
+import { Route, Droplets, TrendingUp } from 'lucide-react'
 import InfoTip from './InfoTip'
 
 function fmtDuration(seconds) {
@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [fitnessData, setFitnessData]       = useState(null)
   const [fitnessInsight, setFitnessInsight] = useState(null) // null=loading, false=failed
   const [heatProfile, setHeatProfile]       = useState(null)
+  const [durabilityTrend, setDurabilityTrend] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function Dashboard() {
     getWeeklyStats(16).then(r => setWeeklyData(r.data)).catch(() => setWeeklyData([]))
     getFitnessStats(60).then(r => setFitnessData(r.data)).catch(() => setFitnessData([]))
     getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})
+    getDurabilityTrend(12).then(r => setDurabilityTrend(r.data)).catch(() => {})
   }, [])
 
   // Fitness insight: fires once fitnessData is loaded and has actual training data
@@ -422,6 +424,41 @@ export default function Dashboard() {
                 {heatProfile.has_calibrated_rate ? 'Personal measurement' : <Link to="/settings" style={{ color: '#4da6ff', textDecoration: 'none' }}>Run sweat test in Settings</Link>}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Durability Trend ─────────────────────────────────────────────── */}
+      {durabilityTrend && durabilityTrend.current_avg != null && (
+        <div style={{ marginTop: 24, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>Durability Trend</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Current (12-wk avg)</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)', color: durabilityTrend.trend === 'improving' ? '#6dffb8' : durabilityTrend.trend === 'declining' ? '#ff4d6d' : 'var(--text-primary)' }}>
+                  {durabilityTrend.current_avg.toFixed(1)}
+                </span>
+                <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>
+                  {durabilityTrend.trend === 'improving' ? '↑' : durabilityTrend.trend === 'declining' ? '↓' : '→'}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>{durabilityTrend.trend}</div>
+            </div>
+            {durabilityTrend.best_ever != null && (
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Best ever</div>
+                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)', color: 'var(--accent)' }}>
+                  {durabilityTrend.best_ever.toFixed(1)}
+                </div>
+                {durabilityTrend.best_ever_date && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{durabilityTrend.best_ever_date}</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
