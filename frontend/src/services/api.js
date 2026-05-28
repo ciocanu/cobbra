@@ -91,6 +91,11 @@ export const stravaStatus     = ()     => api.get('/strava/status')
 export const stravaDisconnect = ()     => api.post('/strava/disconnect')
 export const stravaSync       = ()     => api.post('/strava/sync', {}, { timeout: 60000 })
 
+// Durability
+export const getDurabilityAnalysis  = (id)           => api.get(`/activities/${id}/durability`)
+export const getDurabilityTrend     = (weeks = 12)   => api.get('/stats/durability-trend', { params: { weeks } })
+export const compareDurability      = (activity_ids) => api.post('/stats/durability-compare', { activity_ids })
+
 // Hydration
 export const getHydrationAnalysis  = (id)        => api.get(`/activities/${id}/hydration`)
 export const updateHydrationIntake = (id, intake_ml) => api.patch(`/activities/${id}/hydration`, { intake_ml })

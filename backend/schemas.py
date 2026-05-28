@@ -203,6 +203,50 @@ class SweatTestIn(BaseModel):
     duration_h: float
 
 
+# ── Durability ────────────────────────────────────────────────────────────────
+
+class DurabilityAnalysisOut(BaseModel):
+    id: int
+    activity_id: int
+    method: str
+    durability_index: Optional[float]
+    durability_category: Optional[str]
+    q1_output: Optional[float]
+    q2_output: Optional[float]
+    q3_output: Optional[float]
+    q4_output: Optional[float]
+    output_unit: Optional[str]
+    fade_rate_pct_per_hour: Optional[float]
+    total_work_kj: Optional[float]
+    tsb_at_start: Optional[float]
+    temperature_avg_c: Optional[float]
+    analysis_json: Optional[str]
+    quality: Optional[str]
+    quality_reason: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class DurabilityTrendOut(BaseModel):
+    weekly_averages: List[dict]
+    trend: str
+    trend_slope: float
+    current_avg: Optional[float]
+    best_ever: Optional[float]
+    best_ever_date: Optional[str]
+
+
+class DurabilityCompareIn(BaseModel):
+    activity_ids: List[int]
+
+
+class DurabilityCompareOut(BaseModel):
+    rides: List[dict]
+    best_ride_id: Optional[int]
+    comparison_note: str
+
+
 class SegmentIn(BaseModel):
     name: str
     waypoints: List[List[float]]  # [[lat, lon], ...] — minimum 2 points

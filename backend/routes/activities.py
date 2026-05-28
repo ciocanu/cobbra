@@ -14,6 +14,7 @@ from parsers.gpx_parser import parse_gpx
 from parsers.fit_parser import parse_fit
 from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss
 from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
+from utils.durability import validate_durability_calculation, calculate_durability
 from typing import List, Optional
 import httpx
 
@@ -145,6 +146,92 @@ def _run_hydration_analysis(db: Session, activity: models.Activity, user: models
     new_rides, new_level = update_heat_adaptation(current_rides, False, temp_c)
     user.heat_rides_last_14d = new_rides
     user.heat_adaptation_level = new_level
+
+
+def _get_tsb_at_date(db: Session, user_id: int, target_date: datetime) -> float | None:
+    """Compute TSB (CTL − ATL) using the Banister EMA model up to the day before target_date."""
+    from datetime import date as date_type, timedelta
+    activities = (
+        db.query(models.Activity)
+        .filter(
+            models.Activity.user_id == user_id,
+            models.Activity.date < target_date,
+        )
+        .order_by(models.Activity.date)
+        .all()
+    )
+    if not activities:
+        return None
+
+    daily_load: dict = {}
+    for a in activities:
+        d = a.date.date()
+        load = a.tss or a.suffer_score or 0
+        daily_load[d] = daily_load.get(d, 0) + load
+
+    start = activities[0].date.date()
+    end   = target_date.date() - timedelta(days=1)
+    ctl = atl = 0.0
+    cur = start
+    while cur <= end:
+        load = daily_load.get(cur, 0.0)
+        ctl += (load - ctl) / 42
+        atl += (load - atl) / 7
+        cur += timedelta(days=1)
+
+    return round(ctl - atl, 1)
+
+
+def _run_durability_analysis(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user: models.User,
+) -> None:
+    """Compute and persist DurabilityAnalysis if the ride is eligible."""
+    if (activity.duration_seconds or 0) < 2700:
+        return
+
+    can_calc, _, reason = validate_durability_calculation(
+        activity.duration_seconds,
+        len(track_points),
+        activity.notes,
+        activity.avg_heart_rate_bpm,
+        activity.max_heart_rate_bpm or user.max_hr,
+    )
+    if not can_calc:
+        log.debug("Durability skipped for activity %s: %s", activity.id, reason)
+        return
+
+    tsb = _get_tsb_at_date(db, user.id, activity.date)
+
+    result = calculate_durability(
+        duration_seconds=activity.duration_seconds,
+        track_points=track_points,
+        climb_detections=[],          # Phase B not on this branch; graceful fallback
+        max_hr=float(activity.max_heart_rate_bpm or user.max_hr or 0) or None,
+        ftp=user.ftp,
+        weight_kg=user.weight_kg,
+        tsb_at_start=tsb,
+        temperature_avg_c=activity.weather_temp_c,
+        notes=activity.notes,
+    )
+
+    if result is None:
+        return
+
+    existing = db.query(models.DurabilityAnalysis).filter(
+        models.DurabilityAnalysis.activity_id == activity.id
+    ).first()
+
+    db_fields = {k: v for k, v in result.items() if k != "context"}
+    if existing:
+        for k, v in db_fields.items():
+            setattr(existing, k, v)
+    else:
+        db.add(models.DurabilityAnalysis(activity_id=activity.id, **db_fields))
+
+    activity.durability_index = result["durability_index"]
 
 
 def _match_segments(db: Session, track_points: list, activity: models.Activity):
@@ -283,6 +370,12 @@ async def upload_activity(
         _run_hydration_analysis(db, activity, current_user)
     except Exception as _e:
         log.warning("Hydration analysis failed for activity %s: %s", activity.id, _e)
+
+    # Durability profiling
+    try:
+        _run_durability_analysis(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Durability analysis failed for activity %s: %s", activity.id, _e)
 
     db.commit()
     db.refresh(activity)
