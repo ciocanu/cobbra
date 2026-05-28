@@ -15,6 +15,7 @@ from parsers.fit_parser import parse_fit
 from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss
 from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
 from utils.durability import validate_durability_calculation, calculate_durability
+from utils.decoupling import calculate_adjusted_decoupling
 from utils.indoor_detection import detect_ride_environment
 from utils.indoor_outdoor_gap import apply_correction_factors, update_indoor_outdoor_gap
 from typing import List, Optional
@@ -236,6 +237,23 @@ def _run_durability_analysis(
     activity.durability_index = result["durability_index"]
 
 
+def _run_decoupling_analysis(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user: models.User,
+) -> None:
+    """Compute and persist adjusted decoupling if the ride is eligible."""
+    result = calculate_adjusted_decoupling(activity, track_points, user)
+    if result is None:
+        return
+    activity.decoupling_raw             = result.get("decoupling_raw")
+    activity.decoupling_adjusted        = result.get("decoupling_adjusted")
+    activity.decoupling_components_json = result.get("decoupling_components_json")
+    activity.decoupling_quality         = result.get("decoupling_quality")
+    activity.decoupling_warning         = result.get("decoupling_warning")
+
+
 def _run_indoor_detection(
     db: Session,
     activity: models.Activity,
@@ -421,6 +439,12 @@ async def upload_activity(
         _run_durability_analysis(db, activity, track_points, current_user)
     except Exception as _e:
         log.warning("Durability analysis failed for activity %s: %s", activity.id, _e)
+
+    # Adjusted decoupling
+    try:
+        _run_decoupling_analysis(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Decoupling analysis failed for activity %s: %s", activity.id, _e)
 
     db.commit()
     db.refresh(activity)

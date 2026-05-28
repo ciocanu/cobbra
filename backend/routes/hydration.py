@@ -6,6 +6,7 @@ from auth import get_current_user
 import models
 import schemas
 from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
+from utils.decoupling import calculate_adjusted_decoupling
 
 router = APIRouter()
 
@@ -94,6 +95,24 @@ def update_hydration_intake(
     activity.hydration_ml = intake_ml
     db.flush()
     row = _run_analysis(activity, current_user, db)
+
+    # Recalculate adjusted decoupling — hydration affects the hydration drift correction
+    try:
+        track_points = [
+            {c.name: getattr(tp, c.name) for c in tp.__table__.columns}
+            for tp in activity.track_points
+        ]
+        result = calculate_adjusted_decoupling(activity, track_points, current_user)
+        if result is not None:
+            activity.decoupling_raw             = result.get("decoupling_raw")
+            activity.decoupling_adjusted        = result.get("decoupling_adjusted")
+            activity.decoupling_components_json = result.get("decoupling_components_json")
+            activity.decoupling_quality         = result.get("decoupling_quality")
+            activity.decoupling_warning         = result.get("decoupling_warning")
+            db.commit()
+    except Exception:
+        pass  # non-fatal; hydration row was already saved
+
     return row
 
 

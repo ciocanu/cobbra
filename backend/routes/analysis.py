@@ -120,13 +120,24 @@ def _build_prompt(activity: models.Activity, user: models.User) -> str:
     if vam:
         lines.append(f"  VAM (climb rate): {vam} m/h  (800 = solid endurance, 1500+ = pro climber)")
 
-    # HR Decoupling — aerobic efficiency
-    hr_dec = _compute_hr_decoupling(activity)
-    if hr_dec:
-        aerobic_note = "good aerobic efficiency" if hr_dec['aerobic'] else "aerobic drift — fatigue or under-fuelled"
+    # Adjusted decoupling — prefer the terrain/heat/hydration-corrected value
+    if activity.decoupling_adjusted is not None:
+        adj = activity.decoupling_adjusted
+        quality = activity.decoupling_quality or "unknown"
+        adj_note = "aerobic drift controlled for terrain, heat & hydration"
         lines.append(
-            f"  HR Decoupling:  {hr_dec['pct']:+.1f}%  (<5% = well-conditioned, {aerobic_note})"
+            f"  Adjusted Decoupling: {adj:+.1f}%  (<5% = good aerobic efficiency, quality={quality}; {adj_note})"
         )
+        if activity.decoupling_warning:
+            lines.append(f"  Decoupling note: {activity.decoupling_warning}")
+    else:
+        # Fall back to simple raw computation for activities without track point data
+        hr_dec = _compute_hr_decoupling(activity)
+        if hr_dec:
+            aerobic_note = "good aerobic efficiency" if hr_dec['aerobic'] else "aerobic drift — fatigue or under-fuelled"
+            lines.append(
+                f"  HR Decoupling:  {hr_dec['pct']:+.1f}%  (<5% = well-conditioned, {aerobic_note})"
+            )
 
     if activity.weather_desc or activity.weather_temp_c is not None:
         parts = []
