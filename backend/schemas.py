@@ -96,6 +96,11 @@ class ActivityOut(BaseModel):
     power_correction_factor: Optional[float] = None
     hr_correction_factor:    Optional[float] = None
     corrected_tss:           Optional[float] = None
+    decoupling_raw:             Optional[float] = None
+    decoupling_adjusted:        Optional[float] = None
+    decoupling_components_json: Optional[str]   = None
+    decoupling_quality:         Optional[str]   = None
+    decoupling_warning:         Optional[str]   = None
 
     class Config:
         from_attributes = True
