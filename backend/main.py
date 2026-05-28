@@ -9,7 +9,7 @@ from starlette.requests import Request
 from sqlalchemy import text
 from database import engine
 import models
-from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability
+from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -124,6 +124,32 @@ _MIGRATIONS = [
         quality VARCHAR,
         quality_reason VARCHAR
     )""",
+    # Indoor/outdoor reconciliation — activity columns
+    "ALTER TABLE activities ADD COLUMN ride_environment VARCHAR",
+    "ALTER TABLE activities ADD COLUMN ride_environment_source VARCHAR",
+    "ALTER TABLE activities ADD COLUMN indoor_platform VARCHAR",
+    "ALTER TABLE activities ADD COLUMN power_correction_factor FLOAT",
+    "ALTER TABLE activities ADD COLUMN hr_correction_factor FLOAT",
+    "ALTER TABLE activities ADD COLUMN corrected_tss FLOAT",
+    # Indoor/outdoor reconciliation — per-user profile table
+    """CREATE TABLE IF NOT EXISTS indoor_outdoor_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        power_gap_pct FLOAT,
+        hr_gap_bpm FLOAT,
+        power_gap_confidence VARCHAR,
+        indoor_avg_wkg_z3 FLOAT,
+        outdoor_avg_wkg_z3 FLOAT,
+        indoor_avg_hr_z3 FLOAT,
+        outdoor_avg_hr_z3 FLOAT,
+        indoor_rides_analyzed INTEGER DEFAULT 0,
+        outdoor_rides_analyzed INTEGER DEFAULT 0,
+        manual_power_gap_pct FLOAT,
+        calibration_date DATETIME,
+        calibration_method VARCHAR,
+        last_calculated DATETIME,
+        calculation_json TEXT
+    )""",
 ]
 
 # Assign all legacy (pre-multi-user) records to user id=1
@@ -194,7 +220,8 @@ app.include_router(payments.router,   prefix="/api/payments",   tags=["payments"
 app.include_router(strava.router,     prefix="/api/strava",     tags=["strava"])
 app.include_router(dashboard.router,  prefix="/api/dashboard",  tags=["dashboard"])
 app.include_router(hydration.router,  prefix="/api",            tags=["hydration"])
-app.include_router(durability.router, prefix="/api",            tags=["durability"])
+app.include_router(durability.router,      prefix="/api",            tags=["durability"])
+app.include_router(indoor_outdoor.router,  prefix="/api",            tags=["indoor_outdoor"])
 
 
 @app.get("/health")

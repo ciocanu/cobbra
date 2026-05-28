@@ -92,12 +92,20 @@ class Activity(Base):
     weather_humidity_pct = Column(Float, nullable=True)
     # Durability profiling
     durability_index = Column(Float, nullable=True)
+    # Indoor/outdoor classification
+    ride_environment        = Column(String, nullable=True)  # "indoor" | "outdoor" | "unknown"
+    ride_environment_source = Column(String, nullable=True)  # "auto_detected" | "user_override" | "strava"
+    indoor_platform         = Column(String, nullable=True)  # "zwift" | "trainerroad" | "wahoo" | "mywhoosh" | "rolo" | "other"
+    power_correction_factor = Column(Float, nullable=True)   # e.g. 1.08 = indoor power adjusted +8%
+    hr_correction_factor    = Column(Float, nullable=True)   # e.g. 0.95 = indoor HR adjusted -5%
+    corrected_tss           = Column(Float, nullable=True)   # TSS after indoor/outdoor correction
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
     laps = relationship("Lap", back_populates="activity", cascade="all, delete-orphan")
     hydration_analysis = relationship("HydrationAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
     durability_analysis = relationship("DurabilityAnalysis", back_populates="activity", uselist=False, cascade="all, delete-orphan")
+    # indoor_outdoor relationship is accessed via IndoorOutdoorProfile.user_id, not per-activity
 
 
 class TrackPoint(Base):
@@ -274,3 +282,34 @@ class SegmentEffort(Base):
     set_at = Column(DateTime, nullable=False)
 
     segment = relationship("Segment", back_populates="efforts")
+
+
+class IndoorOutdoorProfile(Base):
+    __tablename__ = "indoor_outdoor_profiles"
+
+    id      = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    # Calculated gap
+    power_gap_pct        = Column(Float, nullable=True)   # e.g. -10.0 = indoor 10% below outdoor
+    hr_gap_bpm           = Column(Float, nullable=True)   # e.g. +7.0 = indoor 7 bpm higher
+    power_gap_confidence = Column(String, nullable=True)  # "high" | "medium" | "low" | "insufficient_data"
+
+    # Z3 reference values used for calculation
+    indoor_avg_wkg_z3  = Column(Float, nullable=True)
+    outdoor_avg_wkg_z3 = Column(Float, nullable=True)
+    indoor_avg_hr_z3   = Column(Float, nullable=True)
+    outdoor_avg_hr_z3  = Column(Float, nullable=True)
+
+    # Ride counts used
+    indoor_rides_analyzed  = Column(Integer, default=0)
+    outdoor_rides_analyzed = Column(Integer, default=0)
+
+    # Manual calibration override
+    manual_power_gap_pct = Column(Float, nullable=True)
+    calibration_date     = Column(DateTime, nullable=True)
+    calibration_method   = Column(String, nullable=True)  # "same_route_test" | "ftp_comparison" | "manual"
+
+    # Metadata
+    last_calculated  = Column(DateTime, nullable=True)
+    calculation_json = Column(Text, nullable=True)
