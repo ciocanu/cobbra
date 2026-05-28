@@ -5,7 +5,8 @@ import {
   getDashboardFitnessInsight, getHeatProfile, getDurabilityTrend,
 } from '../services/api'
 import {
-  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, Cell, LineChart, Line, ReferenceLine,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { format } from 'date-fns'
 import { Route, Droplets, TrendingUp } from 'lucide-react'
@@ -430,36 +431,102 @@ export default function Dashboard() {
 
       {/* ── Durability Trend ─────────────────────────────────────────────── */}
       {durabilityTrend && durabilityTrend.current_avg != null && (
-        <div style={{ marginTop: 24, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>Durability Trend</span>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Current (12-wk avg)</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)', color: durabilityTrend.trend === 'improving' ? '#6dffb8' : durabilityTrend.trend === 'declining' ? '#ff4d6d' : 'var(--text-primary)' }}>
-                  {durabilityTrend.current_avg.toFixed(1)}
-                </span>
-                <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>
-                  {durabilityTrend.trend === 'improving' ? '↑' : durabilityTrend.trend === 'declining' ? '↓' : '→'}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>{durabilityTrend.trend}</div>
+        <div className="chart-section" style={{ marginTop: 24 }}>
+          {/* Header row: title + summary numbers */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
+              <span className="chart-title" style={{ marginBottom: 0 }}>
+                Durability Trend
+              </span>
             </div>
-            {durabilityTrend.best_ever != null && (
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Best ever</div>
-                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)', color: 'var(--accent)' }}>
-                  {durabilityTrend.best_ever.toFixed(1)}
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Current avg</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, justifyContent: 'flex-end' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: durabilityTrend.trend === 'improving' ? '#6dffb8' : durabilityTrend.trend === 'declining' ? '#ff4d6d' : 'var(--text-primary)' }}>
+                    {durabilityTrend.current_avg.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    {durabilityTrend.trend === 'improving' ? '↑' : durabilityTrend.trend === 'declining' ? '↓' : '→'}
+                  </span>
                 </div>
-                {durabilityTrend.best_ever_date && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{durabilityTrend.best_ever_date}</div>
-                )}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{durabilityTrend.trend}</div>
               </div>
-            )}
+              {durabilityTrend.best_ever != null && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Best ever</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--accent)' }}>
+                    {durabilityTrend.best_ever.toFixed(1)}
+                  </div>
+                  {durabilityTrend.best_ever_date && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{durabilityTrend.best_ever_date}</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Weekly trend line chart */}
+          {durabilityTrend.weekly_averages.length >= 2 && (
+            <>
+              {/* Reference line legend */}
+              <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
+                {[
+                  { label: 'Excellent', y: 95, color: '#6dffb8' },
+                  { label: 'Good',      y: 88, color: '#4da6ff' },
+                  { label: 'Moderate',  y: 80, color: '#ffd93d' },
+                ].map(({ label, y, color }) => (
+                  <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <span style={{ width: 16, height: 1, borderTop: `1px dashed ${color}`, display: 'inline-block', flexShrink: 0 }} />
+                    {label} ({y})
+                  </span>
+                ))}
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={durabilityTrend.weekly_averages} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={w => w.slice(5)}
+                  />
+                  <YAxis
+                    domain={[60, 105]}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => active && payload?.length ? (
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-bright)', borderRadius: 6, padding: '6px 10px', fontSize: 12 }}>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--accent)' }}>
+                          {payload[0].value?.toFixed(1)}
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>DI · {payload[0].payload.ride_count} ride{payload[0].payload.ride_count !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  />
+                  <ReferenceLine y={95} stroke="#6dffb8" strokeDasharray="4 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={88} stroke="#4da6ff" strokeDasharray="4 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={80} stroke="#ffd93d" strokeDasharray="4 3" strokeOpacity={0.5} />
+                  <Line
+                    type="monotone"
+                    dataKey="avg_durability"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: 'var(--accent)', strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </>
+          )}
         </div>
       )}
 
