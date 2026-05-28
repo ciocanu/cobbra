@@ -15,6 +15,8 @@ from parsers.fit_parser import parse_fit
 from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss
 from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
 from utils.durability import validate_durability_calculation, calculate_durability
+from utils.indoor_detection import detect_ride_environment
+from utils.indoor_outdoor_gap import apply_correction_factors, update_indoor_outdoor_gap
 from typing import List, Optional
 import httpx
 
@@ -234,6 +236,43 @@ def _run_durability_analysis(
     activity.durability_index = result["durability_index"]
 
 
+def _run_indoor_detection(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user,
+    file_metadata: dict | None = None,
+) -> None:
+    """Detect indoor/outdoor environment, apply correction if gap is known."""
+    env = detect_ride_environment(
+        track_points,
+        activity_name=activity.name,
+        file_metadata=file_metadata or {},
+    )
+    activity.ride_environment        = env["environment"]
+    activity.ride_environment_source = "auto_detected"
+    activity.indoor_platform         = env.get("platform")
+
+    if env["environment"] == "indoor":
+        profile = db.query(models.IndoorOutdoorProfile).filter(
+            models.IndoorOutdoorProfile.user_id == user.id
+        ).first()
+        if profile and (
+            profile.power_gap_pct is not None
+            or profile.manual_power_gap_pct is not None
+        ):
+            correction = apply_correction_factors(activity, profile)
+            activity.power_correction_factor = correction["power_correction_factor"]
+            activity.hr_correction_factor    = correction["hr_correction_factor"]
+            activity.corrected_tss           = correction["corrected_tss"]
+
+    # Refresh the per-user gap profile with this new ride included
+    try:
+        update_indoor_outdoor_gap(user.id, db)
+    except Exception as _gap_err:
+        log.warning("Gap update failed for user %s: %s", user.id, _gap_err)
+
+
 def _match_segments(db: Session, track_points: list, activity: models.Activity):
     for seg in db.query(models.Segment).all():
         effort = match_segment(track_points, seg)
@@ -364,6 +403,12 @@ async def upload_activity(
         activity.normalized_power_w = np
         if current_user.ftp:
             activity.tss = compute_tss(np, activity.duration_seconds, current_user.ftp)
+
+    # Indoor/outdoor detection + correction
+    try:
+        _run_indoor_detection(db, activity, track_points, current_user)
+    except Exception as _e:
+        log.warning("Indoor/outdoor detection failed for activity %s: %s", activity.id, _e)
 
     # Hydration & heat strain analysis
     try:

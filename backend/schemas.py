@@ -90,6 +90,12 @@ class ActivityOut(BaseModel):
     created_at: datetime
     tss: Optional[float] = None
     intensity_factor: Optional[float] = None
+    ride_environment:        Optional[str] = None
+    ride_environment_source: Optional[str] = None
+    indoor_platform:         Optional[str] = None
+    power_correction_factor: Optional[float] = None
+    hr_correction_factor:    Optional[float] = None
+    corrected_tss:           Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -245,6 +251,57 @@ class DurabilityCompareOut(BaseModel):
     rides: List[dict]
     best_ride_id: Optional[int]
     comparison_note: str
+
+
+# ── Indoor / Outdoor ─────────────────────────────────────────────────────────
+
+class IndoorOutdoorProfileOut(BaseModel):
+    power_gap_pct:          Optional[float]
+    hr_gap_bpm:             Optional[float]
+    power_gap_confidence:   Optional[str]
+    indoor_avg_wkg_z3:      Optional[float]
+    outdoor_avg_wkg_z3:     Optional[float]
+    indoor_avg_hr_z3:       Optional[float]
+    outdoor_avg_hr_z3:      Optional[float]
+    indoor_rides_analyzed:  int = 0
+    outdoor_rides_analyzed: int = 0
+    manual_power_gap_pct:   Optional[float]
+    calibration_date:       Optional[datetime]
+    calibration_method:     Optional[str]
+    last_calculated:        Optional[datetime]
+    # Effective gap used for corrections (manual overrides calculated)
+    effective_power_gap_pct: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CalibrateIn(BaseModel):
+    method: str                                # "ftp_comparison" | "dual_test"
+    indoor_ftp: Optional[float]  = None        # for ftp_comparison
+    outdoor_ftp: Optional[float] = None        # for ftp_comparison
+    indoor_activity_id:  Optional[int] = None  # for dual_test
+    outdoor_activity_id: Optional[int] = None  # for dual_test
+
+
+class CalibrateOut(BaseModel):
+    power_gap_pct:         Optional[float]
+    hr_gap_bpm:            Optional[float]
+    indoor_ftp_estimated:  Optional[float]
+    outdoor_ftp_estimated: Optional[float]
+    interpretation:        str
+    recommendation:        str
+
+
+class EnvironmentOverrideIn(BaseModel):
+    environment: str               # "indoor" | "outdoor" | "unknown"
+    platform:    Optional[str] = None  # "zwift" | "trainerroad" | …
+
+
+class TrainingLoadComparisonOut(BaseModel):
+    original:   dict
+    corrected:  dict
+    difference: dict
 
 
 class SegmentIn(BaseModel):
