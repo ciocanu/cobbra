@@ -1,0 +1,1032 @@
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { format } from 'date-fns'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest } from '../services/api'
+import { markLoggedOut } from '../services/auth'
+import {
+  Save, Heart, CreditCard, CheckCircle, Zap, Star,
+  User, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Mail, Send, Bike,
+  RefreshCw, Link2, Link2Off, Download, Trash2, AlertTriangle, Droplets, Thermometer,
+} from 'lucide-react'
+import Alert from './Alert'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TIER_STYLE = {
+  free:     { color: '#aaa',    bg: '#ffffff08', border: '#ffffff18' },
+  pro:      { color: '#4da6ff', bg: '#4da6ff10', border: '#4da6ff35' },
+  annual:   { color: '#ffd93d', bg: '#ffd93d10', border: '#ffd93d35' },
+  lifetime: { color: '#c084fc', bg: '#c084fc10', border: '#c084fc35' },
+}
+
+const TIER_RANK = { free: 0, pro: 1, annual: 2, lifetime: 3 }
+
+const STRAVA_COLOR = '#FC4C02'
+
+const TIER_FEATURES = {
+  free:     ['15 activities total', 'Basic stats & charts', 'Segment tracking', 'Personal records & goals'],
+  pro:      ['Unlimited activities', 'AI ride analysis', '10 AI training plans / month', 'CSV & GPX export', 'Segment tracking & records'],
+  annual:   ['Everything in Pro', 'Early access to new features', 'Best value — save 50%'],
+  lifetime: ['Everything in Pro & Annual', 'All future features included', 'Never pay again'],
+}
+
+const UPGRADE_PLANS = [
+  { tier: 'pro',    label: 'Pro',    price: '€5 / month', color: '#4da6ff', features: TIER_FEATURES.pro },
+  { tier: 'annual', label: 'Annual', price: '€30 / year', sub: 'Save 50%', color: '#ffd93d', features: TIER_FEATURES.annual },
+]
+
+const HR_ZONES = [
+  { label: 'Z1', name: 'Recovery',  range: [0,    0.60], color: '#6dffb8', desc: 'Very light — warm-up, cool-down, active recovery.' },
+  { label: 'Z2', name: 'Endurance', range: [0.60, 0.70], color: '#4da6ff', desc: 'Comfortable aerobic effort. Builds base fitness.' },
+  { label: 'Z3', name: 'Tempo',     range: [0.70, 0.80], color: '#ffd93d', desc: 'Moderately hard. Improves lactate threshold.' },
+  { label: 'Z4', name: 'Threshold', range: [0.80, 0.90], color: '#ff8c42', desc: 'Hard. Speed endurance. Sustainable ~20 min.' },
+  { label: 'Z5', name: 'VO2 Max',   range: [0.90, 1.00], color: '#ff4d6d', desc: 'Maximum effort. Peak power. Short intervals only.' },
+]
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function avatarColor(name = '') {
+  const colors = ['#4da6ff', '#ffd93d', '#6dffb8', '#ff8c42', '#c084fc', '#ff4d6d']
+  let hash = 0
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  return colors[hash % colors.length]
+}
+
+function Card({ children, style }) {
+  return (
+    <div className="settings-card" style={{ marginBottom: 0, ...style }}>
+      {children}
+    </div>
+  )
+}
+
+function CardTitle({ icon: Icon, color = 'var(--accent)', children }) {
+  return (
+    <div className="settings-section-title" style={{ marginBottom: 18 }}>
+      <Icon size={14} style={{ color }} />
+      {children}
+    </div>
+  )
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: 'var(--border)', margin: '16px 0' }} />
+}
+
+function CollapsibleRow({ icon: Icon, label, open, onToggle, children }) {
+  return (
+    <>
+      <Divider />
+      <button
+        onClick={onToggle}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
+          <Icon size={14} style={{ color: 'var(--text-muted)' }} />
+          {label}
+        </div>
+        {open
+          ? <ChevronUp  size={15} style={{ color: 'var(--text-muted)' }} />
+          : <ChevronDown size={15} style={{ color: 'var(--text-muted)' }} />}
+      </button>
+      {open && <div style={{ marginTop: 14 }}>{children}</div>}
+    </>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+export default function Settings() {
+  const [searchParams] = useSearchParams()
+  const justUpgraded   = searchParams.get('upgraded') === '1'
+
+  const [user,    setUser]    = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  // HR
+  const [maxHr,   setMaxHr]   = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+  const [hrError, setHrError] = useState('')
+
+  // Fitness profile
+  const [age,             setAge]             = useState('')
+  const [restingHr,       setRestingHr]       = useState('')
+  const [weightKg,        setWeightKg]        = useState('')
+  const [ftp,             setFtp]             = useState('')
+  const [experienceLevel, setExperienceLevel] = useState('')
+  const [bikeType,        setBikeType]        = useState('')
+  const [fitnessSaving,   setFitnessSaving]   = useState(false)
+  const [fitnessSaved,    setFitnessSaved]    = useState(false)
+  const [fitnessError,    setFitnessError]    = useState('')
+
+  // Upgrade
+  const [checking, setChecking] = useState(null)
+
+  // Email change
+  const [emailOpen,    setEmailOpen]    = useState(false)
+  const [newEmail,     setNewEmail]     = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent,    setEmailSent]    = useState(false)
+  const [emailError,   setEmailError]   = useState('')
+
+  // Password
+  const [pwOpen,   setPwOpen]   = useState(false)
+  const [oldPw,    setOldPw]    = useState('')
+  const [newPw,    setNewPw]    = useState('')
+  const [showOld,  setShowOld]  = useState(false)
+  const [showNew,  setShowNew]  = useState(false)
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError,  setPwError]  = useState('')
+  const [pwSaved,  setPwSaved]  = useState(false)
+
+  // Data & Privacy
+  const [exporting,        setExporting]        = useState(false)
+  const [deleteOpen,       setDeleteOpen]       = useState(false)
+  const [deletePw,         setDeletePw]         = useState('')
+  const [deleteConfirm,    setDeleteConfirm]    = useState('')
+  const [deleting,         setDeleting]         = useState(false)
+  const [deleteError,      setDeleteError]      = useState('')
+
+  // Heat & Hydration
+  const [heatProfile,      setHeatProfile]      = useState(null)
+  const [sweatTestOpen,    setSweatTestOpen]    = useState(false)
+  const [sweatBefore,      setSweatBefore]      = useState('')
+  const [sweatAfter,       setSweatAfter]       = useState('')
+  const [sweatIntake,      setSweatIntake]      = useState('')
+  const [sweatDuration,    setSweatDuration]    = useState('')
+  const [sweatSaving,      setSweatSaving]      = useState(false)
+  const [sweatMsg,         setSweatMsg]         = useState('')
+  const [sweatMsgType,     setSweatMsgType]     = useState('')
+
+  // Strava
+  const [stravaConnected,  setStravaConnected]  = useState(false)
+  const [stravaAthleteId,  setStravaAthleteId]  = useState(null)
+  const [stravaLastSync,   setStravaLastSync]   = useState(null)
+  const [stravaSyncing,    setStravaSyncing]    = useState(false)
+  const [stravaConnecting, setStravaConnecting] = useState(false)
+  const [stravaMsg,        setStravaMsg]        = useState('')
+  const [stravaMsgType,    setStravaMsgType]    = useState('')
+
+  useEffect(() => {
+    getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})
+    Promise.all([getSettings(), getMe(), stravaStatus().catch(() => ({ data: { connected: false } }))])
+      .then(([s, u, sv]) => {
+        setMaxHr(s.data.max_hr ?? '')
+        setAge(s.data.age ?? '')
+        setRestingHr(s.data.resting_hr ?? '')
+        setWeightKg(s.data.weight_kg ?? '')
+        setFtp(s.data.ftp ?? '')
+        setExperienceLevel(s.data.experience_level ?? '')
+        setBikeType(s.data.bike_type ?? '')
+        setUser(u.data)
+        setStravaConnected(sv.data.connected)
+        setStravaAthleteId(sv.data.athlete_id || null)
+        setStravaLastSync(sv.data.last_sync_at || null)
+
+        if (justUpgraded && (u.data.membership || 'free') === 'free') {
+          let attempts = 0
+          const poll = setInterval(async () => {
+            attempts++
+            try {
+              const fresh = await getMe()
+              if ((fresh.data.membership || 'free') !== 'free' || attempts >= 8) {
+                clearInterval(poll)
+                setUser(fresh.data)
+              }
+            } catch { clearInterval(poll) }
+          }, 2000)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSweatTest = async () => {
+    setSweatMsg('')
+    const before = parseFloat(sweatBefore), after = parseFloat(sweatAfter)
+    const intake = parseInt(sweatIntake, 10), dur = parseFloat(sweatDuration)
+    if (isNaN(before) || before <= 0) { setSweatMsg('Enter a valid pre-ride weight.'); setSweatMsgType('error'); return }
+    if (isNaN(after)  || after  <= 0) { setSweatMsg('Enter a valid post-ride weight.'); setSweatMsgType('error'); return }
+    if (isNaN(intake) || intake < 0)  { setSweatMsg('Enter fluid intake (0 if none).'); setSweatMsgType('error'); return }
+    if (isNaN(dur)    || dur   <= 0)  { setSweatMsg('Enter a valid duration in hours.'); setSweatMsgType('error'); return }
+    setSweatSaving(true)
+    try {
+      const res = await recordSweatTest({ weight_before_kg: before, weight_after_kg: after, intake_ml_during: intake, duration_h: dur })
+      setHeatProfile(res.data)
+      setSweatMsg(`Calibrated: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h saved.`)
+      setSweatMsgType('success')
+      setSweatBefore(''); setSweatAfter(''); setSweatIntake(''); setSweatDuration('')
+    } catch (e) {
+      setSweatMsg(e.response?.data?.detail || 'Calculation failed — check your inputs.')
+      setSweatMsgType('error')
+    } finally { setSweatSaving(false) }
+  }
+
+  const handleSaveHr = async () => {
+    const val = parseInt(maxHr, 10)
+    if (maxHr !== '' && (isNaN(val) || val < 100 || val > 250)) {
+      setHrError('Max HR must be between 100 and 250 bpm'); return
+    }
+    setSaving(true); setHrError('')
+    try {
+      await updateSettings({ max_hr: maxHr === '' ? null : val })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch { setHrError('Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  const handleSaveFitness = async () => {
+    setFitnessError('')
+    const payload = {}
+    if (age !== '') {
+      const v = parseInt(age, 10)
+      if (isNaN(v) || v < 10 || v > 100) { setFitnessError('Age must be between 10 and 100.'); return }
+      payload.age = v
+    }
+    if (restingHr !== '') {
+      const v = parseInt(restingHr, 10)
+      if (isNaN(v) || v < 30 || v > 100) { setFitnessError('Resting HR must be between 30 and 100 bpm.'); return }
+      payload.resting_hr = v
+    }
+    if (weightKg !== '') {
+      const v = parseFloat(weightKg)
+      if (isNaN(v) || v < 30 || v > 250) { setFitnessError('Weight must be between 30 and 250 kg.'); return }
+      payload.weight_kg = v
+    }
+    if (ftp !== '') {
+      const v = parseInt(ftp, 10)
+      if (isNaN(v) || v < 50 || v > 600) { setFitnessError('FTP must be between 50 and 600 W.'); return }
+      payload.ftp = v
+    }
+    if (experienceLevel) payload.experience_level = experienceLevel
+    if (bikeType)        payload.bike_type        = bikeType
+    setFitnessSaving(true)
+    try {
+      await updateSettings(payload)
+      setFitnessSaved(true); setTimeout(() => setFitnessSaved(false), 2500)
+    } catch (e) {
+      setFitnessError(e.response?.data?.detail || 'Failed to save.')
+    } finally { setFitnessSaving(false) }
+  }
+
+  const handleUpgrade = async (tier) => {
+    setChecking(tier)
+    try {
+      const res = await createCheckout(tier)
+      window.location.href = res.data.url
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Could not start checkout.')
+      setChecking(null)
+    }
+  }
+
+  const handleRequestEmailChange = async () => {
+    setEmailError('')
+    if (!newEmail.includes('@')) { setEmailError('Enter a valid email address.'); return }
+    setEmailSending(true)
+    try {
+      await requestEmailChange(newEmail); setEmailSent(true)
+    } catch (e) {
+      setEmailError(e.response?.data?.detail || 'Failed to send verification email.')
+    } finally { setEmailSending(false) }
+  }
+
+  const handleChangePassword = async () => {
+    setPwError('')
+    if (!oldPw || !newPw) { setPwError('Fill in both fields.'); return }
+    if (newPw.length < 6)  { setPwError('New password must be at least 6 characters.'); return }
+    setPwSaving(true)
+    try {
+      await changePassword(oldPw, newPw)
+      setPwSaved(true); setOldPw(''); setNewPw('')
+      setTimeout(() => { setPwSaved(false); setPwOpen(false) }, 2000)
+    } catch (e) {
+      setPwError(e.response?.data?.detail || 'Failed to change password.')
+    } finally { setPwSaving(false) }
+  }
+
+  const handleStravaConnect = async () => {
+    setStravaConnecting(true)
+    try {
+      const res = await stravaAuthUrl()
+      window.location.href = res.data.url
+    } catch (e) {
+      setStravaMsg(e.response?.data?.detail || 'Strava is not configured on this server.')
+      setStravaMsgType('error')
+      setStravaConnecting(false)
+    }
+  }
+
+  const handleStravaDisconnect = async () => {
+    try {
+      await stravaDisconnect()
+      setStravaConnected(false)
+      setStravaAthleteId(null)
+      setStravaLastSync(null)
+      setStravaMsg('Strava disconnected.')
+      setStravaMsgType('success')
+    } catch {
+      setStravaMsg('Failed to disconnect.')
+      setStravaMsgType('error')
+    }
+  }
+
+  const handleStravaSync = async () => {
+    setStravaSyncing(true)
+    setStravaMsg('')
+    try {
+      const res = await stravaSync()
+      const { imported, skipped, backfilled, capped, detail } = res.data
+      let msg = `Sync complete — ${imported} ride${imported !== 1 ? 's' : ''} imported`
+      if (backfilled > 0) msg += `, ${backfilled} updated with GPS data`
+      if (skipped > 0) msg += `, ${skipped} skipped`
+      msg += '.'
+      if (capped) msg = detail
+      setStravaMsg(msg)
+      setStravaMsgType(capped ? 'error' : 'success')
+      setStravaLastSync(new Date().toISOString())
+    } catch (e) {
+      setStravaMsg(e.response?.data?.detail || 'Sync failed.')
+      setStravaMsgType('error')
+    } finally {
+      setStravaSyncing(false)
+    }
+  }
+
+  const handleExportData = async () => {
+    setExporting(true)
+    try {
+      const res = await exportMyData()
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `cobbra-data-${user?.username || 'export'}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Export failed. Please try again.')
+    } finally { setExporting(false) }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== 'DELETE') { setDeleteError('Type DELETE to confirm.'); return }
+    if (!deletePw) { setDeleteError('Enter your password.'); return }
+    setDeleting(true); setDeleteError('')
+    try {
+      await deleteAccount(deletePw)
+      markLoggedOut()
+      window.location.href = '/'
+    } catch (e) {
+      setDeleteError(e.response?.data?.detail || 'Failed to delete account.')
+      setDeleting(false)
+    }
+  }
+
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
+
+  const membership  = user?.membership || 'free'
+  const ts          = TIER_STYLE[membership] || TIER_STYLE.free
+  const currentRank = TIER_RANK[membership] ?? 0
+  const subEnd      = user?.subscription_end ? new Date(user.subscription_end) : null
+  const hrVal       = parseInt(maxHr, 10)
+  const upgradable  = UPGRADE_PLANS.filter(p => TIER_RANK[p.tier] > currentRank)
+  const aColor      = avatarColor(user?.username)
+
+  // ── Karvonen zones preview (mirrors backend logic for display) ────────────
+  const maxHrNum     = parseInt(maxHr, 10)
+  const restingHrNum = parseInt(restingHr, 10)
+  const zonesReady   = maxHr !== '' && !isNaN(maxHrNum) && maxHrNum >= 100
+  const useKarvonen  = zonesReady && restingHr !== '' && !isNaN(restingHrNum) && restingHrNum >= 30
+
+  function zoneBpm(lo, hi) {
+    if (!zonesReady) return null
+    if (useKarvonen) {
+      const hrr = maxHrNum - restingHrNum
+      return { lo: Math.round(restingHrNum + hrr * lo), hi: Math.round(restingHrNum + hrr * hi) }
+    }
+    return { lo: Math.round(maxHrNum * lo), hi: Math.round(maxHrNum * hi) }
+  }
+
+  return (
+    <div style={{ maxWidth: 1140 }}>
+      <div className="page-header">
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Account, plan, and training preferences</p>
+      </div>
+
+      {/* Upgrade banner */}
+      {justUpgraded && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', borderRadius: 10, background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent)', marginBottom: 20, fontWeight: 600 }}>
+          <CheckCircle size={16} />
+          Welcome to {membership.charAt(0).toUpperCase() + membership.slice(1)}! Your plan has been upgraded.
+        </div>
+      )}
+
+      {/* ── Row 1: Account | Plan & Billing ──────────────────────────── */}
+      <div className="settings-layout-top">
+
+        {/* Account card */}
+        <Card>
+          {/* Avatar + info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+              background: aColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 26, fontWeight: 800, color: 'oklch(8% 0.005 142)',
+              boxShadow: `0 0 0 3px oklch(8% 0.005 142), 0 0 0 5px ${aColor}55`,
+            }}>
+              {(user?.username || '?')[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                {user?.username}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.email || <span style={{ opacity: 0.4 }}>No email on file</span>}
+              </div>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                background: ts.bg, border: `1px solid ${ts.border}`, color: ts.color,
+                letterSpacing: '0.05em', textTransform: 'uppercase',
+              }}>
+                {membership === 'lifetime' && <Star size={9} />}
+                {membership}
+              </span>
+            </div>
+          </div>
+
+          {/* Change Email */}
+          <CollapsibleRow
+            icon={Mail} label="Change Email"
+            open={emailOpen}
+            onToggle={() => { setEmailOpen(o => !o); setEmailError(''); setEmailSent(false); setNewEmail('') }}
+          >
+            {emailSent ? (
+              <div style={{ padding: '14px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 19%, transparent)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--accent)', marginBottom: 6, fontSize: 13 }}>
+                  <CheckCircle size={14} /> Verification email sent
+                </div>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Sent to <strong style={{ color: 'var(--text-primary)' }}>{newEmail}</strong>. Link expires in 24 h.
+                </p>
+                <button onClick={() => { setEmailSent(false); setNewEmail('') }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)', padding: 0, textDecoration: 'underline' }}>
+                  Use a different address
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Current: <strong style={{ color: 'var(--text-secondary)' }}>{user?.email || '—'}</strong>
+                </div>
+                <input
+                  id="settings-new-email"
+                  aria-label="New email address"
+                  type="email" className="filter-input" style={{ width: '100%' }}
+                  value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailError('') }}
+                  placeholder="new@email.com"
+                  onKeyDown={e => e.key === 'Enter' && handleRequestEmailChange()}
+                />
+                {emailError && <Alert variant="error" style={{ fontSize: 12 }}>{emailError}</Alert>}
+                <button className="btn btn-primary" onClick={handleRequestEmailChange} disabled={emailSending}>
+                  <Send size={12} />
+                  {emailSending ? 'Sending…' : 'Send verification'}
+                </button>
+              </div>
+            )}
+          </CollapsibleRow>
+
+          {/* Change Password */}
+          <CollapsibleRow
+            icon={Lock} label="Change Password"
+            open={pwOpen}
+            onToggle={() => { setPwOpen(o => !o); setPwError(''); setPwSaved(false) }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { id: 'settings-current-pw', label: 'Current password', val: oldPw, set: setOldPw, show: showOld, toggle: () => setShowOld(s => !s) },
+                { id: 'settings-new-pw',     label: 'New password',     val: newPw, set: setNewPw, show: showNew, toggle: () => setShowNew(s => !s), hint: 'Min. 6 characters' },
+              ].map(({ id, label, val, set, show, toggle, hint }) => (
+                <div key={label}>
+                  <label htmlFor={id} style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 5 }}>{label}</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id={id}
+                      type={show ? 'text' : 'password'} className="filter-input"
+                      style={{ width: '100%', paddingRight: 36 }}
+                      value={val} onChange={e => set(e.target.value)}
+                      placeholder={hint || '••••••••'}
+                    />
+                    <button onClick={toggle} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                      {show ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pwError && <Alert variant="error" style={{ fontSize: 12 }}>{pwError}</Alert>}
+              {pwSaved && <Alert variant="success" style={{ fontSize: 12 }}><Shield size={12} /> Password updated. Other sessions signed out.</Alert>}
+              <button className="btn btn-primary" onClick={handleChangePassword} disabled={pwSaving}>
+                <Lock size={12} />
+                {pwSaving ? 'Updating…' : 'Update Password'}
+              </button>
+            </div>
+          </CollapsibleRow>
+        </Card>
+
+        {/* Plan & Billing card */}
+        <Card>
+          <CardTitle icon={CreditCard}>Plan & Billing</CardTitle>
+
+          {/* Current plan */}
+          <div style={{ border: `1px solid ${ts.border}`, borderRadius: 12, background: ts.bg, padding: '18px 20px', marginBottom: upgradable.length ? 16 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ts.color, marginBottom: 4 }}>Current plan</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {membership === 'lifetime' && <Star size={18} style={{ color: ts.color }} />}
+                  {membership.charAt(0).toUpperCase() + membership.slice(1)}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
+                {membership === 'free'     && <span>15 activities max</span>}
+                {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>Never expires</span>}
+                {(membership === 'pro' || membership === 'annual') && subEnd && (
+                  <span>Renews {format(subEnd, 'dd MMM yyyy')}</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px' }}>
+              {TIER_FEATURES[membership]?.map(f => (
+                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <CheckCircle size={12} style={{ color: ts.color, flexShrink: 0 }} />
+                  {f}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Upgrade options */}
+          {upgradable.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${upgradable.length}, 1fr)`, gap: 12 }}>
+              {upgradable.map(plan => {
+                const ps = TIER_STYLE[plan.tier]
+                return (
+                  <div key={plan.tier} style={{ border: `1px solid ${ps.border}`, borderRadius: 10, padding: '16px 18px', background: ps.bg }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: ps.color }}>{plan.label}</span>
+                      {plan.sub && <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 7px' }}>{plan.sub}</span>}
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12 }}>{plan.price}</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {plan.features.map(f => (
+                        <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-muted)' }}>
+                          <Zap size={10} style={{ color: ps.color, flexShrink: 0 }} />{f}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      className="btn btn-primary"
+                      style={{ width: '100%', justifyContent: 'center', background: ps.color, color: 'oklch(8% 0.005 142)', fontWeight: 700 }}
+                      onClick={() => handleUpgrade(plan.tier)}
+                      disabled={checking === plan.tier}
+                    >
+                      {checking === plan.tier
+                        ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: 'oklch(8% 0.005 142 / 0.25)', borderTopColor: 'oklch(8% 0.005 142)' }} />
+                        : `Upgrade to ${plan.label}`}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {membership === 'lifetime' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--tier-lifetime) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--tier-lifetime) 13%, transparent)', fontSize: 13, color: 'var(--text-muted)' }}>
+              <Star size={13} style={{ color: 'var(--tier-lifetime)' }} />
+              You have lifetime access — nothing left to upgrade.
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ── Row 2: Fitness Profile | HR Zones ────────────────────────── */}
+      <div className="settings-layout-bottom">
+
+        {/* Fitness Profile */}
+        <Card>
+          <CardTitle icon={Bike} color="#6dffb8">Fitness Profile</CardTitle>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+            Used to personalise AI training plans. More data = more accurate sessions.
+          </p>
+
+          {/* Numeric stats row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 }}>
+            {[
+              { id: 'profile-age',        label: 'Age',        unit: 'years', val: age,       set: setAge,       placeholder: '32',  min: 10, max: 100, step: 1 },
+              { id: 'profile-weight',     label: 'Weight',     unit: 'kg',    val: weightKg,  set: setWeightKg,  placeholder: '72',  min: 30, max: 250, step: 0.1 },
+              { id: 'profile-resting-hr', label: 'Resting HR', unit: 'bpm',   val: restingHr, set: setRestingHr, placeholder: '52',  min: 30, max: 100, step: 1,   hint: 'Morning, before getting up' },
+              { id: 'profile-ftp',        label: 'FTP',        unit: 'W',     val: ftp,       set: setFtp,       placeholder: '220', min: 50, max: 600, step: 1,   hint: 'Only needed with a power meter' },
+            ].map(({ id, label, unit, val, set, placeholder, min, max, step, hint }) => (
+              <div key={label}>
+                <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    id={id}
+                    type="number" className="filter-input" style={{ flex: 1, minWidth: 0 }}
+                    value={val} onChange={e => { set(e.target.value); setFitnessError('') }}
+                    placeholder={placeholder} min={min} max={max} step={step}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{unit}</span>
+                </div>
+                {hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{hint}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Bike type */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Bike Type</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[
+                { value: 'road',   label: 'Road' },
+                { value: 'gravel', label: 'Gravel' },
+                { value: 'mtb',    label: 'MTB' },
+                { value: 'other',  label: 'Other' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setBikeType(opt.value); setFitnessError('') }}
+                  style={{
+                    padding: '8px 4px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600,
+                    border: bikeType === opt.value ? '1px solid #6dffb850' : '1px solid var(--border)',
+                    background: bikeType === opt.value ? '#6dffb812' : 'var(--bg-secondary)',
+                    color: bikeType === opt.value ? '#6dffb8' : 'var(--text-muted)',
+                    transition: 'border-color 0.15s, background-color 0.15s, color 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Experience level */}
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Experience Level</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { value: 'beginner',     label: 'Beginner',     desc: 'Riding less than 1 year' },
+                { value: 'intermediate', label: 'Intermediate', desc: '1–4 years of regular riding' },
+                { value: 'advanced',     label: 'Advanced',     desc: '4+ years, structured training or racing' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setExperienceLevel(opt.value); setFitnessError('') }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                    borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                    border: experienceLevel === opt.value ? '1px solid #6dffb840' : '1px solid var(--border)',
+                    background: experienceLevel === opt.value ? '#6dffb810' : 'var(--bg-secondary)',
+                    transition: 'border-color 0.15s, background-color 0.15s',
+                  }}
+                >
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: experienceLevel === opt.value ? '#6dffb8' : 'var(--border)',
+                    boxShadow: experienceLevel === opt.value ? '0 0 6px #6dffb8' : 'none',
+                    transition: 'background-color 0.15s, box-shadow 0.15s',
+                  }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: experienceLevel === opt.value ? '#6dffb8' : 'var(--text-primary)', marginBottom: 1 }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{opt.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {fitnessError && <Alert variant="error" style={{ marginBottom: 12, fontSize: 12 }}>{fitnessError}</Alert>}
+          {fitnessSaved && <Alert variant="success" style={{ marginBottom: 12, fontSize: 12 }}>Fitness profile saved.</Alert>}
+
+          <button className="btn btn-primary" onClick={handleSaveFitness} disabled={fitnessSaving}>
+            <Save size={13} />
+            {fitnessSaving ? 'Saving…' : 'Save Profile'}
+          </button>
+        </Card>
+
+        {/* HR Zones */}
+        <Card>
+          <CardTitle icon={Heart} color="var(--heart)">Heart Rate Zones</CardTitle>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+            Set your max HR to unlock zone tracking and Suffer Score.
+            Add resting HR too for more precise Karvonen zones — used in AI training plans.
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Max Heart Rate</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="number" className="filter-input" style={{ width: 90 }}
+                  value={maxHr} onChange={e => { setMaxHr(e.target.value); setHrError(''); setSaved(false) }}
+                  placeholder="e.g. 185" min={100} max={250}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>bpm</span>
+              </div>
+            </div>
+            {zonesReady && (
+              <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: useKarvonen ? '#6dffb812' : '#4da6ff12', border: `1px solid ${useKarvonen ? '#6dffb830' : '#4da6ff30'}`, color: useKarvonen ? '#6dffb8' : '#4da6ff', whiteSpace: 'nowrap', marginTop: 18 }}>
+                {useKarvonen ? 'Karvonen zones' : '% of max HR'}
+              </div>
+            )}
+          </div>
+
+          {zonesReady && (
+            <>
+              {/* Zone bar */}
+              <div style={{ display: 'flex', height: 8, borderRadius: 6, overflow: 'hidden', marginBottom: 5 }}>
+                {HR_ZONES.map(z => (
+                  <div key={z.label} style={{ flex: z.range[1] - z.range[0], background: z.color }} title={z.name} />
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 16, fontFamily: 'var(--font-display)' }}>
+                {HR_ZONES.map((z, i) => {
+                  const bpm = zoneBpm(z.range[0], z.range[1])
+                  return <span key={z.label}>{i === 0 ? bpm?.lo : bpm?.hi}</span>
+                })}
+                <span>{zoneBpm(HR_ZONES[4].range[0], HR_ZONES[4].range[1])?.hi}+</span>
+              </div>
+
+              {/* Zone rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {HR_ZONES.map(z => {
+                  const bpm = zoneBpm(z.range[0], z.range[1])
+                  const hiStr = z.range[1] === 1 ? `${bpm?.lo}+` : bpm?.hi
+                  return (
+                    <div key={z.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: `${z.color}0a`, border: `1px solid ${z.color}20` }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 7, background: `${z.color}20`, border: `1px solid ${z.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: z.color, flexShrink: 0 }}>
+                        {z.label}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: z.color }}>{z.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{z.desc}</div>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                        {bpm?.lo}–{hiStr} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>bpm</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {!zonesReady && (
+            <div style={{ padding: '20px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', textAlign: 'center' }}>
+              <Heart size={24} style={{ color: 'var(--text-muted)', opacity: 0.4, marginBottom: 8 }} />
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Enter your max HR to see your zones</div>
+            </div>
+          )}
+
+          {hrError && <Alert variant="error" style={{ marginTop: 14, fontSize: 12 }}>{hrError}</Alert>}
+          {saved   && <Alert variant="success" style={{ marginTop: 14, fontSize: 12 }}>Heart rate saved.</Alert>}
+
+          <div style={{ marginTop: 16 }}>
+            <button className="btn btn-primary" onClick={handleSaveHr} disabled={saving}>
+              <Save size={13} />
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </Card>
+
+      </div>
+
+      {/* ── Privacy & Data ──────────────────────────────────────────── */}
+      <Card style={{ marginBottom: 24 }}>
+        <CardTitle icon={Shield} color="#4da6ff">Privacy &amp; Data</CardTitle>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+          Under GDPR you have the right to export all your data or permanently delete your account.
+          {' '}<a href="/privacy" style={{ color: '#4da6ff', textDecoration: 'none' }}>Privacy Policy</a>
+          {' · '}<a href="/terms" style={{ color: '#4da6ff', textDecoration: 'none' }}>Terms of Service</a>
+        </p>
+
+        {/* Export */}
+        <div style={{ padding: '14px 16px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Export My Data</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+            Download a JSON file containing your profile, all activity metadata, goals, segments, and training plans.
+            Raw GPS track data can be exported per-activity via the CSV / GPX buttons.
+          </div>
+          <button className="btn btn-ghost" onClick={handleExportData} disabled={exporting} style={{ fontSize: 13 }}>
+            <Download size={13} />
+            {exporting ? 'Preparing…' : 'Download My Data'}
+          </button>
+        </div>
+
+        {/* Delete account */}
+        <div style={{ padding: '14px 16px', borderRadius: 10, background: '#ff4d6d08', border: '1px solid #ff4d6d20' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#ff4d6d', marginBottom: 2 }}>Delete Account</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Permanently removes your account and all associated data. This cannot be undone.</div>
+            </div>
+            <button
+              className="btn"
+              style={{ fontSize: 12, color: '#ff4d6d', borderColor: '#ff4d6d40', marginLeft: 16, flexShrink: 0 }}
+              onClick={() => { setDeleteOpen(o => !o); setDeleteError(''); setDeletePw(''); setDeleteConfirm('') }}
+            >
+              <Trash2 size={13} /> {deleteOpen ? 'Cancel' : 'Delete…'}
+            </button>
+          </div>
+
+          {deleteOpen && (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#ff4d6d12', border: '1px solid #ff4d6d30', fontSize: 12, color: '#ff8c9e' }}>
+                <AlertTriangle size={13} />
+                All activities, track data, goals, segments, and personal records will be permanently erased.
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Your password</label>
+                <input
+                  type="password" className="filter-input" style={{ width: '100%' }}
+                  value={deletePw} onChange={e => { setDeletePw(e.target.value); setDeleteError('') }}
+                  placeholder="Enter your password"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>
+                  Type <strong style={{ color: '#ff4d6d' }}>DELETE</strong> to confirm
+                </label>
+                <input
+                  type="text" className="filter-input" style={{ width: '100%' }}
+                  value={deleteConfirm} onChange={e => { setDeleteConfirm(e.target.value); setDeleteError('') }}
+                  placeholder="DELETE"
+                />
+              </div>
+              {deleteError && <Alert variant="error" style={{ fontSize: 12 }}>{deleteError}</Alert>}
+              <button
+                className="btn btn-danger"
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirm !== 'DELETE'}
+              >
+                <Trash2 size={13} />
+                {deleting ? 'Deleting…' : 'Permanently Delete My Account'}
+              </button>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* ── Heat & Hydration ──────────────────────────────────────── */}
+      <Card style={{ marginBottom: 24 }}>
+        <CardTitle icon={Droplets} color="#4da6ff">Heat &amp; Hydration</CardTitle>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+          Your personal sweat rate calibrates hydration targets. Run a sweat test by weighing yourself before and after a 1-hour effort.
+        </p>
+
+        {/* Current status */}
+        {heatProfile && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Sweat Rate</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#4da6ff', fontFamily: 'var(--font-display)' }}>
+                {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : 'Not set'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                {heatProfile.has_calibrated_rate ? 'From sweat test' : 'Run a sweat test below'}
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Heat Adaptation</div>
+              <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-display)', color: heatProfile.heat_adaptation_level === 'high' ? '#6dffb8' : heatProfile.heat_adaptation_level === 'moderate' ? '#ffd93d' : '#aaa' }}>
+                {heatProfile.heat_adaptation_level
+                  ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1)
+                  : 'Low'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{heatProfile.heat_rides_last_14d} hot rides (≥27°C) in 14 days</div>
+            </div>
+          </div>
+        )}
+
+        {/* Sweat Test form */}
+        <CollapsibleRow
+          icon={Thermometer} label="Run a Sweat Test"
+          open={sweatTestOpen}
+          onToggle={() => { setSweatTestOpen(o => !o); setSweatMsg('') }}
+        >
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+            Ride at a steady effort for exactly 1 hour with no fluid intake — or log any intake below. Weigh yourself (dry, no kit) immediately before and after.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { id: 'sweat-before', label: 'Weight before', unit: 'kg', val: sweatBefore, set: setSweatBefore, placeholder: '72.4', step: '0.1' },
+              { id: 'sweat-after',  label: 'Weight after',  unit: 'kg', val: sweatAfter,  set: setSweatAfter,  placeholder: '71.1', step: '0.1' },
+              { id: 'sweat-intake', label: 'Fluid intake',  unit: 'ml', val: sweatIntake, set: setSweatIntake, placeholder: '500',  step: '50' },
+              { id: 'sweat-dur',    label: 'Duration',      unit: 'h',  val: sweatDuration, set: setSweatDuration, placeholder: '1.0', step: '0.25' },
+            ].map(({ id, label, unit, val, set, placeholder, step }) => (
+              <div key={id}>
+                <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input id={id} type="number" className="filter-input" style={{ flex: 1 }}
+                    value={val} onChange={e => { set(e.target.value); setSweatMsg('') }}
+                    placeholder={placeholder} step={step} min="0"
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {sweatMsg && (
+            <Alert variant={sweatMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 10, fontSize: 12 }}>{sweatMsg}</Alert>
+          )}
+          <button className="btn btn-primary" onClick={handleSweatTest} disabled={sweatSaving}>
+            <Droplets size={12} />
+            {sweatSaving ? 'Calculating…' : 'Calculate & Save'}
+          </button>
+        </CollapsibleRow>
+      </Card>
+
+      {/* ── Row 3: Strava Connect ────────────────────────────────────── */}
+      <Card style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `color-mix(in srgb, ${STRAVA_COLOR} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${STRAVA_COLOR} 19%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill={STRAVA_COLOR}>
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0 5 13.828h4.172" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Strava</div>
+              {stravaConnected ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Connected
+                  {stravaAthleteId && <span style={{ opacity: 0.6 }}> · athlete #{stravaAthleteId}</span>}
+                  {stravaLastSync && (
+                    <span> · last synced {new Date(stravaLastSync).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Import your cycling activities from Strava</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {stravaConnected ? (
+              <>
+                <button
+                  className="btn btn-primary"
+                  style={{ background: STRAVA_COLOR, color: 'oklch(98% 0.005 120)', fontWeight: 700, gap: 6 }}
+                  onClick={handleStravaSync}
+                  disabled={stravaSyncing}
+                >
+                  {stravaSyncing
+                    ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> Syncing…</>
+                    : <><RefreshCw size={13} /> Sync Rides</>}
+                </button>
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, color: 'var(--text-muted)', borderColor: 'var(--border)', gap: 6 }}
+                  onClick={handleStravaDisconnect}
+                >
+                  <Link2Off size={13} /> Disconnect
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-primary"
+                style={{ background: STRAVA_COLOR, color: 'oklch(98% 0.005 120)', fontWeight: 700, gap: 6 }}
+                onClick={handleStravaConnect}
+                disabled={stravaConnecting}
+              >
+                {stravaConnecting
+                  ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> Redirecting…</>
+                  : <><Link2 size={13} /> Connect Strava</>}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {stravaMsg && (
+          <Alert
+            variant={stravaMsgType === 'error' ? 'error' : 'success'}
+            style={{ marginTop: 12, fontSize: 12 }}
+          >
+            {stravaMsg}
+          </Alert>
+        )}
+
+        {stravaConnected && (
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Only cycling activities (Ride, Virtual Ride, Gravel, MTB) are imported.
+            {membership === 'free' && ' Free plan: up to 15 activities total.'}
+            {' '}GPS track data is not available — activities imported from Strava won't generate personal records.
+          </div>
+        )}
+      </Card>
+
+    </div>
+  )
+}

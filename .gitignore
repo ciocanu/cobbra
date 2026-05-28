@@ -1,0 +1,53 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Environment & secrets ─────────────────────────────────
+.env
+.env.*
+*.env
+
+# ── Database & data files ─────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# ── Node / Frontend ───────────────────────────────────────
+node_modules/
+.cache/
+*.local
+
+# ── IDE ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Docker ────────────────────────────────────────────────
+.docker/
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Claude Code (ferramentas locais, não são código do projeto) ───
+.claude/
+impeccable-main/
+.impeccable/
+**/.agents/
+skills-lock.json
+see.txt
+
+# ── Ficheiros não relacionados com o código ───────────────
+*.pdf
