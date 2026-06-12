@@ -29,8 +29,7 @@ def _run_analysis(activity: models.Activity, user: models.User, db: Session) -> 
     if activity.normalized_power_w and user.ftp and user.ftp > 0:
         intensity_factor = min(1.0, activity.normalized_power_w / user.ftp)
     elif activity.avg_heart_rate_bpm and user.max_hr and user.max_hr > 0:
-        lthr = 0.85 * user.max_hr
-        intensity_factor = min(1.0, activity.avg_heart_rate_bpm / lthr)
+        intensity_factor = min(1.0, activity.avg_heart_rate_bpm / user.max_hr)
     else:
         intensity_factor = 0.65
 

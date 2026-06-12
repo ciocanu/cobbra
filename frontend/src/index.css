@@ -12,9 +12,25 @@
   --accent-hover: oklch(96% 0.24 138);
   --accent-dim: color-mix(in srgb, var(--accent) 10%, transparent);
   --accent-glow: color-mix(in srgb, var(--accent) 25%, transparent);
-  --warning: #ff8c42;
-  --tier-lifetime: #c084fc;
 
+  /* Semantic status — hue-aligned with brand but distinct from data-viz palette */
+  --status-good:     oklch(72% 0.16 142);
+  --status-warn:     oklch(78% 0.13 80);
+  --status-alert:    oklch(65% 0.15 38);
+  --status-critical: oklch(56% 0.20 18);
+
+  --warning: #ff8c42;
+  /* Gold-warm: premium tier badge, distinct from status-warn (80°) and venom (142°) */
+  --tier-lifetime: oklch(78% 0.18 55);
+
+  /* HR zone semantics — DESIGN.md canonical values, distinct from data-viz palette */
+  --zone-1: oklch(54% 0.12 264);
+  --zone-2: oklch(58% 0.15 142);
+  --zone-3: oklch(68% 0.14 88);
+  --zone-4: oklch(60% 0.15 38);
+  --zone-5: oklch(52% 0.14 20);
+
+  /* Chart-only data viz — never use outside chart/zone-bar contexts */
   --speed: #4da6ff;
   --heart: #ff4d6d;
   --cadence: #ffd93d;
@@ -22,13 +38,20 @@
 
   --text-primary: #f0f0ff;
   --text-secondary: #8888aa;
-  --text-muted: #3a3a5a;
+  --text-muted: #5c5c84;
 
   --font-display: 'Barlow Condensed', sans-serif;
   --font-body: 'Barlow', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
   --radius: 10px;
   --radius-sm: 6px;
+
+  /* Premium surface treatment — shared by every card/panel */
+  --surface-grad: linear-gradient(180deg, oklch(15% 0.009 142) 0%, oklch(13.2% 0.009 142) 100%);
+  --shadow-card: inset 0 1px 0 oklch(100% 0 0 / 0.04),
+                 0 1px 2px oklch(4% 0.006 142 / 0.45),
+                 0 10px 28px -14px oklch(4% 0.006 142 / 0.6);
 }
 
 *, *::before, *::after {
@@ -73,6 +96,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .sidebar-logo-icon {
@@ -99,12 +123,16 @@ html, body, #root {
   flex-direction: column;
   gap: 2px;
   padding: 0 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
@@ -144,7 +172,7 @@ html, body, #root {
 
 /* Page header */
 .page-header {
-  margin-bottom: 28px;
+  margin-bottom: 22px;
 }
 
 .page-title {
@@ -163,10 +191,39 @@ html, body, #root {
 
 /* Cards */
 .card {
-  background: var(--bg-card);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+/* Shared dashboard panel — one surface, one title style */
+.panel {
+  background: var(--surface-grad);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--shadow-card);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+/* Data numerals — keep digits aligned and steady */
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .card-label {
@@ -198,19 +255,23 @@ html, body, #root {
 .last-ride-strip {
   display: flex;
   align-items: center;
-  background: var(--bg-card);
+  background: var(--surface-grad);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 24px;
+  padding: 16px 22px;
+  box-shadow: var(--shadow-card);
   cursor: pointer;
   outline: none;
   user-select: none;
-  transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+  transition: border-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+              background-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
               opacity 80ms ease-out;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .last-ride-strip:hover {
-    background-color: var(--bg-hover);
+    background: var(--bg-hover);
+    border-color: var(--border-bright);
   }
 }
 
@@ -229,7 +290,7 @@ html, body, #root {
 }
 
 .lrs-section-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -277,7 +338,7 @@ html, body, #root {
 }
 
 .lrs-metric-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -291,6 +352,7 @@ html, body, #root {
   font-weight: 700;
   line-height: 1;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .lrs-metric-value.lrs-accent {
@@ -319,21 +381,41 @@ html, body, #root {
 
 /* Recent Rides list */
 .recent-rides-list {
-  /* no outer wrapper styles â€” rows are the surface */
+  background: var(--surface-grad);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.rrl-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.rrl-head span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .rrl-row {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 0;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   outline: none;
   user-select: none;
   transition: background-color 120ms cubic-bezier(0.23, 1, 0.32, 1),
               opacity 80ms ease-out;
-  border-radius: 4px;
 }
 
 .rrl-row:last-child {
@@ -375,11 +457,12 @@ html, body, #root {
 
 .rrl-stat {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
   flex-shrink: 0;
   text-align: right;
   min-width: 64px;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -388,11 +471,54 @@ html, body, #root {
   }
 }
 
-.dashboard-panels {
+/* Dashboard rows — each answers one question */
+.dash-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 24px;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* This Week (narrow) + Weekly Load chart (wide) */
+.dash-row-week {
+  grid-template-columns: minmax(250px, 330px) 1fr;
+}
+
+/* Durability chart (wide) + Heat Readiness (narrow) */
+.dash-row-trends {
+  grid-template-columns: 1fr minmax(260px, 330px);
+  align-items: start;
+}
+
+/* Training Status hero: verdict | numbers | sparkline */
+.readiness-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 40px;
+  align-items: center;
+}
+
+@media (max-width: 1100px) {
+  .readiness-grid {
+    grid-template-columns: 1fr auto;
+  }
+  .readiness-grid > :last-child {
+    display: none; /* drop sparkline before wrapping awkwardly */
+  }
+}
+
+@media (max-width: 900px) {
+  .dash-row-week,
+  .dash-row-trends {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .readiness-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }
 
 /* Stats grid */
@@ -665,21 +791,22 @@ html, body, #root {
 
 /* Chart wrapper */
 .chart-section {
-  background: var(--bg-card);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 18px 22px;
   margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .chart-title {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   color: var(--text-secondary);
   text-transform: uppercase;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 /* Empty state */
@@ -1386,6 +1513,58 @@ select.filter-input {
   margin-bottom: 10px;
 }
 
+.imp-tab-bar {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.imp-tab {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: calc(var(--radius) - 4px);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1),
+              color 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  white-space: nowrap;
+  text-align: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .imp-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
+}
+
+.imp-tab.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.imp-tab-placeholder {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
 .settings-desc {
   color: var(--text-muted);
   font-size: 13px;
@@ -1958,11 +2137,6 @@ select.filter-input {
   /* Page titles */
   .page-title { font-size: 22px; }
 
-  /* Dashboard panels â€” single column on mobile */
-  .dashboard-panels {
-    grid-template-columns: 1fr;
-  }
-
   /* Stats grid â€” 2 cols on mobile */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -2095,6 +2269,12 @@ select.filter-input {
   .objective-grid {
     grid-template-columns: 1fr;
   }
+
+  /* Recent rides â€” drop speed column on narrow screens */
+  .rrl-row .rrl-stat:last-child,
+  .rrl-head span:last-child {
+    display: none;
+  }
 }
 
 /* â”€â”€ Skip-to-content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -2115,6 +2295,26 @@ select.filter-input {
 
 .skip-to-content:focus {
   left: 8px;
+}
+
+/* ── Climb accordion ─────────────────────────────────────────────────────── */
+.climb-accordion-btn {
+  transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .climb-accordion-btn:hover {
+    background-color: var(--bg-hover);
+  }
+}
+
+.climb-accordion-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.climb-accordion-btn:active {
+  opacity: 0.88;
 }
 
 /* â”€â”€ Motion sensitivity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

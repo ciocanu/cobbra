@@ -93,14 +93,14 @@ export default function Layout() {
             <NavLink
               to="/admin"
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-              style={{ color: 'var(--accent)', margin: '0 10px' }}
+              style={{ color: 'var(--accent)', margin: '0 10px', flexShrink: 0 }}
             >
               <Shield size={16} />
               <span className="nav-label">Admin</span>
             </NavLink>
           )}
 
-          <div style={{ marginTop: 'auto', padding: '0 10px 16px' }}>
+          <div style={{ marginTop: 'auto', padding: '0 10px 16px', flexShrink: 0 }}>
             {username && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 4, color: 'var(--text-muted)', fontSize: 12 }}>
                 <User size={13} />

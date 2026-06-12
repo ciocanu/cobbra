@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
 import { format } from 'date-fns'
@@ -55,7 +55,7 @@ function EnvBadge({ activity, onOverride }) {
   const label = isIndoor
     ? (PLATFORM_LABELS[activity.indoor_platform] || 'Indoor')
     : 'Outdoor'
-  const color = isIndoor ? '#a78bfa' : '#6dffb8'
+  const color = isIndoor ? 'var(--text-secondary)' : 'var(--status-good)'
   const Icon  = isIndoor ? Home : Trees
 
   const doOverride = async (env, platform = null) => {
@@ -578,7 +578,9 @@ export default function ActivityDetail() {
   const [durabilityLoading, setDurabilityLoading] = useState(true)
   const [climbs,    setClimbs]    = useState([])
   const [expandedClimb, setExpandedClimb] = useState(null)
-  const notesTimer = useRef(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const notesTimer     = useRef(null)
+  const intakeMsgTimer = useRef(null)
 
   useEffect(() => {
     getActivity(id)
@@ -604,7 +606,6 @@ export default function ActivityDetail() {
   }, [id])
 
   const handleDelete = async () => {
-    if (!confirm('Delete this activity?')) return
     await deleteActivity(id)
     navigate('/activities')
   }
@@ -652,7 +653,8 @@ export default function ActivityDetail() {
       // Refresh activity to pick up updated decoupling values (hydration affects the correction)
       getActivity(id).then(r => setActivity(r.data)).catch(() => {})
       setIntakeMsg('Saved.')
-      setTimeout(() => setIntakeMsg(''), 2500)
+      clearTimeout(intakeMsgTimer.current)
+      intakeMsgTimer.current = setTimeout(() => setIntakeMsg(''), 2500)
     } catch { setIntakeMsg('Failed to save intake.') }
     finally { setIntakeSaving(false) }
   }
@@ -678,59 +680,62 @@ export default function ActivityDetail() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) return <div className="loading-center"><div className="spinner" /></div>
-  if (error) return <div className="empty-state"><h3>{error}</h3></div>
+  // Hooks must be called unconditionally — before any early returns
+  const pts = activity?.track_points ?? []
 
-  const { track_points: pts, laps } = activity
-  const mapPoints = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon])
+  const mapPoints = useMemo(() => pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]), [pts])
   const center = mapPoints.length > 0 ? mapPoints[Math.floor(mapPoints.length / 2)] : [38.5, -9.0]
 
-  const chartData = downsample(
+  const avgCad = useMemo(() => {
+    const active = pts.filter(p => p.cadence_rpm > 0)
+    return active.length > 0 ? Math.round(active.reduce((s, p) => s + p.cadence_rpm, 0) / active.length) : null
+  }, [pts])
+
+  const chartData = useMemo(() => downsample(
     pts.filter(p => p.distance_m != null).map(p => ({
       d: Math.round(p.distance_m),
       speed: p.speed_kmh,
       hr: p.heart_rate_bpm,
-      cad: p.cadence_rpm,
+      cad: (p.cadence_rpm && p.cadence_rpm > 0) ? p.cadence_rpm : avgCad,
       ele: p.elevation,
       pwr: p.power_w,
     }))
-  )
+  ), [pts, avgCad])
 
   const hasHR  = pts.some(p => p.heart_rate_bpm != null)
   const hasCad = pts.some(p => p.cadence_rpm != null)
   const hasEle = pts.some(p => p.elevation != null)
   const hasPwr = pts.some(p => p.power_w != null)
-  const hasWeather = activity.weather_temp_c != null || activity.weather_desc
 
-  const hrZones  = hasHR  ? computeHrZones(pts, activity.max_heart_rate_bpm) : null
-  const cadZones = hasCad ? computeCadenceZones(pts) : null
-  const efforts  = computeBestEfforts(pts)
+  const hrZones      = useMemo(() => hasHR  ? computeHrZones(pts, activity?.max_heart_rate_bpm) : null, [pts, hasHR, activity?.max_heart_rate_bpm])
+  const cadZones     = useMemo(() => hasCad ? computeCadenceZones(pts) : null, [pts, hasCad])
+  const efforts      = useMemo(() => computeBestEfforts(pts), [pts])
+  const np           = useMemo(() => hasPwr ? computeNP(pts) : null, [pts, hasPwr])
+  const mmp          = useMemo(() => hasPwr ? computeMMP(pts) : [], [pts, hasPwr])
+  const pwrZones     = useMemo(() => hasPwr ? computePowerZones(pts, ftp) : null, [pts, hasPwr, ftp])
+  const cpModel      = useMemo(() => mmp.length >= 2 ? fitCPModel(mmp) : null, [mmp])
+  const eFtp         = useMemo(() => estimateFTP(mmp), [mmp])
+  const hrDecoupling = useMemo(() => (hasHR && (activity?.duration_seconds ?? 0) > 900) ? computeHRDecoupling(pts) : null, [pts, hasHR, activity?.duration_seconds])
+  const vam          = useMemo(() => hasEle ? computeVAM(pts) : null, [pts, hasEle])
+  const durability   = useMemo(() => hasPwr ? computeDurability(pts) : null, [pts, hasPwr])
+  const pwrQuadrant  = useMemo(() => hasPwr ? computePowerQuadrant(pts) : null, [pts, hasPwr])
 
-  // Power analysis — only meaningful with power data
-  const np       = hasPwr ? computeNP(pts) : null
-  const pwrZones = hasPwr ? computePowerZones(pts, ftp) : null
-  const mmp      = hasPwr ? computeMMP(pts) : []
-  const cpModel  = mmp.length >= 2 ? fitCPModel(mmp) : null
-  const eFtp     = estimateFTP(mmp)
-  const ifVal    = np && ftp ? (np / ftp).toFixed(2) : null
-  const tss      = np && ftp && activity.duration_seconds
+  const ifVal  = np && ftp ? (np / ftp).toFixed(2) : null
+  const tss    = np && ftp && activity?.duration_seconds
     ? Math.round((activity.duration_seconds * np * (np / ftp)) / (ftp * 3600) * 100)
     : null
-  const wPerKg   = np && weightKg ? (np / weightKg).toFixed(2) : null
+  const wPerKg = np && weightKg ? (np / weightKg).toFixed(2) : null
 
-  // HR Decoupling and VAM — available even without power
-  const hrDecoupling = (hasHR && activity.duration_seconds > 900) ? computeHRDecoupling(pts) : null
-  const vam          = hasEle ? computeVAM(pts) : null
-
-  // Advanced power metrics
-  const durability   = hasPwr ? computeDurability(pts) : null
-  const pwrQuadrant  = hasPwr ? computePowerQuadrant(pts) : null
-
-  // Auto split distance based on ride length if user hasn't picked one
-  const autoSplitKm = activity.distance_km >= 50 ? 10 : activity.distance_km >= 15 ? 5 : 1
+  const autoSplitKm  = (activity?.distance_km ?? 0) >= 50 ? 10 : (activity?.distance_km ?? 0) >= 15 ? 5 : 1
   const activeSplitKm = splitKm ?? autoSplitKm
-  const splits = computeSplits(pts, activeSplitKm)
+  const splits = useMemo(() => computeSplits(pts, activeSplitKm), [pts, activeSplitKm])
   const SPLITS_PREVIEW = 8
+
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
+  if (error) return <div className="empty-state"><h3>{error}</h3></div>
+
+  const { laps } = activity
+  const hasWeather = activity.weather_temp_c != null || activity.weather_desc
 
   const metrics = [
     { label: 'Distance', value: `${activity.distance_km.toFixed(2)}`, unit: 'km', color: 'var(--accent)' },
@@ -774,6 +779,7 @@ export default function ActivityDetail() {
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleRename()}
                 autoFocus
+                aria-label="Activity name"
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--accent)',
                   color: 'var(--text-primary)', borderRadius: 6, padding: '6px 12px',
@@ -826,9 +832,16 @@ export default function ActivityDetail() {
           <button className="btn btn-ghost" onClick={handleExportGpx}>
             <FileText size={14} /> GPX
           </button>
-          <button className="btn btn-danger" onClick={handleDelete}>
-            <Trash2 size={14} /> Delete
-          </button>
+          {deleteConfirm ? (
+            <>
+              <button className="btn btn-danger" onClick={handleDelete}>Confirm delete</button>
+              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(false)}>Cancel</button>
+            </>
+          ) : (
+            <button className="btn btn-danger" onClick={() => setDeleteConfirm(true)}>
+              <Trash2 size={14} /> Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -849,14 +862,14 @@ export default function ActivityDetail() {
       {activity.ride_environment === 'indoor' && (
         <div className="chart-section" style={{ padding: '14px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <Home size={14} style={{ color: '#a78bfa' }} />
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#a78bfa' }}>Indoor Ride — Power Correction</span>
+            <Home size={14} style={{ color: 'var(--text-secondary)' }} />
+            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)' }}>Indoor Ride — Power Correction</span>
           </div>
           {activity.power_correction_factor != null && activity.corrected_tss != null ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Correction factor</div>
-                <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#a78bfa' }}>
+                <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent)' }}>
                   +{((activity.power_correction_factor - 1) * 100).toFixed(1)}%
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>applied to TSS</div>
@@ -869,7 +882,7 @@ export default function ActivityDetail() {
                       {Math.round(activity.tss)}
                     </span>
                     <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>→</span>
-                    <span style={{ fontSize: 22, fontWeight: 700, color: '#6dffb8' }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
                       {Math.round(activity.corrected_tss)}
                     </span>
                   </div>
@@ -886,7 +899,7 @@ export default function ActivityDetail() {
               No indoor/outdoor correction applied yet.
               <br />
               Complete at least 5 indoor and 5 outdoor rides with power data, then visit{' '}
-              <Link to="/settings" style={{ color: '#a78bfa' }}>Settings → Indoor/Outdoor Profile</Link>{' '}
+              <Link to="/settings" style={{ color: 'var(--accent)' }}>Settings → Indoor/Outdoor Profile</Link>{' '}
               to calibrate your personal gap.
             </div>
           )}
@@ -1134,8 +1147,8 @@ export default function ActivityDetail() {
             {[
               np     && { label: 'Norm. Power', value: np,     unit: 'W',    color: 'var(--power)', hint: 'Coggan NP — physiological cost of variable effort' },
               ifVal  && { label: 'Int. Factor',  value: ifVal,  unit: 'IF',   color: '#c084fc',      hint: '< 0.75 easy · 0.85 tempo · 1.0 threshold' },
-              tss    && { label: 'TSS',           value: tss,    unit: 'pts',  color: '#ffd93d',      hint: '< 150 recoverable · > 300 needs days off' },
-              wPerKg && { label: 'W / kg',        value: wPerKg, unit: 'w/kg', color: '#6dffb8',      hint: 'Norm. power per kg bodyweight' },
+              tss    && { label: 'TSS',           value: tss,    unit: 'pts',  color: 'var(--cadence)',   hint: '< 150 recoverable · > 300 needs days off' },
+              wPerKg && { label: 'W / kg',        value: wPerKg, unit: 'w/kg', color: 'var(--elevation)', hint: 'Norm. power per kg bodyweight' },
               eFtp   && { label: 'eFTP',           value: eFtp,  unit: 'W',    color: 'var(--power-model)',      hint: '95% of best 20-min power — estimated FTP' },
             ].filter(Boolean).map(({ label, value, unit, color, hint }) => (
               <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
@@ -1224,7 +1237,7 @@ export default function ActivityDetail() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 32, fontWeight: 900, fontFamily: 'var(--font-display)', lineHeight: 1,
-                    color: durability.score >= 80 ? '#6dffb8' : durability.score >= 60 ? '#ffd93d' : '#ff8c42' }}>
+                    color: durability.score >= 80 ? 'var(--status-good)' : durability.score >= 60 ? 'var(--status-warn)' : 'var(--status-alert)' }}>
                     {durability.score}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>durability score / 100</div>
@@ -1249,9 +1262,9 @@ export default function ActivityDetail() {
               {/* Drop table */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6, marginTop: 10 }}>
                 {durability.drops.map(d => (
-                  <div key={d.label} style={{ background: 'var(--bg-secondary)', border: `1px solid ${d.dropPct < 5 ? '#6dffb840' : d.dropPct < 12 ? '#ffd93d40' : '#ff4d6d40'}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                  <div key={d.label} style={{ background: 'var(--bg-secondary)', border: `1px solid ${d.dropPct < 5 ? 'color-mix(in srgb, var(--status-good) 25%, transparent)' : d.dropPct < 12 ? 'color-mix(in srgb, var(--status-warn) 25%, transparent)' : 'color-mix(in srgb, var(--status-critical) 25%, transparent)'}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>{d.label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: d.dropPct < 5 ? '#6dffb8' : d.dropPct < 12 ? '#ffd93d' : '#ff8c42', fontFamily: 'var(--font-display)' }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: d.dropPct < 5 ? 'var(--status-good)' : d.dropPct < 12 ? 'var(--status-warn)' : 'var(--status-alert)', fontFamily: 'var(--font-display)' }}>
                       {d.dropPct > 0 ? '-' : '+'}{Math.abs(d.dropPct)}%
                     </div>
                     <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{d.freshWatts}→{d.fatiguedWatts}W</div>
@@ -1303,14 +1316,18 @@ export default function ActivityDetail() {
 
       {/* Adjusted Decoupling + VAM */}
       {(activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
+        const S_GOOD  = 'var(--status-good)'
+        const S_WARN  = 'var(--status-warn)'
+        const S_ALERT = 'var(--status-alert)'
+
         const adjVal   = activity.decoupling_adjusted
         const rawVal   = activity.decoupling_raw
         const quality  = activity.decoupling_quality
         const warning  = activity.decoupling_warning
         const components = (() => { try { return JSON.parse(activity.decoupling_components_json || 'null') } catch { return null } })()
 
-        const adjColor = adjVal == null ? '#aaa' : adjVal < 5 ? '#6dffb8' : adjVal < 8 ? '#ffd93d' : '#ff8c42'
-        const qualityColor = quality === 'high' ? '#6dffb8' : quality === 'medium' ? '#ffd93d' : '#aaa'
+        const adjColor     = adjVal == null ? 'var(--text-muted)' : adjVal < 5 ? S_GOOD : adjVal < 8 ? S_WARN : S_ALERT
+        const qualityColor = quality === 'high' ? S_GOOD : quality === 'medium' ? S_WARN : 'var(--text-muted)'
 
         const infoText = adjVal != null
           ? 'Adjusted Decoupling measures genuine aerobic drift by looking only at flat terrain segments and subtracting expected drift from heat and dehydration. <5% = good aerobic efficiency. The raw value is what the numbers show before corrections.'
@@ -1323,11 +1340,11 @@ export default function ActivityDetail() {
 
               {/* Adjusted decoupling card — preferred over raw */}
               {adjVal != null ? (
-                <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${adjColor}40`, borderRadius: 10, padding: '14px 16px' }}>
+                <div style={{ background: 'var(--bg-secondary)', border: `1px solid color-mix(in srgb, ${adjColor} 25%, transparent)`, borderRadius: 10, padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Adjusted Decoupling</div>
                     {quality && (
-                      <span style={{ marginLeft: 'auto', padding: '1px 7px', borderRadius: 8, fontSize: 9, fontWeight: 700, background: `${qualityColor}18`, border: `1px solid ${qualityColor}45`, color: qualityColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <span style={{ marginLeft: 'auto', padding: '1px 7px', borderRadius: 8, fontSize: 9, fontWeight: 700, background: `color-mix(in srgb, ${qualityColor} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${qualityColor} 28%, transparent)`, color: qualityColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         {quality}
                       </span>
                     )}
@@ -1351,7 +1368,7 @@ export default function ActivityDetail() {
                       {components.expected_heat_drift_pct > 0 && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>− Heat drift</span>
-                          <span style={{ fontFamily: 'var(--font-display)', color: '#ff8c42' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', color: 'var(--warning)' }}>
                             {components.expected_heat_drift_pct.toFixed(1)}%
                           </span>
                         </div>
@@ -1359,7 +1376,7 @@ export default function ActivityDetail() {
                       {components.expected_hydration_drift_pct > 0 && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>− Hydration drift</span>
-                          <span style={{ fontFamily: 'var(--font-display)', color: '#4da6ff' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', color: 'oklch(65% 0.10 235)' }}>
                             {components.expected_hydration_drift_pct.toFixed(1)}%
                           </span>
                         </div>
@@ -1372,15 +1389,15 @@ export default function ActivityDetail() {
                     </div>
                   )}
                   {warning && (
-                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 6, background: '#ffd93d12', border: '1px solid #ffd93d30', fontSize: 10, color: '#ffd93d', lineHeight: 1.4 }}>
+                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--status-warn) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--status-warn) 30%, transparent)', fontSize: 10, color: 'var(--status-warn)', lineHeight: 1.4 }}>
                       ⚠ {warning}
                     </div>
                   )}
                 </div>
               ) : hrDecoupling ? (
-                <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${hrDecoupling.aerobic ? '#6dffb840' : '#ff4d6d40'}`, borderRadius: 10, padding: '14px 16px' }}>
+                <div style={{ background: 'var(--bg-secondary)', border: `1px solid color-mix(in srgb, ${hrDecoupling.aerobic ? 'var(--status-good)' : 'var(--status-alert)'} 25%, transparent)`, borderRadius: 10, padding: '14px 16px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{hrDecoupling.label} Decoupling</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: hrDecoupling.aerobic ? '#6dffb8' : '#ff8c42', fontFamily: 'var(--font-display)' }}>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: hrDecoupling.aerobic ? 'var(--status-good)' : 'var(--status-alert)', fontFamily: 'var(--font-display)' }}>
                     {hrDecoupling.pct > 0 ? '+' : ''}{hrDecoupling.pct}%
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -1450,40 +1467,56 @@ export default function ActivityDetail() {
 
       {/* Hydration & Heat Analysis */}
       {hydration && (() => {
-        const RISK_COLOR = { low: '#6dffb8', moderate: '#ffd93d', high: '#ff8c42', critical: '#ff4d6d' }
-        const riskColor = RISK_COLOR[hydration.risk_level] || '#aaa'
+        const S_GOOD     = 'var(--status-good)'
+        const S_WARN     = 'var(--status-warn)'
+        const S_ALERT    = 'var(--status-alert)'
+        const S_CRITICAL = 'var(--status-critical)'
+        const RISK_COLOR = { low: S_GOOD, moderate: S_WARN, high: S_ALERT, critical: S_CRITICAL }
+        const riskColor = RISK_COLOR[hydration.risk_level] || 'var(--text-muted)'
         const recs = (() => { try { return JSON.parse(hydration.recommendations_json || '[]') } catch { return [] } })()
-        const sweatL  = (hydration.estimated_total_sweat_ml / 1000).toFixed(1)
-        const intakeL = hydration.reported_intake_ml != null ? (hydration.reported_intake_ml / 1000).toFixed(1) : null
+        const sweatL   = (hydration.estimated_total_sweat_ml / 1000).toFixed(1)
+        const intakeL  = hydration.reported_intake_ml != null ? (hydration.reported_intake_ml / 1000).toFixed(1) : null
         const deficitL = hydration.deficit_ml != null ? (hydration.deficit_ml / 1000).toFixed(1) : null
         const targetMlH = Math.round(hydration.estimated_sweat_rate_ml_h * 0.75)
+        const qualLabel = { high: S_GOOD, medium: S_WARN }
         return (
           <div className="chart-section">
             <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <Droplets size={14} style={{ color: '#4da6ff' }} />
+              <Droplets size={14} style={{ color: 'var(--text-secondary)' }} />
               Hydration &amp; Heat Analysis
               <InfoTip text="Estimates your sweat loss and fluid needs based on weather, ride duration, and intensity. Log your intake to see your deficit and personalised recommendations." />
-              <span style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: `${riskColor}18`, border: `1px solid ${riskColor}45`, color: riskColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <span style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: `color-mix(in srgb, ${riskColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${riskColor} 35%, transparent)`, color: riskColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {hydration.risk_level} risk
               </span>
             </div>
 
-            {/* Key numbers */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
-              {[
-                { label: 'Est. Sweat Loss', value: `${sweatL} L`, color: '#4da6ff', hint: `~${Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h` },
-                intakeL != null && { label: 'Fluid Intake', value: `${intakeL} L`, color: '#6dffb8', hint: 'Logged intake' },
-                deficitL != null && { label: 'Deficit', value: `${deficitL} L`, color: riskColor, hint: hydration.deficit_body_pct != null ? `${hydration.deficit_body_pct}% body weight` : '' },
-                { label: 'Target Rate', value: `${targetMlH} ml/h`, color: 'var(--text-secondary)', hint: '75% of sweat rate' },
-                hydration.humidity_pct != null && { label: 'Humidity', value: `${hydration.humidity_pct}%`, color: 'var(--text-secondary)', hint: `${hydration.avg_temperature_c}°C` },
-                { label: 'Analysis Quality', value: hydration.analysis_quality.charAt(0).toUpperCase() + hydration.analysis_quality.slice(1), color: hydration.analysis_quality === 'high' ? '#6dffb8' : hydration.analysis_quality === 'medium' ? '#ffd93d' : '#aaa', hint: '' },
-              ].filter(Boolean).map(({ label, value, color, hint }) => (
-                <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{value}</div>
-                  {hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{hint}</div>}
+            {/* Primary metrics */}
+            <div style={{ display: 'flex', gap: 32, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Est. Sweat Loss</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: S_WARN, lineHeight: 1 }}>{sweatL} L</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>~{Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h</div>
+              </div>
+              {intakeL != null && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Fluid Intake</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: S_GOOD, lineHeight: 1 }}>{intakeL} L</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>Logged</div>
                 </div>
-              ))}
+              )}
+              {deficitL != null && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Deficit</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: riskColor, lineHeight: 1 }}>{deficitL} L</div>
+                  {hydration.deficit_body_pct != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{hydration.deficit_body_pct}% body wt</div>}
+                </div>
+              )}
+            </div>
+            {/* Secondary info */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              <span>Target: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{targetMlH} ml/h</strong></span>
+              {hydration.humidity_pct != null && <span>Humidity: <strong style={{ color: 'var(--text-primary)' }}>{hydration.humidity_pct}% · {hydration.avg_temperature_c}°C</strong></span>}
+              <span>Quality: <strong style={{ color: qualLabel[hydration.analysis_quality] ?? 'var(--text-muted)' }}>{hydration.analysis_quality.charAt(0).toUpperCase() + hydration.analysis_quality.slice(1)}</strong></span>
             </div>
 
             {/* HR & performance impact */}
@@ -1491,7 +1524,7 @@ export default function ActivityDetail() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                 {hydration.estimated_hr_drift_heat_bpm > 0 && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    HR drift from heat <strong style={{ color: '#ff8c42', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
+                    HR drift from heat <strong style={{ color: 'var(--warning)', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
                   </div>
                 )}
                 {hydration.estimated_hr_drift_dehydration_bpm != null && (
@@ -1501,7 +1534,7 @@ export default function ActivityDetail() {
                 )}
                 {hydration.estimated_performance_loss_pct != null && hydration.estimated_performance_loss_pct > 0 && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Est. performance impact <strong style={{ color: '#ff4d6d', fontFamily: 'var(--font-display)' }}>−{hydration.estimated_performance_loss_pct}%</strong>
+                    Est. performance impact <strong style={{ color: 'var(--status-critical)', fontFamily: 'var(--font-display)' }}>−{hydration.estimated_performance_loss_pct}%</strong>
                   </div>
                 )}
               </div>
@@ -1518,13 +1551,15 @@ export default function ActivityDetail() {
                   value={intakeInput}
                   onChange={e => setIntakeInput(e.target.value)}
                   placeholder="e.g. 800"
-                  style={{ width: 110, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+                  aria-label="Fluid intake in ml"
+                  className="filter-input"
+                  style={{ width: 110, padding: '6px 10px', fontSize: 13 }}
                 />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ml</span>
                 <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleLogIntake} disabled={intakeSaving}>
                   {intakeSaving ? 'Saving…' : 'Save'}
                 </button>
-                {intakeMsg && <span style={{ fontSize: 12, color: intakeMsg === 'Saved.' ? '#6dffb8' : '#ff8c42' }}>{intakeMsg}</span>}
+                {intakeMsg && <span style={{ fontSize: 12, color: intakeMsg === 'Saved.' ? 'var(--status-good)' : 'var(--status-alert)' }}>{intakeMsg}</span>}
               </div>
             </div>
 
@@ -1535,7 +1570,7 @@ export default function ActivityDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {recs.map((rec, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, padding: '7px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                      <Droplets size={13} style={{ color: '#4da6ff', flexShrink: 0, marginTop: 1 }} />
+                      <Droplets size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: 1 }} />
                       {rec}
                     </div>
                   ))}
@@ -1548,7 +1583,7 @@ export default function ActivityDetail() {
 
       {/* Durability Analysis */}
       {(() => {
-        const DUR_COLORS = { excellent: '#6dffb8', good: '#4da6ff', moderate: '#ffd93d', poor: '#ff8c42', very_poor: '#ff4d6d' }
+        const DUR_COLORS = { excellent: 'var(--status-good)', good: 'oklch(65% 0.10 235)', moderate: 'var(--status-warn)', poor: 'var(--status-alert)', very_poor: 'var(--status-critical)' }
         const catColor = durabilityData?.durability_category ? (DUR_COLORS[durabilityData.durability_category] ?? 'var(--text-primary)') : 'var(--text-muted)'
         const methodLabel = { power: 'Power meter', hr_speed: 'HR + Speed proxy', climbing_power: 'Estimated climbing power' }
 
@@ -1582,25 +1617,25 @@ export default function ActivityDetail() {
         return (
           <div className="chart-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div className="chart-title" style={{ marginBottom: 0 }}>Durability Index</div>
-              {durabilityData.quality && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
-                  {durabilityData.quality === 'good' ? 'Good quality' : durabilityData.quality === 'fair' ? 'Fair quality' : durabilityData.quality}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div className="chart-title" style={{ marginBottom: 0 }}>Durability Index</div>
+                {durabilityData.durability_category && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: catColor, textTransform: 'capitalize', paddingBottom: 1 }}>
+                    {durabilityData.durability_category.replace('_', ' ')}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: catColor, lineHeight: 1 }}>
+                  {durabilityData.durability_index != null ? durabilityData.durability_index.toFixed(1) : '—'}
                 </span>
-              )}
-            </div>
-
-            {/* Index badge + category */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 18 }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 800, color: catColor, lineHeight: 1 }}>
-                {durabilityData.durability_index != null ? durabilityData.durability_index.toFixed(1) : '—'}
-              </span>
-              {durabilityData.durability_category && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: catColor, textTransform: 'capitalize' }}>
-                  {durabilityData.durability_category.replace('_', ' ')}
-                </span>
-              )}
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
+                {durabilityData.quality && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', marginLeft: 6 }}>
+                    {durabilityData.quality === 'good' ? 'Good quality' : durabilityData.quality === 'fair' ? 'Fair' : durabilityData.quality}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Quarter bar chart */}
@@ -1635,13 +1670,13 @@ export default function ActivityDetail() {
             {/* Context row */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
               {durabilityData.fade_rate_pct_per_hour != null && (
-                <span>Fade rate: <strong style={{ color: durabilityData.fade_rate_pct_per_hour > 10 ? '#ff8c42' : 'var(--text-primary)' }}>{durabilityData.fade_rate_pct_per_hour.toFixed(1)}%/h</strong></span>
+                <span>Fade rate: <strong style={{ color: durabilityData.fade_rate_pct_per_hour > 10 ? 'var(--warning)' : 'var(--text-primary)' }}>{durabilityData.fade_rate_pct_per_hour.toFixed(1)}%/h</strong></span>
               )}
               {durabilityData.total_work_kj != null && (
                 <span>Work: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(durabilityData.total_work_kj)} kJ</strong></span>
               )}
               {durabilityData.tsb_at_start != null && (
-                <span>TSB at start: <strong style={{ color: durabilityData.tsb_at_start >= 5 ? '#6dffb8' : durabilityData.tsb_at_start <= -20 ? '#ff4d6d' : 'var(--text-primary)' }}>{durabilityData.tsb_at_start > 0 ? '+' : ''}{durabilityData.tsb_at_start.toFixed(0)}</strong></span>
+                <span>TSB at start: <strong style={{ color: durabilityData.tsb_at_start >= 5 ? 'var(--status-good)' : durabilityData.tsb_at_start <= -20 ? 'var(--status-critical)' : 'var(--text-primary)' }}>{durabilityData.tsb_at_start > 0 ? '+' : ''}{durabilityData.tsb_at_start.toFixed(0)}</strong></span>
               )}
               {durabilityData.temperature_avg_c != null && (
                 <span>Avg temp: <strong style={{ color: 'var(--text-primary)' }}>{durabilityData.temperature_avg_c.toFixed(0)}°C</strong></span>
@@ -1703,17 +1738,20 @@ export default function ActivityDetail() {
           )}
 
           {climbs.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {climbs.map((c, i) => {
                 const expanded = expandedClimb === c.id
-                const qColor = c.estimation_quality === 'high' ? '#6dffb8' : c.estimation_quality === 'medium' ? '#ffd93d' : '#ff8c42'
+                const qColor = c.estimation_quality === 'high' ? 'var(--status-good)' : c.estimation_quality === 'medium' ? 'var(--status-warn)' : 'var(--status-alert)'
                 const pacingLabel = c.pacing_type === 'negative' ? 'Negative split ✓' : c.pacing_type === 'positive' ? 'Positive split (started too fast)' : c.pacing_type === 'even' ? 'Even split' : null
                 const mins = Math.floor((c.duration_seconds || 0) / 60)
                 const secs = (c.duration_seconds || 0) % 60
                 return (
-                  <div key={c.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div key={c.id} role="listitem" style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                     <button
                       onClick={() => setExpandedClimb(expanded ? null : c.id)}
+                      aria-expanded={expanded}
+                      aria-controls={`climb-detail-${c.id}`}
+                      className="climb-accordion-btn"
                       style={{ width: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', padding: '12px 14px', textAlign: 'left' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1728,7 +1766,7 @@ export default function ActivityDetail() {
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                           {c.estimation_quality && (
-                            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: `${qColor}18`, border: `1px solid ${qColor}40`, color: qColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: `color-mix(in srgb, ${qColor} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${qColor} 25%, transparent)`, color: qColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                               {c.estimation_quality}
                             </span>
                           )}
@@ -1756,7 +1794,7 @@ export default function ActivityDetail() {
                     </button>
 
                     {expanded && (
-                      <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+                      <div id={`climb-detail-${c.id}`} style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
                         <div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Elevation Gain</div>
                           <div style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{Math.round(c.elevation_gain_m || 0)} m</div>
@@ -1786,7 +1824,7 @@ export default function ActivityDetail() {
                         {pacingLabel && (
                           <div style={{ gridColumn: '1 / -1' }}>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Pacing</div>
-                            <div style={{ fontSize: 13, color: c.pacing_type === 'negative' ? '#6dffb8' : c.pacing_type === 'positive' ? '#ff8c42' : 'var(--text-secondary)' }}>
+                            <div style={{ fontSize: 13, color: c.pacing_type === 'negative' ? 'var(--status-good)' : c.pacing_type === 'positive' ? 'var(--status-alert)' : 'var(--text-secondary)' }}>
                               {pacingLabel}
                             </div>
                           </div>

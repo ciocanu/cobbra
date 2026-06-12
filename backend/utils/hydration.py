@@ -17,8 +17,8 @@ from typing import Optional
 # Constants
 # ---------------------------------------------------------------------------
 
-_BASE_SWEAT_RATE_ML_H = 800        # ml/h at 20°C, 60% humidity, moderate effort
-_TEMP_SENSITIVITY     = 30         # ml/h per °C above 15°C
+_BASE_SWEAT_RATE_ML_H = 700        # ml/h at 20°C, 60% humidity, moderate effort
+_TEMP_SENSITIVITY     = 20         # ml/h per °C above 15°C (Sawka 2007: ~10-20 ml/h/°C)
 _HUMIDITY_SENSITIVITY = 2.0        # ml/h per % humidity above 50%
 _INTENSITY_MULTIPLIER = {          # applied to base+temp+humidity estimate
     "low":      0.65,
