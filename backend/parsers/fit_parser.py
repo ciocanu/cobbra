@@ -25,7 +25,7 @@ def parse_fit(file_content: bytes) -> Dict[str, Any]:
 
     raw_points = []
     session_data = {}
-    speeds, cadences, heart_rates, powers = [], [], [], []
+    speeds, cadences, heart_rates, powers, temperatures = [], [], [], [], []
     total_distance = 0.0
 
     # Session summary
@@ -49,6 +49,7 @@ def parse_fit(file_content: bytes) -> Dict[str, Any]:
         cadence = fields.get("cadence")
         heart_rate = fields.get("heart_rate")
         power = fields.get("power")
+        temperature = fields.get("temperature")
         altitude = fields.get("enhanced_altitude") or fields.get("altitude")
         distance = fields.get("distance")
         timestamp = fields.get("timestamp")
@@ -67,6 +68,8 @@ def parse_fit(file_content: bytes) -> Dict[str, Any]:
             heart_rates.append(float(heart_rate))
         if power is not None and power > 0:
             powers.append(float(power))
+        if temperature is not None and -20 <= float(temperature) <= 60:
+            temperatures.append(float(temperature))
 
         raw_points.append({
             "timestamp": timestamp,
@@ -109,16 +112,29 @@ def parse_fit(file_content: bytes) -> Dict[str, Any]:
             "elevation_gain_m": float(fields["total_ascent"]) if fields.get("total_ascent") else None,
         })
 
-    duration = float(session_data.get("total_timer_time") or 0)
+    # FIT distinguishes moving time (timer) from wall-clock time (elapsed).
+    # duration_seconds = timer time — used for speed, TSS, avg stats.
+    # elapsed_seconds  = wall-clock time — used for hydration/heat exposure.
+    timer_time   = float(session_data.get("total_timer_time") or 0)
+    elapsed_time = float(session_data.get("total_elapsed_time") or 0)
     calories = session_data.get("total_calories")
     start_ts = raw_points[0]["timestamp"] if raw_points else datetime.utcnow()
+
+    # Prefer session-level avg_temperature; fall back to per-record average
+    session_avg_temp = session_data.get("avg_temperature")
+    session_max_temp = session_data.get("max_temperature")
+    if session_avg_temp is None and temperatures:
+        session_avg_temp = round(sum(temperatures) / len(temperatures), 1)
+    if session_max_temp is None and temperatures:
+        session_max_temp = round(max(temperatures), 1)
 
     return {
         "name": f"Ride {start_ts.strftime('%Y-%m-%d') if hasattr(start_ts, 'strftime') else 'Unknown'}",
         "date": start_ts if start_ts else datetime.utcnow(),
         "distance_km": round(total_distance / 1000, 3),
-        "duration_seconds": int(duration),
-        "avg_speed_kmh": round((total_distance / 1000) / (duration / 3600), 2) if duration > 0 else 0,
+        "duration_seconds": int(timer_time),
+        "elapsed_seconds": int(elapsed_time) if elapsed_time > timer_time else None,
+        "avg_speed_kmh": round((total_distance / 1000) / (timer_time / 3600), 2) if timer_time > 0 else 0,
         "max_speed_kmh": round(max(speeds), 2) if speeds else 0,
         "avg_cadence_rpm": round(sum(cadences) / len(cadences), 1) if cadences else None,
         "max_cadence_rpm": round(max(cadences), 1) if cadences else None,
@@ -132,4 +148,7 @@ def parse_fit(file_content: bytes) -> Dict[str, Any]:
         "file_type": "fit",
         "track_points": raw_points,
         "laps": laps,
+        # Sensor temperature from FIT data (more accurate than weather API)
+        "avg_temperature_c": round(float(session_avg_temp), 1) if session_avg_temp is not None else None,
+        "max_temperature_c": round(float(session_max_temp), 1) if session_max_temp is not None else None,
     }

@@ -579,6 +579,7 @@ export default function ActivityDetail() {
   const [climbs,    setClimbs]    = useState([])
   const [expandedClimb, setExpandedClimb] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [showHydrationSources, setShowHydrationSources] = useState(false)
   const notesTimer     = useRef(null)
   const intakeMsgTimer = useRef(null)
 
@@ -1472,19 +1473,24 @@ export default function ActivityDetail() {
         const S_ALERT    = 'var(--status-alert)'
         const S_CRITICAL = 'var(--status-critical)'
         const RISK_COLOR = { low: S_GOOD, moderate: S_WARN, high: S_ALERT, critical: S_CRITICAL }
-        const riskColor = RISK_COLOR[hydration.risk_level] || 'var(--text-muted)'
-        const recs = (() => { try { return JSON.parse(hydration.recommendations_json || '[]') } catch { return [] } })()
-        const sweatL   = (hydration.estimated_total_sweat_ml / 1000).toFixed(1)
-        const intakeL  = hydration.reported_intake_ml != null ? (hydration.reported_intake_ml / 1000).toFixed(1) : null
-        const deficitL = hydration.deficit_ml != null ? (hydration.deficit_ml / 1000).toFixed(1) : null
-        const targetMlH = Math.round(hydration.estimated_sweat_rate_ml_h * 0.75)
-        const qualLabel = { high: S_GOOD, medium: S_WARN }
+        const riskColor  = RISK_COLOR[hydration.risk_level] || 'var(--text-muted)'
+        const recs       = (() => { try { return JSON.parse(hydration.recommendations_json || '[]') } catch { return [] } })()
+        const sweatL     = (hydration.estimated_total_sweat_ml / 1000).toFixed(1)
+        const intakeL    = hydration.reported_intake_ml != null ? (hydration.reported_intake_ml / 1000).toFixed(1) : null
+        const deficitL   = hydration.deficit_ml != null ? (hydration.deficit_ml / 1000).toFixed(1) : null
+        const targetMlH  = Math.round(hydration.estimated_sweat_rate_ml_h * 0.75)
+        const qualColor  = { high: S_GOOD, medium: S_WARN }
+        const isCalibrated = hydration.model_method === 'calibrated'
+        const hasWindCooling = hydration.wind_cooling_c != null && hydration.wind_cooling_c > 0
+        const showSources = showHydrationSources
+        const setShowSources = setShowHydrationSources
+
         return (
           <div className="chart-section">
             <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Droplets size={14} style={{ color: 'var(--text-secondary)' }} />
               Hydration &amp; Heat Analysis
-              <InfoTip text="Estimates your sweat loss and fluid needs based on weather, ride duration, and intensity. Log your intake to see your deficit and personalised recommendations." />
+              <InfoTip text="Estimates your sweat loss and fluid needs based on ride sensor data, conditions, and intensity. Log your intake to see your deficit and personalised recommendations." />
               <span style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: `color-mix(in srgb, ${riskColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${riskColor} 35%, transparent)`, color: riskColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {hydration.risk_level} risk
               </span>
@@ -1496,6 +1502,11 @@ export default function ActivityDetail() {
                 <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Est. Sweat Loss</div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: S_WARN, lineHeight: 1 }}>{sweatL} L</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>~{Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h</div>
+                {isCalibrated && hydration.population_sweat_rate_ml_h && (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Generic model: ~{Math.round(hydration.population_sweat_rate_ml_h)} ml/h
+                  </div>
+                )}
               </div>
               {intakeL != null && (
                 <div>
@@ -1512,19 +1523,84 @@ export default function ActivityDetail() {
                 </div>
               )}
             </div>
-            {/* Secondary info */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+
+            {/* Secondary conditions row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
               <span>Target: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{targetMlH} ml/h</strong></span>
-              {hydration.humidity_pct != null && <span>Humidity: <strong style={{ color: 'var(--text-primary)' }}>{hydration.humidity_pct}% · {hydration.avg_temperature_c}°C</strong></span>}
-              <span>Quality: <strong style={{ color: qualLabel[hydration.analysis_quality] ?? 'var(--text-muted)' }}>{hydration.analysis_quality.charAt(0).toUpperCase() + hydration.analysis_quality.slice(1)}</strong></span>
+              {hydration.humidity_pct != null && (
+                <span>
+                  Conditions: <strong style={{ color: 'var(--text-primary)' }}>
+                    {hydration.avg_temperature_c}°C
+                    {hasWindCooling && <span style={{ color: 'var(--text-muted)' }}> → {hydration.effective_temp_c}°C felt</span>}
+                    {' · '}{hydration.humidity_pct}% RH
+                  </strong>
+                </span>
+              )}
+              <span>
+                Model: <strong style={{ color: isCalibrated ? S_GOOD : 'var(--text-muted)' }}>
+                  {isCalibrated ? 'Personal' : 'Population'}
+                </strong>
+              </span>
             </div>
+
+            {/* Calculation sources accordion */}
+            <button
+              onClick={() => setShowSources(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, padding: '4px 0', marginBottom: showSources ? 8 : 12, letterSpacing: '0.04em' }}
+            >
+              {showSources ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              How this was calculated
+            </button>
+            {showSources && (
+              <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.7 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 2 }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Temperature</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {hydration.avg_temperature_c}°C raw
+                    {hasWindCooling && ` → ${hydration.effective_temp_c}°C effective (−${hydration.wind_cooling_c}°C wind cooling from outdoor airflow)`}
+                  </span>
+
+                  {hydration.wind_speed_kmh != null && (
+                    <>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Wind</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{hydration.wind_speed_kmh} km/h + ~20 km/h self-generated from cycling speed</span>
+                    </>
+                  )}
+
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Sweat model</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {isCalibrated
+                      ? `Personal calibration (${Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h) — from your sweat test, scaled by conditions above 20°C / 55% RH`
+                      : `Population average (${Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h) — add a sweat test in Settings for a personalised rate`
+                    }
+                  </span>
+
+                  {isCalibrated && hydration.population_sweat_rate_ml_h && (
+                    <>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Reference</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Generic model would estimate ~{Math.round(hydration.population_sweat_rate_ml_h)} ml/h for these conditions.
+                        {Math.abs(hydration.estimated_sweat_rate_ml_h - hydration.population_sweat_rate_ml_h) > 300 &&
+                          ' Large gap vs generic model — if this feels wrong, check your sweat-test inputs in Settings.'}
+                      </span>
+                    </>
+                  )}
+
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Quality</span>
+                  <span style={{ color: qualColor[hydration.analysis_quality] ?? 'var(--text-muted)' }}>
+                    {hydration.analysis_quality.charAt(0).toUpperCase() + hydration.analysis_quality.slice(1)}
+                    {!isCalibrated && hydration.analysis_quality !== 'high' && ' — run a sweat test for High confidence'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* HR & performance impact */}
             {(hydration.estimated_hr_drift_heat_bpm > 0 || hydration.estimated_hr_drift_dehydration_bpm != null) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                 {hydration.estimated_hr_drift_heat_bpm > 0 && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    HR drift from heat <strong style={{ color: 'var(--warning)', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
+                    HR drift from heat <strong style={{ color: 'var(--status-warn)', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
                   </div>
                 )}
                 {hydration.estimated_hr_drift_dehydration_bpm != null && (

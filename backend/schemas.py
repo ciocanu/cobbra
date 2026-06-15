@@ -217,9 +217,13 @@ class HydrationAnalysisOut(BaseModel):
     activity_id: int
     avg_temperature_c: Optional[float]
     max_temperature_c: Optional[float]
+    effective_temp_c: Optional[float]
+    wind_cooling_c: Optional[float]
     humidity_pct: Optional[float]
     wind_speed_kmh: Optional[float]
     estimated_sweat_rate_ml_h: float
+    population_sweat_rate_ml_h: Optional[float]
+    model_method: Optional[str]
     estimated_total_sweat_ml: float
     reported_intake_ml: Optional[int]
     deficit_ml: Optional[float]

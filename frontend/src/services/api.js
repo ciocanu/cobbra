@@ -112,6 +112,7 @@ export const updateHydrationIntake = (id, intake_ml) => api.patch(`/activities/$
 export const getHeatProfile        = ()           => api.get('/user/heat-profile')
 export const recordSweatTest       = (data)       => api.post('/user/sweat-test', data)
 export const setSweatRateDirect    = (ml_h)       => api.patch('/user/sweat-rate', { sweat_rate_ml_per_hour: ml_h })
+export const resetSweatRate        = ()            => api.delete('/user/sweat-rate')
 
 // Dashboard AI insights
 export const getDashboardRideInsight    = (data) => api.post('/dashboard/ride-insight', data)

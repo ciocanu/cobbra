@@ -34,7 +34,7 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
     prev_point = None
     min_time = None
     max_time = None
-    speeds, cadences, heart_rates = [], [], []
+    speeds, cadences, heart_rates, temperatures = [], [], [], []
 
     for track in gpx.tracks:
         for segment in track.segments:
@@ -58,6 +58,8 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
                                 cadence_rpm = float(child.text)
                             elif tag in ("hr", "HeartRateBpm") and child.text:
                                 heart_rate_bpm = float(child.text)
+                            elif tag in ("atemp", "AirTemperature", "airTemp") and child.text:
+                                temperatures.append(float(child.text))
                             for subchild in child:
                                 subtag = subchild.tag.split("}")[-1] if "}" in subchild.tag else subchild.tag
                                 if subtag == "Value" and child.tag.endswith("HeartRateBpm") and subchild.text:
@@ -81,6 +83,7 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
                     cadences.append(cadence_rpm)
                 if heart_rate_bpm is not None:
                     heart_rates.append(heart_rate_bpm)
+                # temperatures collected directly inside extensions loop above
 
                 raw_points.append({
                     "timestamp": point.time.replace(tzinfo=None) if point.time else None,
@@ -122,6 +125,9 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
         or f"Ride {(min_time or datetime.utcnow()).strftime('%Y-%m-%d')}"
     )
 
+    # Filter out outlier temperature readings (sensor noise: valid range -20..60°C)
+    valid_temps = [t for t in temperatures if -20 <= t <= 60]
+
     return {
         "name": name,
         "date": min_time or datetime.utcnow(),
@@ -141,4 +147,7 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
         "file_type": "gpx",
         "track_points": raw_points,
         "laps": [],
+        # Sensor temperature from atemp extension (more accurate than weather API)
+        "avg_temperature_c": round(sum(valid_temps) / len(valid_temps), 1) if valid_temps else None,
+        "max_temperature_c": round(max(valid_temps), 1) if valid_temps else None,
     }

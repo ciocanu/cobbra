@@ -95,6 +95,13 @@ class Activity(Base):
     hydration_ml = Column(Integer, nullable=True)
     # Open-Meteo extras fetched at upload
     weather_humidity_pct = Column(Float, nullable=True)
+    # Sensor temperature from the activity file (atemp in GPX / temperature in FIT).
+    # More accurate than weather_temp_c (which is a weather station reading in shade).
+    sensor_temp_avg_c = Column(Float, nullable=True)
+    sensor_temp_max_c = Column(Float, nullable=True)
+    # Wall-clock elapsed time for FIT files (duration_seconds = moving/timer time).
+    # Used for heat exposure and sweat loss calculations.
+    elapsed_seconds = Column(Integer, nullable=True)
     # Durability profiling
     durability_index = Column(Float, nullable=True)
     # Indoor/outdoor classification
@@ -222,8 +229,14 @@ class HydrationAnalysis(Base):
     humidity_pct       = Column(Float, nullable=True)
     wind_speed_kmh     = Column(Float, nullable=True)
 
+    # Effective temperature after wind-cooling correction
+    effective_temp_c  = Column(Float, nullable=True)
+    wind_cooling_c    = Column(Float, nullable=True)
+
     # Sweat loss estimates
     estimated_sweat_rate_ml_h = Column(Float)
+    population_sweat_rate_ml_h = Column(Float, nullable=True)  # uncalibrated reference
+    model_method      = Column(String, nullable=True)           # "calibrated" | "population"
     estimated_total_sweat_ml  = Column(Float)
 
     # User intake (mirrors activity.hydration_ml, kept here for query convenience)

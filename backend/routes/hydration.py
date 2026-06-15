@@ -23,8 +23,12 @@ def _get_activity_owned(activity_id: int, user, db: Session) -> models.Activity:
 
 def _run_analysis(activity: models.Activity, user: models.User, db: Session) -> models.HydrationAnalysis:
     """(Re)compute and persist HydrationAnalysis. Returns the saved row."""
-    temp_c     = activity.weather_temp_c if activity.weather_temp_c is not None else 20.0
-    duration_h = (activity.duration_seconds or 0) / 3600
+    temp_c = (
+        activity.sensor_temp_avg_c
+        if activity.sensor_temp_avg_c is not None
+        else (activity.weather_temp_c if activity.weather_temp_c is not None else 20.0)
+    )
+    duration_h = (activity.elapsed_seconds or activity.duration_seconds or 0) / 3600
 
     if activity.normalized_power_w and user.ftp and user.ftp > 0:
         intensity_factor = min(1.0, activity.normalized_power_w / user.ftp)
@@ -33,17 +37,20 @@ def _run_analysis(activity: models.Activity, user: models.User, db: Session) -> 
     else:
         intensity_factor = 0.65
 
+    is_indoor = activity.ride_environment == "indoor"
+
     data = build_hydration_analysis(
         temp_c=temp_c,
         humidity_pct=activity.weather_humidity_pct,
         wind_speed_kmh=activity.weather_wind_kmh,
-        max_temp_c=None,
+        max_temp_c=activity.sensor_temp_max_c,
         duration_h=duration_h,
         intensity_factor=intensity_factor,
         intake_ml=activity.hydration_ml,
         weight_kg=user.weight_kg,
         user_calibrated_ml_h=user.sweat_rate_ml_per_hour,
         heat_adaptation=user.heat_adaptation_level,
+        is_indoor=is_indoor,
     )
 
     row = db.query(models.HydrationAnalysis).filter(
@@ -130,6 +137,23 @@ def set_sweat_rate_directly(
         "heat_rides_last_14d":     current_user.heat_rides_last_14d or 0,
         "sweat_rate_ml_per_hour":  current_user.sweat_rate_ml_per_hour,
         "has_calibrated_rate":     True,
+    }
+
+
+@router.delete("/user/sweat-rate", response_model=schemas.HeatProfileOut)
+def reset_sweat_rate(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Clear the calibrated sweat rate — subsequent analyses use the population model."""
+    current_user.sweat_rate_ml_per_hour = None
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "heat_adaptation_level":  current_user.heat_adaptation_level,
+        "heat_rides_last_14d":    current_user.heat_rides_last_14d or 0,
+        "sweat_rate_ml_per_hour": None,
+        "has_calibrated_rate":    False,
     }
 
 

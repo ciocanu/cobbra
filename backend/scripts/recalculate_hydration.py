@@ -49,7 +49,7 @@ def process_activity(
     dry_run: bool = False,
 ) -> bool:
     """Compute and upsert HydrationAnalysis for one activity. Returns True if written."""
-    duration_h = (activity.duration_seconds or 0) / 3600
+    duration_h = (activity.elapsed_seconds or activity.duration_seconds or 0) / 3600
     if duration_h < 0.1:
         return False   # skip sub-6-min efforts
 
@@ -60,20 +60,27 @@ def process_activity(
     if existing and not force:
         return False
 
-    temp_c = activity.weather_temp_c if activity.weather_temp_c is not None else 20.0
+    temp_c = (
+        activity.sensor_temp_avg_c
+        if activity.sensor_temp_avg_c is not None
+        else (activity.weather_temp_c if activity.weather_temp_c is not None else 20.0)
+    )
     intensity = _intensity_factor(activity, user)
+
+    is_indoor = activity.ride_environment == "indoor"
 
     data = build_analysis(
         temp_c=temp_c,
         humidity_pct=activity.weather_humidity_pct,
         wind_speed_kmh=activity.weather_wind_kmh,
-        max_temp_c=None,
+        max_temp_c=activity.sensor_temp_max_c,
         duration_h=duration_h,
         intensity_factor=intensity,
         intake_ml=activity.hydration_ml,
         weight_kg=user.weight_kg,
         user_calibrated_ml_h=user.sweat_rate_ml_per_hour,
         heat_adaptation=user.heat_adaptation_level,
+        is_indoor=is_indoor,
     )
 
     if dry_run:
@@ -98,11 +105,14 @@ def recalculate_heat_adaptation(db: Session, user: models.User, dry_run: bool = 
     Counts activities in the last 14 days where weather_temp_c >= 27.
     """
     from datetime import datetime, timedelta
+    from sqlalchemy import case, func as _func
     cutoff = datetime.utcnow() - timedelta(days=14)
+    # Use sensor temp when available; fall back to weather API temp
+    effective_temp = _func.coalesce(models.Activity.sensor_temp_avg_c, models.Activity.weather_temp_c)
     hot_rides = db.query(models.Activity).filter(
         models.Activity.user_id == user.id,
         models.Activity.date >= cutoff,
-        models.Activity.weather_temp_c >= 27.0,
+        effective_temp >= 27.0,
     ).count()
 
     _, level = update_heat_adaptation(hot_rides, False, 0.0)  # counter already accurate

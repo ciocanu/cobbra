@@ -12,7 +12,7 @@ import models
 import schemas
 from parsers.gpx_parser import parse_gpx
 from parsers.fit_parser import parse_fit
-from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss
+from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss, compute_hrtss_heat_corrected, estimate_calories_from_hr
 from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
 from utils.durability import validate_durability_calculation, calculate_durability
 from utils.decoupling import calculate_adjusted_decoupling
@@ -109,8 +109,15 @@ async def _fetch_weather(lat: float, lon: float, dt: datetime) -> dict:
 
 def _run_hydration_analysis(db: Session, activity: models.Activity, user: models.User) -> None:
     """Create or replace HydrationAnalysis for the given activity."""
-    temp_c = activity.weather_temp_c if activity.weather_temp_c is not None else 20.0
-    duration_h = (activity.duration_seconds or 0) / 3600
+    # Prefer sensor temp (actual on-bike reading) over weather API (shade / start of ride only)
+    temp_c = (
+        activity.sensor_temp_avg_c
+        if activity.sensor_temp_avg_c is not None
+        else (activity.weather_temp_c if activity.weather_temp_c is not None else 20.0)
+    )
+    # Use elapsed wall-clock time for FIT files (captures heat exposure during stops).
+    # GPX duration_seconds already equals elapsed time.
+    duration_h = (activity.elapsed_seconds or activity.duration_seconds or 0) / 3600
 
     if duration_h < 0.1:
         return  # not worth analysing sub-6-min efforts
@@ -124,17 +131,20 @@ def _run_hydration_analysis(db: Session, activity: models.Activity, user: models
     else:
         intensity_factor = 0.65  # conservative moderate-effort default
 
+    is_indoor = activity.ride_environment == "indoor"
+
     analysis_data = build_hydration_analysis(
         temp_c=temp_c,
         humidity_pct=activity.weather_humidity_pct,
         wind_speed_kmh=activity.weather_wind_kmh,
-        max_temp_c=None,
+        max_temp_c=activity.sensor_temp_max_c,
         duration_h=duration_h,
         intensity_factor=intensity_factor,
         intake_ml=activity.hydration_ml,
         weight_kg=user.weight_kg,
         user_calibrated_ml_h=user.sweat_rate_ml_per_hour,
         heat_adaptation=user.heat_adaptation_level,
+        is_indoor=is_indoor,
     )
 
     existing = db.query(models.HydrationAnalysis).filter(
@@ -398,11 +408,23 @@ async def upload_activity(
     active_cad = [tp["cadence_rpm"] for tp in track_points if tp.get("cadence_rpm") and tp["cadence_rpm"] > 0]
     data["avg_cadence_rpm"] = round(sum(active_cad) / len(active_cad), 1) if active_cad else None
 
-    # Fetch weather from first GPS point
+    # Lift sensor temperature out before weather merge (parsers return avg_temperature_c / max_temperature_c)
+    sensor_avg_temp = data.pop("avg_temperature_c", None)
+    sensor_max_temp = data.pop("max_temperature_c", None)
+    if sensor_avg_temp is not None:
+        data["sensor_temp_avg_c"] = sensor_avg_temp
+    if sensor_max_temp is not None:
+        data["sensor_temp_max_c"] = sensor_max_temp
+
+    # Fetch weather from first GPS point (wind, humidity, description; temp is a fallback only)
     first_gps = next((tp for tp in track_points if tp.get("lat") and tp.get("lon")), None)
     if first_gps:
         weather = await _fetch_weather(first_gps["lat"], first_gps["lon"], data["date"])
         data.update(weather)
+        # Sensor temperature is more accurate than weather station (which reads in shade at 2m).
+        # Override weather_temp_c with the actual on-bike reading when available.
+        if sensor_avg_temp is not None:
+            data["weather_temp_c"] = sensor_avg_temp
 
     activity = models.Activity(**data, user_id=current_user.id)
     db.add(activity)
@@ -423,6 +445,29 @@ async def upload_activity(
         activity.normalized_power_w = np
         if current_user.ftp:
             activity.tss = compute_tss(np, activity.duration_seconds, current_user.ftp)
+
+    # HR-TSS (heat-corrected) when no power data
+    if not activity.tss and activity.avg_heart_rate_bpm and current_user.max_hr:
+        ride_temp = activity.sensor_temp_avg_c or activity.weather_temp_c
+        dur_h_elapsed = (activity.elapsed_seconds or activity.duration_seconds or 0) / 3600
+        activity.tss = compute_hrtss_heat_corrected(
+            activity.duration_seconds,
+            activity.avg_heart_rate_bpm,
+            current_user.max_hr,
+            resting_hr=getattr(current_user, "resting_hr", None),
+            temp_c=ride_temp,
+            duration_h=dur_h_elapsed,
+        )
+
+    # Calorie estimation when device didn't report calories
+    if not activity.calories and activity.avg_heart_rate_bpm:
+        activity.calories = estimate_calories_from_hr(
+            activity.duration_seconds,
+            activity.avg_heart_rate_bpm,
+            age=getattr(current_user, "age", None),
+            weight_kg=current_user.weight_kg,
+            max_hr=current_user.max_hr,
+        )
 
     # Indoor/outdoor detection + correction
     try:

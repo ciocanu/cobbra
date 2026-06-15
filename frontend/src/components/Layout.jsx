@@ -87,18 +87,17 @@ export default function Layout() {
                 <span className="nav-label">{label}</span>
               </NavLink>
             ))}
+            {isAdmin && (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                style={{ color: 'var(--accent)' }}
+              >
+                <Shield size={16} />
+                <span className="nav-label">Admin</span>
+              </NavLink>
+            )}
           </nav>
-
-          {isAdmin && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-              style={{ color: 'var(--accent)', margin: '0 10px', flexShrink: 0 }}
-            >
-              <Shield size={16} />
-              <span className="nav-label">Admin</span>
-            </NavLink>
-          )}
 
           <div style={{ marginTop: 'auto', padding: '0 10px 16px', flexShrink: 0 }}>
             {username && (

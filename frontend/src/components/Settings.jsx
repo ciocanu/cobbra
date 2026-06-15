@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor, calibratePower, resetPowerCalibration } from '../services/api'
+import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, resetSweatRate, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor, calibratePower, resetPowerCalibration } from '../services/api'
 import { markLoggedOut } from '../services/auth'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
@@ -186,6 +186,8 @@ export default function Settings() {
   const [directSweatSaving,   setDirectSweatSaving]   = useState(false)
   const [directSweatMsg,      setDirectSweatMsg]      = useState('')
   const [directSweatMsgType,  setDirectSweatMsgType]  = useState('')
+  const [resetSweatSaving,    setResetSweatSaving]    = useState(false)
+  const [resetSweatMsg,       setResetSweatMsg]       = useState('')
 
   // Indoor / Outdoor profile
   const [indoorProfile,      setIndoorProfile]      = useState(null)
@@ -290,6 +292,17 @@ export default function Settings() {
     } finally { setDirectSweatSaving(false) }
   }
 
+
+  const handleResetSweatRate = async () => {
+    setResetSweatSaving(true); setResetSweatMsg('')
+    try {
+      const res = await resetSweatRate()
+      setHeatProfile(res.data)
+      setResetSweatMsg('Sweat rate cleared. Analysis will now use the population model.')
+    } catch (e) {
+      setResetSweatMsg(e.response?.data?.detail || 'Failed to reset.')
+    } finally { setResetSweatSaving(false) }
+  }
 
   const handleRecalculateIndoor = async () => {
     setRecalculating(true); setIndoorMsg('')
@@ -902,27 +915,114 @@ export default function Settings() {
       {/* ── Calibration ──────────────────────────────────────── */}
       {activeTab === 'calibration' && (
         <div id="tab-panel-calibration" role="tabpanel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* ── Accuracy Overview ── */}
+          <Card>
+            <CardTitle icon={CheckCircle}>Accuracy Overview</CardTitle>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+              Every physiological input below sharpens a specific calculation. Missing values fall back to population estimates.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              {[
+                {
+                  label: 'Body Weight',
+                  value: weightKg !== '' ? `${weightKg} kg` : null,
+                  affects: 'Sweat-loss %, calorie burn, W/kg power',
+                  critical: true,
+                },
+                {
+                  label: 'FTP',
+                  value: ftp !== '' ? `${ftp} W` : null,
+                  affects: 'TSS, training load, intensity factor for hydration',
+                  critical: false,
+                },
+                {
+                  label: 'Max Heart Rate',
+                  value: maxHr !== '' ? `${maxHr} bpm` : null,
+                  affects: 'HR-based TSS, zone boundaries, effort calibration',
+                  critical: false,
+                },
+                {
+                  label: 'Resting HR',
+                  value: restingHr !== '' ? `${restingHr} bpm` : null,
+                  affects: 'TRIMP heart rate reserve (more accurate training load)',
+                  critical: false,
+                },
+                {
+                  label: 'Sweat Rate',
+                  value: heatProfile?.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : null,
+                  missing: 'Population avg (~700 ml/h base)',
+                  affects: 'Estimated sweat loss, hydration deficit, risk level',
+                  critical: true,
+                },
+                {
+                  label: 'Heat Adaptation',
+                  value: heatProfile?.heat_adaptation_level && heatProfile.heat_adaptation_level !== 'none'
+                    ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1)
+                    : null,
+                  missing: 'Auto-computed from hot-ride history',
+                  affects: 'Sweat efficiency multiplier (adapted athletes sweat more efficiently)',
+                  critical: false,
+                  auto: true,
+                },
+              ].map(({ label, value, missing, affects, critical, auto }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-card)' }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                    background: value
+                      ? 'var(--status-good)'
+                      : critical ? 'var(--status-alert)' : 'var(--border)',
+                  }} />
+                  <div style={{ minWidth: 110, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</div>
+                  <div style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}>{affects}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: value ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {value || <span style={{ fontStyle: 'italic', fontFamily: 'inherit', fontWeight: 400 }}>{missing || (auto ? 'Auto' : 'Not set')}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           <Card>
             <CardTitle icon={Droplets}>Heat &amp; Hydration</CardTitle>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
-              Your personal sweat rate calibrates hydration targets. Run a sweat test by weighing yourself before and after a 1-hour effort.
+              Your personal sweat rate calibrates sweat-loss estimates. When set, it anchors the calculation to your physiology;
+              only temperature and humidity <em>above</em> typical test conditions (20°C / 55% RH) are added on top.
+              If estimates seem too high or too low, reset below and re-run a sweat test.
             </p>
             {heatProfile && (
-              <div style={{ display: 'flex', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 18 }}>
+              <div style={{ display: 'flex', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
                 <div style={{ flex: 1, padding: '11px 16px', background: 'var(--bg-card)' }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Sweat Rate</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
-                    {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : '—'}
+                  <div style={{ fontSize: 15, fontWeight: 700, color: heatProfile.has_calibrated_rate ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
+                    {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : 'Population avg'}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{heatProfile.has_calibrated_rate ? 'From sweat test' : 'Run a sweat test below'}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {heatProfile.has_calibrated_rate ? 'Personal calibration — used in all analyses' : 'No calibration set — using generic model'}
+                  </div>
                 </div>
                 <div style={{ flex: 1, padding: '11px 16px', background: 'var(--bg-card)' }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Heat Adaptation</div>
                   <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', marginBottom: 2, color: heatProfile.heat_adaptation_level === 'high' ? 'var(--status-good)' : heatProfile.heat_adaptation_level === 'moderate' ? 'var(--status-warn)' : 'var(--text-muted)' }}>
                     {heatProfile.heat_adaptation_level ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1) : 'Low'}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{heatProfile.heat_rides_last_14d} hot rides (≥27°C) in 14 d</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{heatProfile.heat_rides_last_14d} hot rides (≥27°C) in last 14 days</div>
                 </div>
+              </div>
+            )}
+            {heatProfile?.has_calibrated_rate && (
+              <div style={{ marginBottom: 14 }}>
+                <button
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, color: 'var(--status-alert)', borderColor: 'color-mix(in srgb, var(--status-alert) 30%, transparent)' }}
+                  onClick={handleResetSweatRate}
+                  disabled={resetSweatSaving}
+                >
+                  <RefreshCw size={12} /> {resetSweatSaving ? 'Resetting…' : 'Reset to population model'}
+                </button>
+                {resetSweatMsg && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{resetSweatMsg}</div>
+                )}
               </div>
             )}
             <CollapsibleRow icon={Thermometer} label="Run a Sweat Test" open={sweatTestOpen} onToggle={() => { setSweatTestOpen(o => !o); setSweatMsg('') }}>

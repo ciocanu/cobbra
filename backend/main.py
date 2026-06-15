@@ -78,6 +78,16 @@ _MIGRATIONS = [
     # Hydration & heat — Activity
     "ALTER TABLE activities ADD COLUMN hydration_ml INTEGER",
     "ALTER TABLE activities ADD COLUMN weather_humidity_pct FLOAT",
+    # Sensor temperature from activity file (atemp/temperature field — more accurate than weather API)
+    "ALTER TABLE activities ADD COLUMN sensor_temp_avg_c FLOAT",
+    "ALTER TABLE activities ADD COLUMN sensor_temp_max_c FLOAT",
+    # Wall-clock elapsed time for FIT files (duration_seconds is moving/timer time)
+    "ALTER TABLE activities ADD COLUMN elapsed_seconds INTEGER",
+    # Hydration analysis accuracy engine v2 columns
+    "ALTER TABLE hydration_analyses ADD COLUMN effective_temp_c FLOAT",
+    "ALTER TABLE hydration_analyses ADD COLUMN wind_cooling_c FLOAT",
+    "ALTER TABLE hydration_analyses ADD COLUMN population_sweat_rate_ml_h FLOAT",
+    "ALTER TABLE hydration_analyses ADD COLUMN model_method VARCHAR",
     # Hydration & heat — User
     "ALTER TABLE users ADD COLUMN sweat_rate_ml_per_hour FLOAT",
     "ALTER TABLE users ADD COLUMN heat_adaptation_level VARCHAR",

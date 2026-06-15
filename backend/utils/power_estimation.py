@@ -4,35 +4,37 @@ G = 9.80665
 AIR_DENSITY_SEA_LEVEL = 1.225
 
 BIKE_DEFAULTS = {
+    # CdA values: Martin et al. (1998) J Appl Biomech 14:276–291; Gribble calculator
+    # Crr values: good asphalt, Crr 0.0035–0.005 for road tyres (Martin 1998)
     "road": {
         "bike_weight_kg": 8.5,
-        "crr": 0.005,
-        "cda": 0.35,
+        "crr": 0.004,    # good asphalt, 25 mm road tyre
+        "cda": 0.32,     # hoods position, trained club rider
     },
     "gravel": {
         "bike_weight_kg": 10.0,
-        "crr": 0.007,
-        "cda": 0.38,
+        "crr": 0.006,    # mixed / gravel surface
+        "cda": 0.36,     # upright gravel position
     },
     "mtb": {
         "bike_weight_kg": 13.0,
-        "crr": 0.012,
-        "cda": 0.45,
+        "crr": 0.012,    # off-road; unchanged
+        "cda": 0.44,     # upright MTB position
     },
     "tt": {
         "bike_weight_kg": 8.0,
-        "crr": 0.004,
-        "cda": 0.25,
+        "crr": 0.004,    # same quality asphalt as road
+        "cda": 0.22,     # aggressive TT / aero-bar position
     },
     "ebike": {
         "bike_weight_kg": 22.0,
-        "crr": 0.006,
-        "cda": 0.40,
+        "crr": 0.005,    # heavier tyre contact patch
+        "cda": 0.38,     # upright e-bike position
     },
     None: {
         "bike_weight_kg": 9.0,
-        "crr": 0.005,
-        "cda": 0.35,
+        "crr": 0.004,
+        "cda": 0.32,
     },
 }
 
@@ -58,9 +60,9 @@ def estimate_climbing_power(
     climb: dict,
     user_weight_kg: float,
     bike_weight_kg: float = 9.0,
-    crr: float = 0.005,
-    cda: float = 0.35,
-    drivetrain_loss: float = 0.03,
+    crr: float = 0.004,
+    cda: float = 0.32,
+    drivetrain_loss: float = 0.025,  # 97.5% efficiency (SILCA chain testing)
     altitude_m: float = None,
 ) -> dict:
     """

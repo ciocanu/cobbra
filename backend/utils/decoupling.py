@@ -132,7 +132,7 @@ def calculate_adjusted_decoupling(
     weight_kg  = getattr(user, "weight_kg", None)
     intake_ml  = getattr(activity, "hydration_ml", None)
     deficit_p  = hydration_deficit_pct(user, activity) if (weight_kg and intake_ml is not None) else None
-    hydration_drift = expected_hydration_drift_pct(deficit_p)
+    hydration_drift = expected_hydration_drift_pct(deficit_p, avg_temp)
     hydration_explanation: Optional[str] = None
     if deficit_p is not None:
         hydration_explanation = (
@@ -196,24 +196,25 @@ def calculate_adjusted_decoupling(
 def expected_heat_drift_pct(avg_temp_c: float, duration_hours: float) -> float:
     """Estimate expected EF drift % caused by thermoregulation alone.
 
-    Based on Coyle (1998) and Cheuvront (2010) — cardiovascular drift under heat.
+    Continuous model: cardiac drift ≈ 0.5 bpm per °C above 18°C (Gonzalez-Alonso
+    et al. 2001), translated to EF% assuming ~150 bpm average HR.
+    EF = speed/HR; if HR rises by X bpm at 150 bpm mean, EF drops by X/150 × 100%.
+
+    Duration scaling saturates around 90 min (consistent with drift physiology).
     """
     if avg_temp_c < 18:
-        base_drift = 1.5
-    elif avg_temp_c < 22:
-        base_drift = 2.5
-    elif avg_temp_c < 26:
-        base_drift = 4.0
-    elif avg_temp_c < 30:
-        base_drift = 6.0
-    elif avg_temp_c < 34:
-        base_drift = 8.5
+        heat_bpm = 0.0
     else:
-        base_drift = 11.0
+        # 0.5 bpm per °C above 18°C
+        heat_bpm = (avg_temp_c - 18.0) * 0.5
 
-    # Longer rides accumulate more heat drift; cap at 3×1.5h
-    duration_factor = min(duration_hours / 1.5, 2.0)
-    return round(base_drift * duration_factor, 2)
+    # Drift accumulates with time, saturating around 90 min
+    duration_factor = min(duration_hours / 1.5, 1.5)
+    heat_bpm_total  = min(heat_bpm * duration_factor, 12.0)
+
+    # Convert cardiac drift to EF drift % (assumed avg HR 150 bpm)
+    ef_drift = heat_bpm_total / 150.0 * 100.0
+    return round(ef_drift, 2)
 
 
 # ── Hydration model ───────────────────────────────────────────────────────────
@@ -250,11 +251,29 @@ def hydration_deficit_pct(user: Any, activity: Any) -> Optional[float]:
     return max(0.0, round(deficit_pct, 2))
 
 
-def expected_hydration_drift_pct(deficit_pct: Optional[float]) -> float:
-    """Each 1% body-weight deficit ≈ 3% EF drift (Montain & Coyle, 1992)."""
+def expected_hydration_drift_pct(
+    deficit_pct: Optional[float],
+    avg_temp_c: Optional[float] = None,
+) -> float:
+    """Expected EF drift from dehydration (Montain & Coyle 1992).
+
+    Each 1% BML raises HR by ~3–7 bpm; translated to EF% at ~150 bpm avg HR.
+      ≥ 28°C: 4.5 bpm / 1% BML → ~3.0% EF drift / 1% BML
+      20–28°C: 3.0 bpm / 1% BML → ~2.0% EF drift / 1% BML
+      < 20°C:  2.0 bpm / 1% BML → ~1.3% EF drift / 1% BML
+    """
     if deficit_pct is None:
         return 0.0
-    return round(deficit_pct * 3.0, 2)
+
+    if avg_temp_c is None or avg_temp_c >= 28:
+        bpm_per_pct = 4.5    # hot conditions (Montain & Coyle hot protocol)
+    elif avg_temp_c >= 20:
+        bpm_per_pct = 3.0    # temperate
+    else:
+        bpm_per_pct = 2.0    # cool
+
+    ef_drift_per_pct = bpm_per_pct / 150.0 * 100.0   # convert bpm to EF%
+    return round(deficit_pct * ef_drift_per_pct, 2)
 
 
 # ── Classification ────────────────────────────────────────────────────────────
@@ -432,6 +451,6 @@ def _calc_ef_drift(pts: list[dict]) -> Optional[float]:
 
 
 def _get_temperature(activity: Any) -> Optional[float]:
-    """Return best available temperature for the activity."""
-    t = getattr(activity, "weather_temp_c", None)
+    """Return best available temperature — prefer sensor data over weather API."""
+    t = getattr(activity, "sensor_temp_avg_c", None) or getattr(activity, "weather_temp_c", None)
     return float(t) if t is not None else None

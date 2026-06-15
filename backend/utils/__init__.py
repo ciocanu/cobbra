@@ -79,6 +79,79 @@ def compute_hrtss(duration_seconds: int, avg_hr: float, max_hr: float,
 
     return round((trimp / thr_trimp_per_hr) * 100, 1)
 
+
+def compute_hrtss_heat_corrected(
+    duration_seconds: int,
+    avg_hr: float,
+    max_hr: float,
+    resting_hr: float | None = None,
+    temp_c: float | None = None,
+    duration_h: float | None = None,
+) -> float | None:
+    """TRIMP hrTSS corrected for heat-induced cardiac drift.
+
+    In hot conditions HR rises beyond what true training stress warrants
+    (cardiovascular drift from plasma volume loss and vasodilation).
+    This inflates hrTSS and therefore overcounts ATL/CTL.
+
+    Correction: subtract estimated cardiac drift before computing TRIMP.
+    Drift model (Coyle & Gonzalez-Alonso 2001 + Sawka 2007):
+      - ~0 bpm at ≤ 20 °C
+      - Rises linearly to ~5 bpm at 35 °C over a 2-hour ride
+      - Proportional to duration (longer rides = more accumulated drift)
+    """
+    if not avg_hr or not max_hr or duration_seconds <= 0:
+        return None
+
+    corrected_hr = avg_hr
+    if temp_c is not None and temp_c > 20.0:
+        dur_h = duration_h or duration_seconds / 3600
+        # Heat drift: 0.5 bpm/°C above 20°C (Gonzalez-Alonso 2001), saturates at ~90 min
+        heat_drift_bpm = min(
+            (temp_c - 20.0) * 0.5 * min(dur_h / 1.5, 1.0),
+            8.0,
+        )
+        corrected_hr = max(avg_hr - heat_drift_bpm, resting_hr or 40.0)
+
+    return compute_hrtss(duration_seconds, corrected_hr, max_hr, resting_hr)
+
+
+def estimate_calories_from_hr(
+    duration_seconds: int,
+    avg_hr: float,
+    age: int | None,
+    weight_kg: float | None,
+    max_hr: float | None = None,
+) -> int | None:
+    """Estimate calorie expenditure from heart rate (Keytel et al. 2005).
+
+    Formula (simplified for mixed gender — uses the average of male/female coefficients):
+        kcal/min = -59.3954 + (-36.3781 + 0.271*age + 0.394*weight_kg + 0.404*max_hr + 0.634*avg_hr) / 4.184
+    When age or weight is missing, falls back to a simpler HR × duration proxy.
+    Only called when the device file does not report calories.
+    """
+    if not avg_hr or duration_seconds <= 0:
+        return None
+
+    dur_min = duration_seconds / 60
+
+    if age and weight_kg and max_hr:
+        # Full Keytel model (average of male/female coefficients)
+        kcal_per_min = (
+            -59.3954
+            + (-36.3781 + 0.271 * age + 0.394 * weight_kg + 0.404 * max_hr + 0.634 * avg_hr)
+            / 4.184
+        )
+        kcal_per_min = max(kcal_per_min, 3.0)   # physiological floor ~3 kcal/min at rest
+        return round(kcal_per_min * dur_min)
+
+    if weight_kg:
+        # Simpler proxy: ~8–12 kcal/kg/hour at moderate cycling intensity
+        kcal_per_hr = weight_kg * 9.5   # conservative moderate effort
+        return round(kcal_per_hr * dur_min / 60)
+
+    return None
+
 # ── Suffer Score ─────────────────────────────────────────────────────────────
 # Zone weights per second of time spent in each HR zone
 _ZONE_WEIGHTS = [0.0, 0.007, 0.015, 0.028, 0.044]
