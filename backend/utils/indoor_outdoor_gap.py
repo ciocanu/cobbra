@@ -234,7 +234,7 @@ def apply_correction_factors(activity: Any, profile: Any) -> dict:
         "original_tss":            original_tss,
         "corrected_tss":           corrected_tss,
         "correction_applied":      power_cf is not None or hr_cf is not None,
-        "correction_source":       correction_source if (power_cf or hr_cf) else None,
+        "correction_source":       correction_source if (power_cf is not None or hr_cf is not None) else None,
     }
 
 
@@ -526,7 +526,7 @@ def _build_interpretation(power_gap: Optional[float], hr_gap: Optional[float],
 
     if power_gap is not None:
         direction = "lower" if power_gap < 0 else "higher"
-        typical   = -5 <= power_gap <= -15
+        typical   = -15 <= power_gap <= -5
         inv = power_gap > 0
 
         if typical:
