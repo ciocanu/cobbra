@@ -39,9 +39,9 @@ def calibrate_from_known_ftp(user, climb_detections: list, known_ftp_w: float) -
         if abs(p_mid - known_ftp_w) < 2.0:
             break
         if p_mid < known_ftp_w:
-            hi = mid
-        else:
             lo = mid
+        else:
+            hi = mid
 
     calibrated_cda = round((lo + hi) / 2, 4)
     return {
@@ -71,8 +71,9 @@ def calibrate_from_known_climb(user, climb, known_power_w: float) -> dict:
         return {"error": "Cannot calibrate: estimated power is zero"}
 
     ratio = known_power_w / estimated
-    # Adjust CdA: higher estimated means too low CdA (less drag → lower power)
-    new_cda = round(current_cda / ratio, 4)
+    # Adjust CdA proportionally: higher known power than estimated means more
+    # drag (higher CdA) is needed, so scale CdA by the same ratio.
+    new_cda = round(current_cda * ratio, 4)
     new_cda = max(0.15, min(0.80, new_cda))
 
     return {
