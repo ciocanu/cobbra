@@ -290,11 +290,22 @@ def test_hydration_drift_proportional():
 
 
 def test_sweat_loss_uses_calibrated_rate():
-    """Calibrated sweat rate overrides the estimate formula."""
+    """Calibrated sweat rate overrides the estimate formula (no weight scaling)."""
     user = _user(sweat_rate_ml_per_hour=1200.0)
     act  = _activity(duration_seconds=3600)   # 1h
     loss = calculate_sweat_loss_ml(user, act)
     assert loss == pytest.approx(1200.0, abs=1.0)
+
+
+def test_sweat_loss_scales_with_body_weight():
+    """Uncalibrated estimate must scale with body mass — heavier rider sweats more."""
+    act    = _activity(weather_temp_c=25.0, avg_heart_rate_bpm=150, duration_seconds=3600)
+    light  = calculate_sweat_loss_ml(_user(weight_kg=55.0), act)
+    mid    = calculate_sweat_loss_ml(_user(weight_kg=70.0), act)
+    heavy  = calculate_sweat_loss_ml(_user(weight_kg=95.0), act)
+    assert light < mid < heavy
+    # 70 kg stays the anchor (no scaling)
+    assert heavy == pytest.approx(mid * 95.0 / 70.0, rel=0.001)
 
 
 def test_result_has_all_required_keys():

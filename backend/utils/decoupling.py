@@ -228,12 +228,19 @@ def calculate_sweat_loss_ml(user: Any, activity: Any) -> float:
 
     cal_rate  = getattr(user, "sweat_rate_ml_per_hour", None)
     if cal_rate:
+        # Personal calibration is already specific to the rider — use as-is.
         base_rate = float(cal_rate)
     else:
         base_rate = 500.0
         if avg_temp is not None:
             base_rate += max(0.0, (avg_temp - 20.0)) * 40.0
         base_rate += max(0.0, (avg_hr_pct - 0.70)) * 1000.0
+        # The uncalibrated formula is anchored to a ~70 kg rider; sweat loss
+        # scales roughly linearly with body mass, so a 95 kg rider sweats more
+        # than a 55 kg rider at the same intensity and temperature.
+        weight_kg = getattr(user, "weight_kg", None)
+        if weight_kg and weight_kg > 30:
+            base_rate *= weight_kg / 70.0
 
     dur_hours = getattr(activity, "duration_seconds", 3600) / 3600
     return base_rate * dur_hours
