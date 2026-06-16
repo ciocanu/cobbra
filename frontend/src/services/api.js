@@ -42,7 +42,7 @@ export const exportGpx     = (id) => api.get(`/activities/${id}/export/gpx`, { r
 export const uploadActivity= (file) => {
   const form = new FormData()
   form.append('file', file)
-  return api.post('/activities/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return api.post('/activities/upload', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })
 }
 
 // Stats
