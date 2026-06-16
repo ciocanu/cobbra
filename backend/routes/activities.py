@@ -3,10 +3,10 @@ import io
 import os
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from auth import get_current_user
 import models
 import schemas
@@ -303,6 +303,122 @@ def _run_indoor_detection(
         log.warning("Gap update failed for user %s: %s", user.id, _gap_err)
 
 
+def _run_climb_analysis(
+    db: Session,
+    activity: models.Activity,
+    track_points: list,
+    user: models.User,
+) -> None:
+    """Detect climbs and estimate power (Phase B). No-op without weight or GPS."""
+    if not (user.weight_kg and track_points):
+        return
+
+    bike_params = dict(BIKE_DEFAULTS.get(user.bike_type, BIKE_DEFAULTS[None]))
+    if user.bike_weight_kg:
+        bike_params["bike_weight_kg"] = user.bike_weight_kg
+    if user.calibrated_cda:
+        bike_params["cda"] = user.calibrated_cda
+    if user.calibrated_crr:
+        bike_params["crr"] = user.calibrated_crr
+
+    climbs = detect_climbs(track_points)
+    activity.climb_count = len(climbs)
+
+    climbs_with_power = []
+    for climb in climbs:
+        avg_alt = None
+        seg_pts = track_points[climb["start_trackpoint_idx"]:climb["end_trackpoint_idx"] + 1]
+        elev_vals = [p.get("elevation") for p in seg_pts if p.get("elevation") is not None]
+        if elev_vals:
+            avg_alt = sum(elev_vals) / len(elev_vals)
+
+        power_est = estimate_climbing_power(
+            climb, user.weight_kg,
+            bike_weight_kg=bike_params["bike_weight_kg"],
+            crr=bike_params["crr"],
+            cda=bike_params["cda"],
+            altitude_m=avg_alt,
+        )
+        method = "calibrated" if user.calibrated_cda else "physics"
+
+        db_climb = models.ClimbDetection(
+            activity_id=activity.id,
+            start_trackpoint_idx=climb["start_trackpoint_idx"],
+            end_trackpoint_idx=climb["end_trackpoint_idx"],
+            start_distance_m=climb["start_distance_m"],
+            end_distance_m=climb["end_distance_m"],
+            distance_m=climb["distance_m"],
+            elevation_gain_m=climb["elevation_gain_m"],
+            avg_gradient_pct=climb["avg_gradient_pct"],
+            max_gradient_pct=climb["max_gradient_pct"],
+            duration_seconds=climb["duration_seconds"],
+            avg_speed_kmh=climb["avg_speed_kmh"],
+            avg_heart_rate=climb["avg_heart_rate"],
+            max_heart_rate=climb["max_heart_rate"],
+            vam_m_per_hour=climb["vam_m_per_hour"],
+            estimated_power_w=power_est["estimated_power_w"],
+            estimated_power_low_w=power_est["estimated_power_low_w"],
+            estimated_power_high_w=power_est["estimated_power_high_w"],
+            estimated_wkg=power_est["estimated_wkg"],
+            estimation_quality=power_est["estimation_quality"],
+            estimation_method=method,
+            pacing_type=climb["pacing_type"],
+            first_half_speed=climb["first_half_speed"],
+            second_half_speed=climb["second_half_speed"],
+        )
+        db.add(db_climb)
+        if power_est["estimated_power_w"] is not None:
+            climbs_with_power.append({
+                "power_w": power_est["estimated_power_w"],
+                "duration_s": climb["duration_seconds"],
+            })
+
+    if climbs_with_power:
+        total_dur = sum(c["duration_s"] for c in climbs_with_power)
+        if total_dur > 0:
+            activity.total_climbing_power_avg_w = round(
+                sum(c["power_w"] * c["duration_s"] for c in climbs_with_power) / total_dur, 1
+            )
+            activity.total_climbing_wkg_avg = round(
+                activity.total_climbing_power_avg_w / user.weight_kg, 2
+            )
+
+
+def _run_post_upload_analysis(activity_id: int, user_id: int, track_points: list) -> None:
+    """Run the heavy analysis pipeline off the request path, in its own session.
+
+    Scheduled as a FastAPI background task so the upload response returns as soon
+    as the core activity is saved. Each stage is isolated so one failure never
+    blocks the rest. ``track_points`` are the plain parsed dicts (not ORM rows),
+    so they remain valid after the request session closes.
+    """
+    db = SessionLocal()
+    try:
+        activity = db.get(models.Activity, activity_id)
+        user = db.get(models.User, user_id)
+        if not activity or not user:
+            return
+
+        for label, fn in (
+            ("Indoor/outdoor detection", lambda: _run_indoor_detection(db, activity, track_points, user)),
+            ("Hydration analysis",       lambda: _run_hydration_analysis(db, activity, user)),
+            ("Durability analysis",      lambda: _run_durability_analysis(db, activity, track_points, user)),
+            ("Decoupling analysis",      lambda: _run_decoupling_analysis(db, activity, track_points, user)),
+            ("Climb detection",          lambda: _run_climb_analysis(db, activity, track_points, user)),
+        ):
+            try:
+                fn()
+            except Exception as _e:
+                log.warning("%s failed for activity %s: %s", label, activity_id, _e)
+
+        db.commit()
+    except Exception as _e:
+        log.warning("Post-upload analysis failed for activity %s: %s", activity_id, _e)
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _match_segments(db: Session, track_points: list, activity: models.Activity):
     for seg in db.query(models.Segment).all():
         effort = match_segment(track_points, seg)
@@ -370,6 +486,7 @@ def _build_gpx(activity: models.Activity) -> str:
 
 @router.post("/upload", response_model=schemas.ActivityOut)
 async def upload_activity(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -469,107 +586,14 @@ async def upload_activity(
             max_hr=current_user.max_hr,
         )
 
-    # Indoor/outdoor detection + correction
-    try:
-        _run_indoor_detection(db, activity, track_points, current_user)
-    except Exception as _e:
-        log.warning("Indoor/outdoor detection failed for activity %s: %s", activity.id, _e)
-
-    # Hydration & heat strain analysis
-    try:
-        _run_hydration_analysis(db, activity, current_user)
-    except Exception as _e:
-        log.warning("Hydration analysis failed for activity %s: %s", activity.id, _e)
-
-    # Durability profiling
-    try:
-        _run_durability_analysis(db, activity, track_points, current_user)
-    except Exception as _e:
-        log.warning("Durability analysis failed for activity %s: %s", activity.id, _e)
-
-    # Adjusted decoupling
-    try:
-        _run_decoupling_analysis(db, activity, track_points, current_user)
-    except Exception as _e:
-        log.warning("Decoupling analysis failed for activity %s: %s", activity.id, _e)
-
-    # Detect climbs and estimate power (Phase B)
-    if current_user.weight_kg and track_points:
-        try:
-            bike_params = dict(BIKE_DEFAULTS.get(current_user.bike_type, BIKE_DEFAULTS[None]))
-            if current_user.bike_weight_kg:
-                bike_params["bike_weight_kg"] = current_user.bike_weight_kg
-            if current_user.calibrated_cda:
-                bike_params["cda"] = current_user.calibrated_cda
-            if current_user.calibrated_crr:
-                bike_params["crr"] = current_user.calibrated_crr
-
-            climbs = detect_climbs(track_points)
-            activity.climb_count = len(climbs)
-
-            climbs_with_power = []
-            for climb in climbs:
-                avg_alt = None
-                seg_pts = track_points[climb["start_trackpoint_idx"]:climb["end_trackpoint_idx"] + 1]
-                elev_vals = [p.get("elevation") for p in seg_pts if p.get("elevation") is not None]
-                if elev_vals:
-                    avg_alt = sum(elev_vals) / len(elev_vals)
-
-                power_est = estimate_climbing_power(
-                    climb, current_user.weight_kg,
-                    bike_weight_kg=bike_params["bike_weight_kg"],
-                    crr=bike_params["crr"],
-                    cda=bike_params["cda"],
-                    altitude_m=avg_alt,
-                )
-                method = "calibrated" if current_user.calibrated_cda else "physics"
-
-                db_climb = models.ClimbDetection(
-                    activity_id=activity.id,
-                    start_trackpoint_idx=climb["start_trackpoint_idx"],
-                    end_trackpoint_idx=climb["end_trackpoint_idx"],
-                    start_distance_m=climb["start_distance_m"],
-                    end_distance_m=climb["end_distance_m"],
-                    distance_m=climb["distance_m"],
-                    elevation_gain_m=climb["elevation_gain_m"],
-                    avg_gradient_pct=climb["avg_gradient_pct"],
-                    max_gradient_pct=climb["max_gradient_pct"],
-                    duration_seconds=climb["duration_seconds"],
-                    avg_speed_kmh=climb["avg_speed_kmh"],
-                    avg_heart_rate=climb["avg_heart_rate"],
-                    max_heart_rate=climb["max_heart_rate"],
-                    vam_m_per_hour=climb["vam_m_per_hour"],
-                    estimated_power_w=power_est["estimated_power_w"],
-                    estimated_power_low_w=power_est["estimated_power_low_w"],
-                    estimated_power_high_w=power_est["estimated_power_high_w"],
-                    estimated_wkg=power_est["estimated_wkg"],
-                    estimation_quality=power_est["estimation_quality"],
-                    estimation_method=method,
-                    pacing_type=climb["pacing_type"],
-                    first_half_speed=climb["first_half_speed"],
-                    second_half_speed=climb["second_half_speed"],
-                )
-                db.add(db_climb)
-                if power_est["estimated_power_w"] is not None:
-                    climbs_with_power.append({
-                        "power_w": power_est["estimated_power_w"],
-                        "duration_s": climb["duration_seconds"],
-                    })
-
-            if climbs_with_power:
-                total_dur = sum(c["duration_s"] for c in climbs_with_power)
-                if total_dur > 0:
-                    activity.total_climbing_power_avg_w = round(
-                        sum(c["power_w"] * c["duration_s"] for c in climbs_with_power) / total_dur, 1
-                    )
-                    activity.total_climbing_wkg_avg = round(
-                        activity.total_climbing_power_avg_w / current_user.weight_kg, 2
-                    )
-        except Exception as _e:
-            log.warning("Climb detection failed for activity %s: %s", activity.id, _e)
-
     db.commit()
     db.refresh(activity)
+
+    # Heavy analysis (indoor/hydration/durability/decoupling/climbs) runs off the
+    # request path so the upload returns immediately. The ActivityDetail page
+    # fetches each analysis separately, picking them up once the task finishes.
+    background_tasks.add_task(_run_post_upload_analysis, activity.id, current_user.id, track_points)
+
     return activity
 
 
