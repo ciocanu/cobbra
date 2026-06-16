@@ -151,8 +151,10 @@ def calculate_durability(
         outputs, unit, method_quality, method_reason = _climbing_power_outputs(
             climb_detections, duration_seconds, pts,
         )
-        # Fall back to hr_speed if not enough quarter coverage
-        if outputs.count(None) > 1:
+        # Fall back to hr_speed if not enough quarter coverage. The durability index
+        # needs q1 and q4 specifically (see guard below), so a missing q1 or q4 alone
+        # is reason enough to fall back, not just ">1 missing overall".
+        if outputs.count(None) > 1 or outputs[0] is None or outputs[3] is None:
             method = "hr_speed"
             outputs, unit, method_quality, method_reason = _hr_speed_outputs(
                 quarters, grad_by_quarter, max_hr, flat_minutes,
