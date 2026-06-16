@@ -51,6 +51,7 @@ export default function App() {
           {/* Public routes */}
           <Route path="/"               element={<Landing />} />
           <Route path="/login"          element={<Login />} />
+          <Route path="/register"       element={<Login />} />
           <Route path="/lifetime-offer" element={<LifetimeOffer />} />
           <Route path="/verify-email"   element={<VerifyEmail />} />
           <Route path="/strava/callback" element={<StravaCallback />} />

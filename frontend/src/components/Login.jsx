@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { login, register } from '../services/api'
 import { markLoggedIn } from '../services/auth'
 import { Bike } from 'lucide-react'
 import Alert from './Alert'
 
 export default function Login() {
-  const [mode, setMode] = useState('login')   // 'login' | 'register'
+  const location = useLocation()
+  const [mode, setMode] = useState(location.pathname === '/register' ? 'register' : 'login')   // 'login' | 'register'
   const [username, setUsername] = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
