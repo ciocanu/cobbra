@@ -29,50 +29,52 @@ from utils.hydration import (
 # ── Sweat rate estimation ──────────────────────────────────────────────────────
 
 class TestEstimateSweatRate:
+    # estimate_sweat_rate returns (rate_ml_h, quality, effective_temp_c, model_method)
     def test_cool_conditions_low_intensity_returns_moderate_rate(self):
-        rate, quality = estimate_sweat_rate(18.0, 50.0, 0.55, 1.5)
+        rate, quality, _, _ = estimate_sweat_rate(18.0, 50.0, 0.55, 1.5)
         assert 400 <= rate <= 1000, f"Expected 400-1000 ml/h, got {rate}"
 
     def test_hot_humid_high_intensity_raises_rate(self):
-        hot_rate,  _ = estimate_sweat_rate(36.0, 80.0, 0.85, 2.0)
-        cool_rate, _ = estimate_sweat_rate(18.0, 50.0, 0.55, 1.0)
+        hot_rate,  _, _, _ = estimate_sweat_rate(36.0, 80.0, 0.85, 2.0)
+        cool_rate, _, _, _ = estimate_sweat_rate(18.0, 50.0, 0.55, 1.0)
         assert hot_rate > cool_rate
 
-    def test_rate_clamped_above_200(self):
-        rate, _ = estimate_sweat_rate(-5.0, 10.0, 0.2, 0.5)
-        assert rate >= 200
+    def test_rate_clamped_at_floor(self):
+        rate, _, _, _ = estimate_sweat_rate(-5.0, 10.0, 0.2, 0.5)
+        assert rate >= 150
 
-    def test_rate_clamped_below_3000(self):
-        rate, _ = estimate_sweat_rate(45.0, 99.0, 1.0, 4.0)
-        assert rate <= 3000
+    def test_rate_clamped_at_ceiling(self):
+        rate, _, _, _ = estimate_sweat_rate(45.0, 99.0, 1.0, 4.0)
+        assert rate <= 2500
 
     def test_zero_duration_returns_zero(self):
-        rate, _ = estimate_sweat_rate(30.0, 70.0, 0.75, 0.0)
+        rate, _, _, _ = estimate_sweat_rate(30.0, 70.0, 0.75, 0.0)
         assert rate == 0.0
 
     def test_calibrated_rate_anchors_estimate(self):
         # With a calibrated rate, quality should be "high"
-        rate, quality = estimate_sweat_rate(32.0, 70.0, 0.70, 2.0, user_calibrated_ml_h=1100.0)
+        rate, quality, _, method = estimate_sweat_rate(32.0, 70.0, 0.70, 2.0, user_calibrated_ml_h=1100.0)
         assert quality == "high"
+        assert method == "calibrated"
         # Should be close to the calibrated rate (modified by environment)
         assert 900 <= rate <= 2000
 
     def test_uncalibrated_hot_gives_high_quality(self):
-        _, quality = estimate_sweat_rate(32.0, 75.0, 0.75, 2.0)
+        _, quality, _, _ = estimate_sweat_rate(32.0, 75.0, 0.75, 2.0)
         assert quality == "high"
 
     def test_missing_humidity_defaults_gracefully(self):
-        rate, _ = estimate_sweat_rate(25.0, None, 0.70, 1.0)
+        rate, _, _, _ = estimate_sweat_rate(25.0, None, 0.70, 1.0)
         assert rate > 0
 
     def test_heat_adaptation_high_increases_rate(self):
-        low_rate,  _ = estimate_sweat_rate(32.0, 70.0, 0.75, 2.0, heat_adaptation_level="low")
-        high_rate, _ = estimate_sweat_rate(32.0, 70.0, 0.75, 2.0, heat_adaptation_level="high")
+        low_rate,  _, _, _ = estimate_sweat_rate(32.0, 70.0, 0.75, 2.0, heat_adaptation_level="low")
+        high_rate, _, _, _ = estimate_sweat_rate(32.0, 70.0, 0.75, 2.0, heat_adaptation_level="high")
         assert high_rate > low_rate
 
     def test_very_high_intensity_multiplier_applied(self):
-        high_rate, _ = estimate_sweat_rate(25.0, 60.0, 0.95, 1.0)
-        low_rate,  _ = estimate_sweat_rate(25.0, 60.0, 0.40, 1.0)
+        high_rate, _, _, _ = estimate_sweat_rate(25.0, 60.0, 0.95, 1.0)
+        low_rate,  _, _, _ = estimate_sweat_rate(25.0, 60.0, 0.40, 1.0)
         assert high_rate > low_rate
 
 
@@ -191,11 +193,13 @@ class TestGenerateRecommendations:
             deficit_body_pct=1.6,
             risk_level="moderate",
             temp_c=28.0,
+            effective_temp_c=24.0,
             humidity_pct=65.0,
             duration_h=2.0,
             weight_kg=72.0,
             heat_adaptation="low",
             has_calibrated_rate=False,
+            model_method="population",
         )
         defaults.update(kwargs)
         return generate_hydration_recommendations(**defaults)

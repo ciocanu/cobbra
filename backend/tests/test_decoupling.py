@@ -273,12 +273,12 @@ def test_heat_drift_increases_with_temperature():
     assert expected_heat_drift_pct(28.0, 1.5) < expected_heat_drift_pct(35.0, 1.5)
 
 
-def test_heat_drift_capped_at_double():
-    """Duration factor caps at 2× (relative to 1.5h base)."""
+def test_heat_drift_duration_factor_saturates():
+    """Duration factor caps at 1.5× (relative to 1.5h base), saturating by 3h."""
     drift_1h5 = expected_heat_drift_pct(25.0, 1.5)
     drift_3h  = expected_heat_drift_pct(25.0, 3.0)
     drift_6h  = expected_heat_drift_pct(25.0, 6.0)
-    assert drift_3h == pytest.approx(drift_1h5 * 2.0, abs=0.01)
+    assert drift_3h == pytest.approx(drift_1h5 * 1.5, abs=0.01)
     assert drift_6h == pytest.approx(drift_3h, abs=0.01)  # cap reached at 3h
 
 
