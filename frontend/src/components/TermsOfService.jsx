@@ -28,7 +28,7 @@ export default function TermsOfService() {
 
       <SECTION title="2. Description of Service">
         <P>Cobbra is a cycling training and analytics platform. It allows you to upload cycling activities (GPX, FIT), view statistics, track segments, set goals, and generate AI-powered ride analysis and training plans.</P>
-        <P>Features are divided into a free tier (limited to 15 activities) and paid tiers (Pro, Annual, Lifetime) unlocking unlimited activities, AI analysis, data export, and training plans.</P>
+        <P>Features are divided into a free tier (unlimited activity uploads, basic analytics) and paid tiers (Pro, Annual, Lifetime) unlocking AI analysis, data export, and training plans.</P>
       </SECTION>
 
       <SECTION title="3. Account Registration">

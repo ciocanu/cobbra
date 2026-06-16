@@ -24,15 +24,15 @@ const TIER_RANK = { free: 0, pro: 1, annual: 2, lifetime: 3 }
 const STRAVA_COLOR = '#FC4C02'
 
 const TIER_FEATURES = {
-  free:     ['15 activities total', 'Basic stats & charts', 'Segment tracking', 'Personal records & goals'],
+  free:     ['Unlimited activity uploads', 'Basic stats & charts', 'Segment tracking', 'Personal records & goals'],
   pro:      ['Unlimited activities', 'AI ride analysis', '10 AI training plans / month', 'CSV & GPX export', 'Segment tracking & records'],
-  annual:   ['Everything in Pro', 'Early access to new features', 'Best value: save 50%'],
+  annual:   ['Everything in Pro', 'Early access to new features', 'Best value: save 42%'],
   lifetime: ['Everything in Pro & Annual', 'All future features included', 'Never pay again'],
 }
 
 const UPGRADE_PLANS = [
-  { tier: 'pro',    label: 'Pro',    price: 'â‚¬5 / month', features: TIER_FEATURES.pro },
-  { tier: 'annual', label: 'Annual', price: 'â‚¬30 / year', sub: 'Save 50%', features: TIER_FEATURES.annual },
+  { tier: 'pro',    label: 'Pro',    price: '€7 / month', features: TIER_FEATURES.pro },
+  { tier: 'annual', label: 'Annual', price: '€49 / year', sub: 'Save 42%', features: TIER_FEATURES.annual },
 ]
 
 const HR_ZONES = [
@@ -683,7 +683,7 @@ export default function Settings() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
-                    {membership === 'free'     && <span>15 activities max</span>}
+                    {membership === 'free'     && <span>Unlimited activities</span>}
                     {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>Never expires</span>}
                     {(membership === 'pro' || membership === 'annual') && subEnd && (
                       <span>Renews {format(subEnd, 'dd MMM yyyy')}</span>
@@ -1235,7 +1235,7 @@ export default function Settings() {
             {stravaConnected && (
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                 Only cycling activities (Ride, Virtual Ride, Gravel, MTB) are imported.
-                {membership === 'free' && ' Free plan: up to 15 activities total.'}
+                {membership === 'free' && ' AI analysis and export require a Pro plan.'}
                 {' '}GPS track data is not available; activities imported from Strava won't generate personal records.
               </div>
             )}

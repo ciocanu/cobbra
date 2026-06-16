@@ -7,7 +7,7 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 ## Features
 
 ### Free tier
-- Upload up to 15 `.gpx` / `.fit` activities (Cycplus, Garmin, Wahoo, etc.)
+- Unlimited `.gpx` / `.fit` activity uploads (Cycplus, Garmin, Wahoo, etc.)
 - Metrics: distance, speed, cadence, heart rate, elevation, calories, suffer score
 - Interactive map per activity (dark CARTO tiles)
 - Speed / HR / cadence / elevation charts per ride
@@ -22,7 +22,7 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 ### Pro / Annual tier
 - Unlimited activity uploads
 - AI ride analysis (powered by Claude Haiku)
-- AI-generated 4-week training plans (up to 3/month, powered by Claude Sonnet)
+- AI-generated 4-week training plans (up to 10/month, powered by Claude Sonnet)
 - CSV and GPX export
 - HR zone configuration
 
@@ -101,9 +101,9 @@ STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
 # dashboard.stripe.com/products → create 3 products → copy price_ IDs
-STRIPE_PRICE_PRO=price_...       # €5/month recurring
-STRIPE_PRICE_ANNUAL=price_...    # €30/year recurring
-STRIPE_PRICE_LIFETIME=price_...  # €79 one-time
+STRIPE_PRICE_PRO=price_...       # €7/month recurring
+STRIPE_PRICE_ANNUAL=price_...    # €49/year recurring
+STRIPE_PRICE_LIFETIME=price_...  # €129 one-time
 
 # ── Anthropic ─────────────────────────────────────────────────────────────────
 # console.anthropic.com → API Keys
@@ -152,9 +152,9 @@ In **dashboard.stripe.com/products**, create three products:
 
 | Product name | Price | Billing | ENV var |
 |---|---|---|---|
-| VeloStats Pro | €5.00 | Monthly recurring | `STRIPE_PRICE_PRO` |
-| VeloStats Annual | €30.00 | Yearly recurring | `STRIPE_PRICE_ANNUAL` |
-| VeloStats Lifetime | €79.00 | One-time | `STRIPE_PRICE_LIFETIME` |
+| VeloStats Pro | €7.00 | Monthly recurring | `STRIPE_PRICE_PRO` |
+| VeloStats Annual | €49.00 | Yearly recurring | `STRIPE_PRICE_ANNUAL` |
+| VeloStats Lifetime | €129.00 | One-time | `STRIPE_PRICE_LIFETIME` |
 
 Copy each product's **price ID** (starts with `price_`, found under the Pricing section of each product).
 

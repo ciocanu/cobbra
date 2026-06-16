@@ -131,7 +131,7 @@ export default function LifetimeOffer() {
 
             {/* Price */}
             <div style={{ textAlign: 'center', margin: '0 0 28px' }}>
-              <div style={{ fontSize: 48, fontWeight: 800, color: 'var(--tier-lifetime)', lineHeight: 1 }}>€79</div>
+              <div style={{ fontSize: 48, fontWeight: 800, color: 'var(--tier-lifetime)', lineHeight: 1 }}>€129</div>
               <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>one-time · never pay again</div>
             </div>
 
@@ -140,7 +140,7 @@ export default function LifetimeOffer() {
               {[
                 'Unlimited activities forever',
                 'AI ride analysis on every ride',
-                '3 AI training plans per month',
+                '10 AI training plans per month',
                 'Activity export (CSV and GPX)',
                 'Early access to new features',
               ].map(f => (

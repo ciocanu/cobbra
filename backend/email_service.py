@@ -105,7 +105,7 @@ def send_lifetime_offer(to_email: str, username: str, token: str, expires_at):
 
 You've been personally selected for a special offer.
 
-Unlock VeloStats Lifetime access for a one-time payment of just €79.
+Unlock VeloStats Lifetime access for a one-time payment of just €129.
 That's full Pro access — AI coaching, unlimited activities, training plans — forever, with no future charges.
 
 This offer is exclusive to you and expires on {expires_str}.
@@ -146,7 +146,7 @@ The VeloStats Team
             <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#8888aa;">
               You've been personally selected for something we don't offer publicly.<br><br>
               Unlock <strong style="color:#f0f0ff;">VeloStats Lifetime</strong> access for a one-time payment of
-              <strong style="color:#c8ff00;font-size:18px;">€79</strong> — full Pro features,
+              <strong style="color:#c8ff00;font-size:18px;">€129</strong> — full Pro features,
               AI coaching, unlimited activities and training plans, forever. No subscriptions, no future charges.
             </p>
 

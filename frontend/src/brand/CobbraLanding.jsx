@@ -329,7 +329,7 @@ export default function CobbraLanding() {
             opacity: mounted ? 1 : 0,
             transition: `opacity 400ms ${E} 320ms`,
           }}>
-            Free for 15 rides &middot; No credit card &middot; GPX &amp; FIT import
+            Free forever &middot; No credit card &middot; GPX &amp; FIT import
           </p>
         </div>
 
@@ -437,7 +437,7 @@ export default function CobbraLanding() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <a href="/login" className="cb-btn-ghost" style={{ fontSize: 13 }}>Sign in</a>
             <a href="/register" className="cb-btn-primary" style={{ fontSize: 13 }}>
-              Start free · 15 rides
+              Start free
             </a>
           </div>
         </div>

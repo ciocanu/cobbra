@@ -498,12 +498,6 @@ async def upload_activity(
     if len(content) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Maximum size is 50 MB.")
 
-    if (current_user.membership or "free") == "free":
-        from sqlalchemy import func as _func
-        count = db.query(_func.count(models.Activity.id)).filter(models.Activity.user_id == current_user.id).scalar() or 0
-        if count >= 15:
-            raise HTTPException(status_code=403, detail="Free plan limit reached (15 activities). Upgrade to Pro to upload unlimited activities.")
-
     # Validate actual content, not just the extension
     is_gpx_content = content.lstrip()[:5] == b"<?xml" or b"<gpx" in content[:512]
     # FIT files have a fixed 12/14-byte header ending with the ASCII string ".FIT"
