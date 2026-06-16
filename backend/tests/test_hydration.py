@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from utils.hydration import (
     estimate_sweat_rate,
+    hr_to_intensity_factor,
     calculate_hydration_deficit,
     classify_risk_level,
     estimate_hr_effects,
@@ -76,6 +77,44 @@ class TestEstimateSweatRate:
         high_rate, _, _, _ = estimate_sweat_rate(25.0, 60.0, 0.95, 1.0)
         low_rate,  _, _, _ = estimate_sweat_rate(25.0, 60.0, 0.40, 1.0)
         assert high_rate > low_rate
+
+
+# ── HR → intensity factor (Karvonen %HRR) ─────────────────────────────────────
+
+class TestHrToIntensityFactor:
+    def test_missing_data_returns_none(self):
+        assert hr_to_intensity_factor(None, 185) is None
+        assert hr_to_intensity_factor(150, None) is None
+        assert hr_to_intensity_factor(150, 0) is None
+
+    def test_endurance_ride_classifies_below_threshold(self):
+        # avg 150 / max 185 endurance ride must NOT read as VO2max
+        if_val = hr_to_intensity_factor(150, 185, resting_hr=55)
+        assert _classify_intensity(if_val) == "moderate"
+
+    def test_threshold_effort_is_high(self):
+        if_val = hr_to_intensity_factor(165, 185, resting_hr=55)
+        assert _classify_intensity(if_val) == "high"
+
+    def test_vo2_effort_is_very_high(self):
+        if_val = hr_to_intensity_factor(178, 185, resting_hr=55)
+        assert _classify_intensity(if_val) == "very_high"
+
+    def test_defaults_resting_hr_when_missing(self):
+        # Without resting HR it should still produce a sane moderate endurance value
+        if_val = hr_to_intensity_factor(150, 185)
+        assert 0.5 <= if_val <= 0.85
+
+    def test_clamped_to_unit_range(self):
+        assert hr_to_intensity_factor(250, 185, resting_hr=50) == 1.0
+        assert hr_to_intensity_factor(40, 185, resting_hr=50) == 0.0
+
+    def test_endurance_ride_yields_realistic_sweat_total(self):
+        # Regression: a 3h47 endurance ride should land near ~3 L, not ~8 L.
+        if_val = hr_to_intensity_factor(150, 185, resting_hr=55)
+        rate, _, _, _ = estimate_sweat_rate(25.0, 60.0, if_val, 3.78, weight_kg=72)
+        total_l = rate * 3.78 / 1000
+        assert 2.0 <= total_l <= 4.5, f"Expected ~3 L, got {total_l:.1f} L"
 
 
 # ── Hydration deficit ─────────────────────────────────────────────────────────

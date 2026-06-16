@@ -26,7 +26,7 @@ load_dotenv()
 from sqlalchemy.orm import Session
 from database import SessionLocal
 import models
-from utils.hydration import build_analysis, update_heat_adaptation
+from utils.hydration import build_analysis, update_heat_adaptation, hr_to_intensity_factor
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -35,10 +35,10 @@ log = logging.getLogger(__name__)
 def _intensity_factor(activity: models.Activity, user: models.User) -> float:
     if activity.normalized_power_w and user.ftp and user.ftp > 0:
         return min(1.0, activity.normalized_power_w / user.ftp)
-    if activity.avg_heart_rate_bpm and user.max_hr and user.max_hr > 0:
-        lthr = 0.85 * user.max_hr
-        return min(1.0, activity.avg_heart_rate_bpm / lthr)
-    return 0.65
+    hr_if = hr_to_intensity_factor(
+        activity.avg_heart_rate_bpm, user.max_hr, getattr(user, "resting_hr", None)
+    )
+    return hr_if if hr_if is not None else 0.65
 
 
 def process_activity(

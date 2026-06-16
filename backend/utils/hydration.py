@@ -159,6 +159,30 @@ def estimate_sweat_rate(
     return round(rate, 1), quality, round(effective_temp, 1), method
 
 
+def hr_to_intensity_factor(
+    avg_hr: Optional[float],
+    max_hr: Optional[float],
+    resting_hr: Optional[float] = None,
+) -> Optional[float]:
+    """Map average HR to a power-equivalent intensity factor via Karvonen %HRR.
+
+    Heart-rate reserve — (avg − resting) / (max − resting) — approximates %VO2max,
+    which lines up with the NP/FTP intensity-factor scale the sweat-rate model is
+    calibrated against. Dividing average HR by threshold HR (~0.85·max) instead
+    over-states intensity by roughly a full training zone: a steady endurance ride
+    (avg ~150, max ~185) reads as VO2max and inflates the sweat-loss estimate
+    (e.g. ~8 L instead of ~3 L on a 3–4 h ride).
+
+    Returns None when HR data is insufficient. Falls back to a typical resting HR
+    of 60 bpm when the user has not recorded one.
+    """
+    if not avg_hr or not max_hr or max_hr <= 0:
+        return None
+    resting = resting_hr if (resting_hr and resting_hr > 0) else 60.0
+    hrr = max(1.0, max_hr - resting)
+    return min(1.0, max(0.0, (avg_hr - resting) / hrr))
+
+
 def estimate_uncalibrated_rate(
     temp_c: float,
     humidity_pct: Optional[float],

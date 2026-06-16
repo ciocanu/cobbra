@@ -13,7 +13,7 @@ import schemas
 from parsers.gpx_parser import parse_gpx
 from parsers.fit_parser import parse_fit
 from utils import compute_suffer_score, compute_distance_prs, match_segment, compute_normalized_power, compute_tss, compute_hrtss, compute_hrtss_heat_corrected, estimate_calories_from_hr
-from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
+from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation, hr_to_intensity_factor
 from utils.durability import validate_durability_calculation, calculate_durability
 from utils.decoupling import calculate_adjusted_decoupling
 from utils.indoor_detection import detect_ride_environment
@@ -122,14 +122,15 @@ def _run_hydration_analysis(db: Session, activity: models.Activity, user: models
     if duration_h < 0.1:
         return  # not worth analysing sub-6-min efforts
 
-    # Intensity factor: NP/FTP preferred, HR-based fallback
+    # Intensity factor: NP/FTP preferred, Karvonen %HRR fallback (approximates
+    # %VO2max, matching the IF scale the sweat-rate model is calibrated against)
     if activity.normalized_power_w and user.ftp and user.ftp > 0:
         intensity_factor = min(1.0, activity.normalized_power_w / user.ftp)
-    elif activity.avg_heart_rate_bpm and user.max_hr and user.max_hr > 0:
-        lthr = 0.85 * user.max_hr
-        intensity_factor = min(1.0, activity.avg_heart_rate_bpm / lthr)
     else:
-        intensity_factor = 0.65  # conservative moderate-effort default
+        hr_if = hr_to_intensity_factor(
+            activity.avg_heart_rate_bpm, user.max_hr, getattr(user, "resting_hr", None)
+        )
+        intensity_factor = hr_if if hr_if is not None else 0.65  # conservative moderate default
 
     is_indoor = activity.ride_environment == "indoor"
 
