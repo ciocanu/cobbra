@@ -570,6 +570,7 @@ export default function ActivityDetail() {
   const [analysisError, setAnalysisError] = useState('')
   const [ftp,       setFtp]       = useState(null)
   const [weightKg,  setWeightKg]  = useState(null)
+  const [profileMaxHr, setProfileMaxHr] = useState(null)
   const [hydration, setHydration] = useState(null)
   const [intakeInput,  setIntakeInput]  = useState('')
   const [intakeSaving, setIntakeSaving] = useState(false)
@@ -598,6 +599,7 @@ export default function ActivityDetail() {
     getSettings().then(r => {
       setFtp(r.data.ftp || null)
       setWeightKg(r.data.weight_kg || null)
+      setProfileMaxHr(r.data.max_hr || null)
     }).catch(() => {})
     getHydrationAnalysis(id).then(r => {
       setHydration(r.data)
@@ -708,7 +710,11 @@ export default function ActivityDetail() {
   const hasEle = pts.some(p => p.elevation != null)
   const hasPwr = pts.some(p => p.power_w != null)
 
-  const hrZones      = useMemo(() => hasHR  ? computeHrZones(pts, activity?.max_heart_rate_bpm) : null, [pts, hasHR, activity?.max_heart_rate_bpm])
+  // Zones must be based on the rider's true physiological max HR (profile),
+  // not this ride's peak — using the ride's own peak as the denominator
+  // shrinks it on any ride that wasn't an all-out effort, inflating every
+  // point's %max and skewing the whole distribution into higher zones.
+  const hrZones      = useMemo(() => hasHR  ? computeHrZones(pts, profileMaxHr || activity?.max_heart_rate_bpm) : null, [pts, hasHR, profileMaxHr, activity?.max_heart_rate_bpm])
   const cadZones     = useMemo(() => hasCad ? computeCadenceZones(pts) : null, [pts, hasCad])
   const efforts      = useMemo(() => computeBestEfforts(pts), [pts])
   const np           = useMemo(() => hasPwr ? computeNP(pts) : null, [pts, hasPwr])
