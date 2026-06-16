@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user, verify_password, hash_password
+from utils import estimate_max_hr_tanaka
 import models
 import schemas
 
@@ -21,6 +22,7 @@ def get_settings(db: Session = Depends(get_db), current_user=Depends(get_current
     user = db.query(models.User).filter(models.User.id == current_user.id).first()
     return schemas.SettingsOut(
         max_hr=user.max_hr,
+        max_hr_source=user.max_hr_source,
         age=user.age,
         resting_hr=user.resting_hr,
         weight_kg=user.weight_kg,
@@ -46,11 +48,18 @@ def update_settings(
         if not (100 <= body.max_hr <= 250):
             raise HTTPException(status_code=400, detail="Max HR must be between 100 and 250 bpm.")
         user.max_hr = body.max_hr
+        user.max_hr_source = "user"
 
     if body.age is not None:
         if not (10 <= body.age <= 100):
             raise HTTPException(status_code=400, detail="Age must be between 10 and 100.")
         user.age = body.age
+        # Auto-estimate max HR from age (Tanaka) unless the user has set their
+        # own value — never overwrite a manually entered max HR, but keep the
+        # estimate fresh if age changes and no real value was ever given.
+        if body.max_hr is None and user.max_hr_source != "user":
+            user.max_hr = estimate_max_hr_tanaka(body.age)
+            user.max_hr_source = "estimated"
 
     if body.resting_hr is not None:
         if not (30 <= body.resting_hr <= 100):
@@ -86,6 +95,7 @@ def update_settings(
     db.refresh(user)
     return schemas.SettingsOut(
         max_hr=user.max_hr,
+        max_hr_source=user.max_hr_source,
         age=user.age,
         resting_hr=user.resting_hr,
         weight_kg=user.weight_kg,

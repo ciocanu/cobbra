@@ -158,6 +158,7 @@ class GoalOut(BaseModel):
 
 class SettingsOut(BaseModel):
     max_hr: Optional[int] = None
+    max_hr_source: Optional[str] = None
     age: Optional[int] = None
     resting_hr: Optional[int] = None
     weight_kg: Optional[float] = None

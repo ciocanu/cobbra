@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { LayoutDashboard, List, Upload, Bike, Trophy, Map, Target, LogOut, Flag, GitCompare, Settings, Brain, User, Shield, Menu, X } from 'lucide-react'
 import { markLoggedOut } from '../services/auth'
-import { getMe, logout, adminCheck } from '../services/api'
+import { getMe, logout, adminCheck, getSettings } from '../services/api'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -28,6 +28,17 @@ export default function Layout() {
     getMe().then(r => setUsername(r.data.username)).catch(() => {})
     adminCheck().then(() => setIsAdmin(true)).catch(() => {})
   }, [])
+
+  // Gate access until the essential fitness profile is filled in — reappears
+  // on every load while data is missing, so users can't dodge it by skipping
+  // once and never coming back.
+  useEffect(() => {
+    getSettings().then(r => {
+      const s = r.data
+      const incomplete = s.age == null || s.weight_kg == null || !s.experience_level || !s.bike_type
+      if (incomplete) navigate('/onboarding', { replace: true })
+    }).catch(() => {})
+  }, [location.pathname])
 
   // Close drawer on route change
   useEffect(() => { setMobileOpen(false) }, [location.pathname])

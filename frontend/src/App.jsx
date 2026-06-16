@@ -16,6 +16,7 @@ const TermsOfService = lazy(() => import('./components/TermsOfService'))
 const CobbraLanding  = lazy(() => import('./brand/CobbraLanding'))
 
 // App routes — lazy (all behind auth or heavy deps like Leaflet/Recharts)
+const Onboarding      = lazy(() => import('./components/Onboarding'))
 const Dashboard       = lazy(() => import('./components/Dashboard'))
 const ActivityList    = lazy(() => import('./components/ActivityList'))
 const ActivityDetail  = lazy(() => import('./components/ActivityDetail'))
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/privacy"        element={<PrivacyPolicy />} />
           <Route path="/terms"          element={<TermsOfService />} />
           <Route path="/brand"          element={<CobbraLanding />} />
+          <Route path="/onboarding"     element={<RequireAuth><Onboarding /></RequireAuth>} />
 
           {/* Authenticated app */}
           <Route

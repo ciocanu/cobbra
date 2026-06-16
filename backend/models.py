@@ -11,6 +11,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     max_hr = Column(Integer, nullable=True)
+    max_hr_source = Column(String, nullable=True)  # "user" | "estimated" (Tanaka formula)
     email = Column(String, nullable=True, unique=True)
     token_version = Column(Integer, default=1, nullable=False, server_default="1")
     membership = Column(String, default="free", server_default="free", nullable=False)

@@ -2,6 +2,17 @@ import math
 from datetime import datetime
 
 
+# ── Max heart rate estimation ─────────────────────────────────────────────────
+
+def estimate_max_hr_tanaka(age: int) -> int:
+    """Estimate max HR from age via Tanaka, Monahan & Seals (2001).
+
+    208 - 0.7*age. Lower error than the classic 220-age formula across the
+    adult age range and validated in trained endurance athletes.
+    """
+    return round(208 - 0.7 * age)
+
+
 # ── Normalized Power (Coggan) ─────────────────────────────────────────────────
 
 def compute_normalized_power(track_points: list) -> int | None:

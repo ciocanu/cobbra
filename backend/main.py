@@ -196,6 +196,8 @@ _MIGRATIONS = [
         first_half_speed FLOAT,
         second_half_speed FLOAT
     )""",
+    # Onboarding: track whether max HR came from the user or was auto-estimated
+    "ALTER TABLE users ADD COLUMN max_hr_source VARCHAR",
 ]
 
 # Assign all legacy (pre-multi-user) records to user id=1
