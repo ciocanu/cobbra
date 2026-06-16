@@ -2045,12 +2045,16 @@ select.filter-input {
 }
 
 /* â”€â”€ Mobile nav toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Leaflet's own CSS puts its controls at z-index: 1000 in a stacking
+   context that isn't trapped by .leaflet-container, so it floats above
+   any same-page element with a lower z-index — including this nav. Stay
+   above that ceiling. */
 .mobile-nav-toggle {
   display: none;
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 300;
+  z-index: 1101;
   width: 38px;
   height: 38px;
   align-items: center;
@@ -2067,7 +2071,7 @@ select.filter-input {
   position: fixed;
   inset: 0;
   background: oklch(4% 0.006 142 / 0.65);
-  z-index: 199;
+  z-index: 1099;
   backdrop-filter: blur(2px);
 }
 
@@ -2097,7 +2101,7 @@ select.filter-input {
     top: 0;
     bottom: 0;
     left: 0;
-    z-index: 200;
+    z-index: 1100;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     width: clamp(200px, 13.75rem, 275px) !important;
