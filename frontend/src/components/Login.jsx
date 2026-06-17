@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { login, register } from '../services/api'
 import { markLoggedIn } from '../services/auth'
-import { Bike } from 'lucide-react'
 import Alert from './Alert'
+import CobbraLogo from './CobbraLogo'
 
 export default function Login() {
   const location = useLocation()
@@ -54,10 +54,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-box">
         <div className="login-logo">
-          <div className="sidebar-logo-icon">
-            <Bike size={22} strokeWidth={2.5} />
-          </div>
-          <span className="sidebar-logo-text" style={{ fontSize: 22 }}>COBBRA</span>
+          <CobbraLogo height={32} />
         </div>
 
         <div className="login-tabs">

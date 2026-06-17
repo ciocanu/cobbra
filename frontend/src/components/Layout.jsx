@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, List, Upload, Bike, Trophy, Map, Target, LogOut, Flag, GitCompare, Settings, Brain, User, Shield, Menu, X } from 'lucide-react'
+import { LayoutDashboard, List, Upload, Trophy, Map, Target, LogOut, Flag, GitCompare, Settings, Brain, User, Shield, Menu, X } from 'lucide-react'
 import { markLoggedOut } from '../services/auth'
 import { getMe, logout, adminCheck, getSettings } from '../services/api'
+import CobbraLogo from './CobbraLogo'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -81,10 +82,7 @@ export default function Layout() {
       <div className="app">
         <aside className={`sidebar${mobileOpen ? ' open' : ''}`} aria-label="Primary navigation">
           <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">
-              <Bike size={18} strokeWidth={2.5} />
-            </div>
-            <span className="sidebar-logo-text">COBBRA</span>
+            <CobbraLogo height={26} />
           </div>
 
           <nav className="sidebar-nav" aria-label="Main navigation">

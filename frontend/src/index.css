@@ -93,29 +93,7 @@ html, body, #root {
 
 .sidebar-logo {
   padding: 0 20px 28px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
   flex-shrink: 0;
-}
-
-.sidebar-logo-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--accent);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: oklch(8% 0.015 120);
-}
-
-.sidebar-logo-text {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--text-primary);
 }
 
 .sidebar-nav {
@@ -1032,9 +1010,6 @@ html, body, #root {
 }
 
 .login-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin-bottom: 28px;
 }
 
