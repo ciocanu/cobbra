@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getActivities } from '../services/api'
 import { format } from 'date-fns'
 import { Route, Search, X } from 'lucide-react'
@@ -11,6 +12,7 @@ function fmtDuration(s) {
 }
 
 export default function ActivityList() {
+  const { t } = useTranslation()
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -52,8 +54,12 @@ export default function ActivityList() {
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 className="page-title">Activities</h1>
-          <p className="page-subtitle">{activities.length} rides{hasFilters ? ' (filtered)' : ' recorded'}</p>
+          <h1 className="page-title">{t('activityList.title')}</h1>
+          <p className="page-subtitle">
+            {hasFilters
+              ? t('activityList.countFiltered', { count: activities.length })
+              : t('activityList.countRecorded', { count: activities.length })}
+          </p>
         </div>
       </div>
 
@@ -63,7 +69,7 @@ export default function ActivityList() {
           <Search size={14} className="filter-search-icon" />
           <input
             className="filter-input filter-input-search"
-            placeholder="Search by name…"
+            placeholder={t('activityList.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -73,19 +79,19 @@ export default function ActivityList() {
           className="filter-input"
           value={dateFrom}
           onChange={e => setDateFrom(e.target.value)}
-          title="From date"
+          title={t('activityList.fromDate')}
         />
         <input
           type="date"
           className="filter-input"
           value={dateTo}
           onChange={e => setDateTo(e.target.value)}
-          title="To date"
+          title={t('activityList.toDate')}
         />
         <input
           type="number"
           className="filter-input filter-input-dist"
-          placeholder="Min km"
+          placeholder={t('activityList.minKm')}
           value={minDist}
           onChange={e => setMinDist(e.target.value)}
           min="0"
@@ -93,14 +99,14 @@ export default function ActivityList() {
         <input
           type="number"
           className="filter-input filter-input-dist"
-          placeholder="Max km"
+          placeholder={t('activityList.maxKm')}
           value={maxDist}
           onChange={e => setMaxDist(e.target.value)}
           min="0"
         />
         {hasFilters && (
           <button className="btn btn-ghost" onClick={clearFilters} style={{ padding: '6px 10px' }}>
-            <X size={14} /> Clear
+            <X size={14} /> {t('common.clear')}
           </button>
         )}
       </div>
@@ -110,26 +116,26 @@ export default function ActivityList() {
       ) : activities.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Route size={48} /></div>
-          <h3>{hasFilters ? 'No rides match your filters' : 'No activities yet'}</h3>
-          <p>{hasFilters ? 'Try adjusting or clearing the filters' : 'Upload a .gpx or .fit file to see your rides here'}</p>
+          <h3>{hasFilters ? t('activityList.emptyFilteredTitle') : t('activityList.emptyTitle')}</h3>
+          <p>{hasFilters ? t('activityList.emptyFilteredDesc') : t('activityList.emptyDesc')}</p>
         </div>
       ) : (
         <div className="table-wrapper">
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Date</th>
-                <th scope="col">Distance</th>
-                <th scope="col">Time</th>
-                <th scope="col">Avg Speed</th>
-                <th scope="col">Max Speed</th>
-                <th scope="col">Avg HR</th>
-                <th scope="col">Cadence</th>
-                <th scope="col">Avg Power</th>
-                <th scope="col">Suffer</th>
-                <th scope="col">Elevation</th>
-                <th scope="col">Type</th>
+                <th scope="col">{t('activityList.col.name')}</th>
+                <th scope="col">{t('activityList.col.date')}</th>
+                <th scope="col">{t('activityList.col.distance')}</th>
+                <th scope="col">{t('activityList.col.time')}</th>
+                <th scope="col">{t('activityList.col.avgSpeed')}</th>
+                <th scope="col">{t('activityList.col.maxSpeed')}</th>
+                <th scope="col">{t('activityList.col.avgHr')}</th>
+                <th scope="col">{t('activityList.col.cadence')}</th>
+                <th scope="col">{t('activityList.col.avgPower')}</th>
+                <th scope="col">{t('activityList.col.suffer')}</th>
+                <th scope="col">{t('activityList.col.elevation')}</th>
+                <th scope="col">{t('activityList.col.type')}</th>
               </tr>
             </thead>
             <tbody>
@@ -142,7 +148,7 @@ export default function ActivityList() {
                   onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && navigate(`/activities/${a.id}`)}
                   tabIndex={0}
                   role="button"
-                  aria-label={`Open ${a.name}`}
+                  aria-label={t('activityList.openAria', { name: a.name })}
                 >
                   <td className="name">{a.name}</td>
                   <td>{format(new Date(a.date), 'dd MMM yy')}</td>

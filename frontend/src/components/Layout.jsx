@@ -4,6 +4,7 @@ import { LayoutDashboard, List, Upload, Trophy, Map, Target, LogOut, Flag, GitCo
 import { markLoggedOut } from '../services/auth'
 import { getMe, logout, adminCheck, getSettings } from '../services/api'
 import CobbraLogo from './CobbraLogo'
+import LanguageSwitcher from './LanguageSwitcher'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -109,6 +110,7 @@ export default function Layout() {
           </nav>
 
           <div style={{ marginTop: 'auto', padding: '0 10px 16px', flexShrink: 0 }}>
+            <LanguageSwitcher />
             {username && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 4, color: 'var(--text-muted)', fontSize: 12 }}>
                 <User size={13} />

@@ -1,5 +1,6 @@
 import { useEffect, useState, useId } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   getActivities, getFitnessStats, getWeeklyStats,
   getDashboardFitnessInsight, getHeatProfile, getDurabilityTrend,
@@ -19,33 +20,14 @@ function fmtDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-// Plain-language verdict for the current TSB (form) value
+// Plain-language verdict for the current TSB (form) value. Returns a stable
+// key (resolved against dashboard.form_status.* at render) plus its colour.
 function formStatus(tsb) {
-  if (tsb >= 15) return {
-    word: 'Very Fresh',
-    color: 'var(--status-good)',
-    desc: 'Fully recovered — ideal for a big effort, but fitness fades if you coast here too long.',
-  }
-  if (tsb >= 5) return {
-    word: 'Fresh',
-    color: 'var(--status-good)',
-    desc: 'Recovered and ready. Good day to go hard.',
-  }
-  if (tsb >= -10) return {
-    word: 'Balanced',
-    color: 'var(--text-secondary)',
-    desc: 'Normal training balance. Keep riding as planned.',
-  }
-  if (tsb >= -25) return {
-    word: 'Building',
-    color: 'var(--status-warn)',
-    desc: 'Carrying fatigue — productive overload, but keep an eye on recovery.',
-  }
-  return {
-    word: 'Overreaching',
-    color: 'var(--status-critical)',
-    desc: 'Heavy fatigue. An easy spin or rest day will help more than another hard ride.',
-  }
+  if (tsb >= 15)  return { key: 'veryFresh',    color: 'var(--status-good)' }
+  if (tsb >= 5)   return { key: 'fresh',        color: 'var(--status-good)' }
+  if (tsb >= -10) return { key: 'balanced',     color: 'var(--text-secondary)' }
+  if (tsb >= -25) return { key: 'building',     color: 'var(--status-warn)' }
+  return            { key: 'overreaching', color: 'var(--status-critical)' }
 }
 
 function CtlSparkline({ data }) {
@@ -91,6 +73,7 @@ const WeeklyTooltip = ({ active, payload, label }) => {
 
 
 export default function Dashboard() {
+  const { t } = useTranslation()
   const [recentRides, setRecentRides]       = useState(null)
   const [weeklyData, setWeeklyData]         = useState(null)
   const [fitnessData, setFitnessData]       = useState(null)
@@ -159,6 +142,8 @@ export default function Dashboard() {
   const deltaCtl = corrected && loadComparison.difference?.ctl_delta != null ? Math.round(loadComparison.difference.ctl_delta) : null
   const deltaAtl = corrected && loadComparison.difference?.atl_delta != null ? Math.round(loadComparison.difference.atl_delta) : null
   const status = dispTsb != null ? formStatus(dispTsb) : null
+  const statusWord = status ? t(`dashboard.form_status.${status.key}`) : null
+  const statusDesc = status ? t(`dashboard.form_status.${status.key}Desc`) : null
 
   const currentWeekKey = weeklyData?.length ? weeklyData[weeklyData.length - 1].week : null
   const weeklyDisplay  = weeklyData
@@ -176,12 +161,12 @@ export default function Dashboard() {
     return (
       <div>
         <div className="page-header">
-          <h1 className="page-title">Dashboard</h1>
+          <h1 className="page-title">{t('dashboard.title')}</h1>
         </div>
         <div className="empty-state">
           <div className="empty-state-icon"><Route size={48} /></div>
-          <h3>No rides yet</h3>
-          <p>Upload your first .gpx or .fit file to get started</p>
+          <h3>{t('dashboard.emptyTitle')}</h3>
+          <p>{t('dashboard.emptyDesc')}</p>
         </div>
       </div>
     )
@@ -205,20 +190,20 @@ export default function Dashboard() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
+        <h1 className="page-title">{t('dashboard.title')}</h1>
       </div>
 
       {/* ── 1. Training Status: how ready am I today? ─────────────────────── */}
       <div className="panel" style={{ ...loadingStyle(!fitnessData), marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span className="panel-title" style={{ marginBottom: 0 }}>Training Status</span>
-            <InfoTip text="Fitness (CTL) = 42-day rolling training load. Fatigue (ATL) = 7-day load. Form (TSB) = Fitness − Fatigue. Positive form = fresh and ready. Negative = carrying training fatigue." />
+            <span className="panel-title" style={{ marginBottom: 0 }}>{t('dashboard.trainingStatus')}</span>
+            <InfoTip text={t('dashboard.trainingStatusTip')} />
           </div>
           {loadComparison && (
             <button
               onClick={() => setShowCorrected(v => !v)}
-              aria-label="Toggle indoor-corrected TSS values"
+              aria-label={t('dashboard.toggleCorrectedAria')}
               aria-pressed={showCorrected}
               style={{
                 fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
@@ -228,7 +213,7 @@ export default function Dashboard() {
                 transition: 'border-color 150ms, background 150ms, color 150ms',
               }}
             >
-              {showCorrected ? '🏠 Corrected' : 'Indoor correction'}
+              {showCorrected ? t('dashboard.corrected') : t('dashboard.indoorCorrection')}
             </button>
           )}
         </div>
@@ -240,22 +225,22 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', background: status.color, flexShrink: 0 }} />
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, lineHeight: 1, color: status.color, transition: 'color 200ms ease' }}>
-                  {status.word}
+                  {statusWord}
                 </span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, maxWidth: '42ch' }}>
                 {fitnessInsight === null
-                  ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Analyzing…</span>
-                  : (fitnessInsight || status.desc)}
+                  ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('dashboard.analyzing')}</span>
+                  : (fitnessInsight || statusDesc)}
               </div>
             </div>
 
             {/* The three numbers behind the verdict */}
             <div style={{ display: 'flex', gap: 32 }}>
               {[
-                { name: 'Fitness', abbr: 'CTL', value: dispCtl, color: 'var(--text-primary)', trend: ctlTrend, delta: deltaCtl },
-                { name: 'Fatigue', abbr: 'ATL', value: dispAtl, color: 'var(--text-primary)', trend: atlTrend, delta: deltaAtl },
-                { name: 'Form',    abbr: 'TSB', value: dispTsb > 0 ? `+${dispTsb}` : dispTsb, color: status.color, trend: tsbTrend, delta: null },
+                { name: t('dashboard.fitness'), abbr: 'CTL', value: dispCtl, color: 'var(--text-primary)', trend: ctlTrend, delta: deltaCtl },
+                { name: t('dashboard.fatigue'), abbr: 'ATL', value: dispAtl, color: 'var(--text-primary)', trend: atlTrend, delta: deltaAtl },
+                { name: t('dashboard.form'),    abbr: 'TSB', value: dispTsb > 0 ? `+${dispTsb}` : dispTsb, color: status.color, trend: tsbTrend, delta: null },
               ].map(({ name, abbr, value, color, trend, delta }) => (
                 <div key={abbr}>
                   <div style={statLabelStyle}>{name}</div>
@@ -282,14 +267,14 @@ export default function Dashboard() {
             {/* Where fitness is heading */}
             {fitnessHistory.length >= 7 && (
               <div>
-                <div style={{ ...statLabelStyle, marginBottom: 8 }}>Fitness · 6 weeks</div>
+                <div style={{ ...statLabelStyle, marginBottom: 8 }}>{t('dashboard.fitness6weeks')}</div>
                 <CtlSparkline data={fitnessHistory} />
               </div>
             )}
           </div>
         ) : hasFitnessData === false && fitnessData !== null ? (
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Upload a few rides to start tracking fitness.
+            {t('dashboard.uploadToTrack')}
           </div>
         ) : null}
       </div>
@@ -299,14 +284,14 @@ export default function Dashboard() {
 
         {/* This Week */}
         <div className="panel" style={loadingStyle(!weeklyData)}>
-          <div className="panel-title">This Week</div>
+          <div className="panel-title">{t('dashboard.thisWeek')}</div>
           {currentWeek && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
               {[
-                { label: 'Rides',     value: currentWeek.rides,                                                 unit: null },
-                { label: 'Distance',  value: currentWeek.distance_km > 0 ? currentWeek.distance_km.toFixed(1) : '—', unit: currentWeek.distance_km > 0 ? 'km' : null },
-                { label: 'Time',      value: currentWeek.duration_seconds > 0 ? fmtDuration(currentWeek.duration_seconds) : '—', unit: null },
-                { label: 'Elevation', value: currentWeek.elevation_m > 0 ? Math.round(currentWeek.elevation_m).toLocaleString() : '—', unit: currentWeek.elevation_m > 0 ? 'm' : null },
+                { label: t('common.rides'),     value: currentWeek.rides,                                                 unit: null },
+                { label: t('common.distance'),  value: currentWeek.distance_km > 0 ? currentWeek.distance_km.toFixed(1) : '—', unit: currentWeek.distance_km > 0 ? 'km' : null },
+                { label: t('common.time'),      value: currentWeek.duration_seconds > 0 ? fmtDuration(currentWeek.duration_seconds) : '—', unit: null },
+                { label: t('common.elevation'), value: currentWeek.elevation_m > 0 ? Math.round(currentWeek.elevation_m).toLocaleString() : '—', unit: currentWeek.elevation_m > 0 ? 'm' : null },
               ].map(({ label, value, unit }) => (
                 <div key={label}>
                   <div style={statLabelStyle}>{label}</div>
@@ -328,11 +313,11 @@ export default function Dashboard() {
               gap: 4,
             }}>
               {weekDeltaPct > 0 ? '↑' : weekDeltaPct < 0 ? '↓' : '→'}
-              {' '}{weekDeltaPct > 0 ? '+' : ''}{weekDeltaPct}% distance vs last week
+              {' '}{t('dashboard.distanceVsLastWeek', { pct: `${weekDeltaPct > 0 ? '+' : ''}${weekDeltaPct}` })}
             </div>
           )}
           {currentWeek?.rides === 0 && (
-            <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>No rides yet this week</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('dashboard.noRidesThisWeek')}</div>
           )}
         </div>
 
@@ -341,18 +326,18 @@ export default function Dashboard() {
           <div className="chart-section" style={{ marginBottom: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div className="chart-title" style={{ marginBottom: 0 }}>
-                Weekly Load · 12 weeks{' '}
-                <InfoTip text="Green bars = distance per week (this week highlighted). Red line = training stress (TSS) — how hard those kilometres were. Aim for gradual increases with a lighter recovery week every 3–4 weeks." />
+                {t('dashboard.weeklyLoad')}{' '}
+                <InfoTip text={t('dashboard.weeklyLoadTip')} />
               </div>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: 'oklch(65% 0.2 142)', display: 'inline-block', flexShrink: 0 }} />
-                  Distance
+                  {t('dashboard.legendDistance')}
                 </span>
                 {hasTSSData && (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                     <span style={{ width: 14, height: 2, background: 'var(--heart)', display: 'inline-block', flexShrink: 0 }} />
-                    Stress (TSS)
+                    {t('dashboard.legendStress')}
                   </span>
                 )}
               </div>
@@ -393,14 +378,14 @@ export default function Dashboard() {
       {/* ── 3. Rides: what have I done? ───────────────────────────────────── */}
       {lastRide && (() => {
         const metrics = [
-          { key: 'distance',  label: 'Distance',  value: lastRide.distance_km.toFixed(1),                   unit: 'km'   },
-          { key: 'time',      label: 'Time',       value: fmtDuration(lastRide.duration_seconds),            unit: null   },
+          { key: 'distance',  label: t('common.distance'),  value: lastRide.distance_km.toFixed(1),                   unit: 'km'   },
+          { key: 'time',      label: t('common.time'),       value: fmtDuration(lastRide.duration_seconds),            unit: null   },
           ...(lastRide.elevation_gain_m != null
-            ? [{ key: 'elevation', label: 'Elevation', value: Math.round(lastRide.elevation_gain_m).toLocaleString(), unit: 'm' }]
+            ? [{ key: 'elevation', label: t('common.elevation'), value: Math.round(lastRide.elevation_gain_m).toLocaleString(), unit: 'm' }]
             : []),
-          { key: 'speed',     label: 'Avg Speed',  value: lastRide.avg_speed_kmh?.toFixed(1),               unit: 'km/h' },
+          { key: 'speed',     label: t('common.avgSpeed'),  value: lastRide.avg_speed_kmh?.toFixed(1),               unit: 'km/h' },
           ...(lastRide.avg_heart_rate_bpm
-            ? [{ key: 'heart_rate', label: 'Avg HR', value: `${Math.round(lastRide.avg_heart_rate_bpm)}`,  unit: 'bpm'  }]
+            ? [{ key: 'heart_rate', label: t('common.avgHr'), value: `${Math.round(lastRide.avg_heart_rate_bpm)}`,  unit: 'bpm'  }]
             : []),
         ]
 
@@ -412,11 +397,11 @@ export default function Dashboard() {
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${lastRide.id}`) } }}
             tabIndex={0}
             role="button"
-            aria-label={`Last ride: ${lastRide.name}. Click to view.`}
+            aria-label={t('dashboard.lastRideAria', { name: lastRide.name })}
           >
             {/* Identity */}
             <div className="lrs-identity">
-              <div className="lrs-section-label">Last Ride</div>
+              <div className="lrs-section-label">{t('dashboard.lastRide')}</div>
               <div className="lrs-name">{lastRide.name}</div>
               <div className="lrs-date">{format(new Date(lastRide.date.slice(0, 10) + 'T12:00:00'), 'EEE d MMM yyyy')}</div>
             </div>
@@ -443,13 +428,13 @@ export default function Dashboard() {
                 <div className="lrs-delta">
                   {lastRide.tss != null && (
                     <div className="lrs-metric">
-                      <div className="lrs-metric-label">Stress</div>
+                      <div className="lrs-metric-label">{t('dashboard.stress')}</div>
                       <div className="lrs-metric-value">{Math.round(lastRide.tss)}</div>
                     </div>
                   )}
                   {lastRide.intensity_factor != null && (
                     <div className="lrs-metric">
-                      <div className="lrs-metric-label">Intensity</div>
+                      <div className="lrs-metric-label">{t('dashboard.intensity')}</div>
                       <div className="lrs-metric-value">{lastRide.intensity_factor.toFixed(2)}</div>
                     </div>
                   )}
@@ -464,15 +449,15 @@ export default function Dashboard() {
       {earlierRides.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div className="panel-title" style={{ marginBottom: 10 }}>
-            Earlier Rides
+            {t('dashboard.earlierRides')}
           </div>
           <div className="recent-rides-list" role="list">
             <div className="rrl-head" aria-hidden="true">
-              <span className="rrl-name">Ride</span>
-              <span className="rrl-date">Date</span>
-              <span className="rrl-stat">Distance</span>
-              <span className="rrl-stat">Time</span>
-              <span className="rrl-stat">Avg Speed</span>
+              <span className="rrl-name">{t('common.ride')}</span>
+              <span className="rrl-date">{t('common.date')}</span>
+              <span className="rrl-stat">{t('common.distance')}</span>
+              <span className="rrl-stat">{t('common.time')}</span>
+              <span className="rrl-stat">{t('common.avgSpeed')}</span>
             </div>
             {earlierRides.map(a => (
               <div
@@ -480,7 +465,7 @@ export default function Dashboard() {
                 className="rrl-row"
                 role="button"
                 tabIndex={0}
-                aria-label={`${a.name}, ${format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM')}, ${a.distance_km.toFixed(1)} km`}
+                aria-label={t('dashboard.earlierRideAria', { name: a.name, date: format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM'), distance: a.distance_km.toFixed(1) })}
                 onClick={() => navigate(`/activities/${a.id}`)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${a.id}`) } }}
               >
@@ -507,13 +492,13 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
                   <span className="chart-title" style={{ marginBottom: 0 }}>
-                    Durability
+                    {t('dashboard.durability')}
                   </span>
-                  <InfoTip text="How well you hold your aerobic efficiency late into a ride (0–100). Higher = less fade in the final hour. Long steady rides build it." />
+                  <InfoTip text={t('dashboard.durabilityTip')} />
                 </div>
                 <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Current avg</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('dashboard.currentAvg')}</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, justifyContent: 'flex-end' }}>
                       <span className="stat-value" style={{ fontSize: 22, color: durabilityTrend.trend === 'improving' ? 'var(--status-good)' : durabilityTrend.trend === 'declining' ? 'var(--status-critical)' : 'var(--text-primary)' }}>
                         {durabilityTrend.current_avg.toFixed(1)}
@@ -526,7 +511,7 @@ export default function Dashboard() {
                   </div>
                   {durabilityTrend.best_ever != null && (
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Best ever</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('dashboard.bestEver')}</div>
                       <div className="stat-value" style={{ fontSize: 22, color: 'var(--accent)' }}>
                         {durabilityTrend.best_ever.toFixed(1)}
                       </div>
@@ -544,9 +529,9 @@ export default function Dashboard() {
                   {/* Reference line legend */}
                   <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
                     {[
-                      { label: 'Excellent', y: 95, color: '#6dffb8' },
-                      { label: 'Good',      y: 88, color: '#4da6ff' },
-                      { label: 'Moderate',  y: 80, color: '#ffd93d' },
+                      { label: t('dashboard.diExcellent'), y: 95, color: '#6dffb8' },
+                      { label: t('dashboard.diGood'),      y: 88, color: '#4da6ff' },
+                      { label: t('dashboard.diModerate'),  y: 80, color: '#ffd93d' },
                     ].map(({ label, y, color }) => (
                       <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                         <span style={{ width: 16, height: 1, borderTop: `1px dashed ${color}`, display: 'inline-block', flexShrink: 0 }} />
@@ -577,7 +562,7 @@ export default function Dashboard() {
                             <div style={{ color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
                             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--accent)' }}>
                               {payload[0].value?.toFixed(1)}
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>DI · {payload[0].payload.ride_count} ride{payload[0].payload.ride_count !== 1 ? 's' : ''}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>{t('dashboard.diRides', { count: payload[0].payload.ride_count })}</span>
                             </div>
                           </div>
                         ) : null}
@@ -606,25 +591,25 @@ export default function Dashboard() {
             <div className="panel">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <Droplets size={14} style={{ color: 'var(--text-secondary)' }} />
-                <span className="panel-title" style={{ marginBottom: 0 }}>Heat Readiness</span>
-                <InfoTip text="How adapted you are to riding in the heat, based on hot rides in the last 14 days. Your sweat rate sets personal hydration targets on ride pages." />
+                <span className="panel-title" style={{ marginBottom: 0 }}>{t('dashboard.heatReadiness')}</span>
+                <InfoTip text={t('dashboard.heatReadinessTip')} />
               </div>
               {[
                 {
-                  label: 'Adaptation',
+                  label: t('dashboard.adaptation'),
                   value: heatProfile.heat_adaptation_level
                     ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1)
-                    : 'Low',
+                    : t('dashboard.adaptationLow'),
                   color: heatProfile.heat_adaptation_level === 'high' ? 'var(--status-good)' : heatProfile.heat_adaptation_level === 'moderate' ? 'var(--status-warn)' : 'var(--text-muted)',
-                  sub: `${heatProfile.heat_rides_last_14d} hot ride${heatProfile.heat_rides_last_14d !== 1 ? 's' : ''} in 14 days`,
+                  sub: t('dashboard.hotRides', { count: heatProfile.heat_rides_last_14d }),
                   link: null,
                 },
                 {
-                  label: 'Sweat Rate',
+                  label: t('dashboard.sweatRate'),
                   value: heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : '—',
                   color: heatProfile.has_calibrated_rate ? 'var(--text-primary)' : 'var(--text-muted)',
-                  sub: heatProfile.has_calibrated_rate ? 'Personal measurement' : null,
-                  link: !heatProfile.has_calibrated_rate ? { to: '/settings', label: 'Calibrate in Settings' } : null,
+                  sub: heatProfile.has_calibrated_rate ? t('dashboard.personalMeasurement') : null,
+                  link: !heatProfile.has_calibrated_rate ? { to: '/settings', label: t('dashboard.calibrateInSettings') } : null,
                 },
               ].map(({ label, value, color, sub, link }, i, arr) => (
                 <div key={label} style={{
