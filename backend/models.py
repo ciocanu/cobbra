@@ -70,6 +70,10 @@ class Activity(Base):
     name = Column(String, nullable=False)
     date = Column(DateTime, nullable=False)
     distance_km = Column(Float, default=0)
+    __table_args__ = (
+        # list/dashboard: filter by user_id, ORDER BY date DESC
+        Index("ix_activities_user_id_date", "user_id", "date"),
+    )
     duration_seconds = Column(Integer, default=0)
     avg_speed_kmh = Column(Float, default=0)
     max_speed_kmh = Column(Float, default=0)
@@ -136,7 +140,7 @@ class TrackPoint(Base):
     __tablename__ = "track_points"
 
     id = Column(Integer, primary_key=True, index=True)
-    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False)
+    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False, index=True)
     timestamp = Column(DateTime, nullable=True)
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
@@ -154,7 +158,7 @@ class Lap(Base):
     __tablename__ = "laps"
 
     id = Column(Integer, primary_key=True, index=True)
-    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False)
+    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False, index=True)
     lap_number = Column(Integer, nullable=False)
     elapsed_seconds = Column(Float, nullable=True)
     distance_m = Column(Float, nullable=True)
@@ -170,7 +174,7 @@ class PersonalRecord(Base):
     __tablename__ = "personal_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     pr_type = Column(String, nullable=False)
     value = Column(Float, nullable=False)
     activity_id = Column(Integer, ForeignKey("activities.id"), nullable=True)
@@ -181,7 +185,7 @@ class Goal(Base):
     __tablename__ = "goals"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     goal_type = Column(String, nullable=False)
     target = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -191,7 +195,7 @@ class Segment(Base):
     __tablename__ = "segments"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     start_lat = Column(Float, nullable=False)
     start_lon = Column(Float, nullable=False)
@@ -304,7 +308,7 @@ class ClimbDetection(Base):
     __tablename__ = "climb_detections"
 
     id = Column(Integer, primary_key=True)
-    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), nullable=False)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Location in ride
     start_trackpoint_idx = Column(Integer)
@@ -347,8 +351,8 @@ class SegmentEffort(Base):
     __tablename__ = "segment_efforts"
 
     id = Column(Integer, primary_key=True, index=True)
-    segment_id = Column(Integer, ForeignKey("segments.id"), nullable=False)
-    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False)
+    segment_id = Column(Integer, ForeignKey("segments.id"), nullable=False, index=True)
+    activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False, index=True)
     elapsed_seconds = Column(Float, nullable=False)
     avg_speed_kmh = Column(Float, nullable=True)
     avg_hr = Column(Float, nullable=True)
