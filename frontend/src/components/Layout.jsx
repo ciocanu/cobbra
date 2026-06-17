@@ -129,7 +129,9 @@ export default function Layout() {
         </aside>
 
         <main id="main-content" className="main">
-          <Outlet />
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
         </main>
       </div>
     </>

@@ -133,9 +133,11 @@ export default function ActivityList() {
               </tr>
             </thead>
             <tbody>
-              {activities.map(a => (
+              {activities.map((a, i) => (
                 <tr
                   key={a.id}
+                  className="act-row"
+                  style={{ '--row-delay': `${Math.min(i, 15) * 22}ms` }}
                   onClick={() => navigate(`/activities/${a.id}`)}
                   onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && navigate(`/activities/${a.id}`)}
                   tabIndex={0}

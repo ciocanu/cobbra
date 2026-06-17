@@ -1147,7 +1147,7 @@ html, body, #root {
   align-items: center;
   gap: 16px;
   padding: 14px 22px;
-  transition: background 0.15s;
+  transition: background 0.15s, opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .pr-speed-row:hover {
@@ -2322,6 +2322,25 @@ select.filter-input {
 }
 
 /* â”€â”€ Motion sensitivity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Page & content entrance ─────────────────────────────────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: page-enter 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.login-box {
+  animation: page-enter 0.38s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.act-row {
+  animation: page-enter 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

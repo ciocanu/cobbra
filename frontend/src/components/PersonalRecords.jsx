@@ -105,6 +105,7 @@ export default function PersonalRecords() {
                         borderBottom: isLast ? 'none' : '1px solid var(--border)',
                         cursor: pr?.activity_id ? 'pointer' : 'default',
                         opacity: pr ? 1 : 0.4,
+                        transition: 'opacity 200ms cubic-bezier(0.23, 1, 0.32, 1)',
                       }}
                       onClick={() => pr?.activity_id && navigate(`/activities/${pr.activity_id}`)}
                       tabIndex={pr?.activity_id ? 0 : undefined}
