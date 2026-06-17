@@ -1,0 +1,29 @@
+# Dependencies — reinstalled inside the container via npm ci
+node_modules/
+
+# Previous build output — rebuilt inside the container
+dist/
+
+# Environment files — injected at build time via ARG/ENV
+.env
+.env.*
+*.env
+.env.local
+.env.*.local
+
+# Source control
+.git/
+.gitignore
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log
+
+# Docker meta files
+Dockerfile
+.dockerignore

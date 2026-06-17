@@ -1,0 +1,122 @@
+version: '3.9'
+
+# Production Docker Compose
+# Usage: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# First-time SSL bootstrap (run once before starting the stack):
+#   1. Start only nginx on HTTP so the ACME challenge path is reachable:
+#        docker compose -f docker-compose.prod.yml up -d nginx
+#   2. Issue the certificate:
+#        docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+#          --webroot -w /var/www/certbot -d yourdomain.com --email you@email.com --agree-tos
+#   3. Bring the full stack up:
+#        docker compose -f docker-compose.prod.yml up -d
+#   Renewal is handled automatically by the certbot service (runs every 12 h).
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY:            ${SECRET_KEY}
+      COOKIE_SECURE:         "true"
+      CORS_ORIGINS:          ${CORS_ORIGINS}
+      ADMIN_USERNAME:        ${ADMIN_USERNAME}
+      APP_URL:               ${APP_URL}
+      SMTP_HOST:             ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT:             ${SMTP_PORT:-587}
+      SMTP_USER:             ${SMTP_USER:-}
+      SMTP_PASSWORD:         ${SMTP_PASSWORD:-}
+      SMTP_FROM:             ${SMTP_FROM:-}
+      STRIPE_SECRET_KEY:     ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO:      ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_ANNUAL:   ${STRIPE_PRICE_ANNUAL:-}
+      STRIPE_PRICE_LIFETIME: ${STRIPE_PRICE_LIFETIME:-}
+      ANTHROPIC_API_KEY:     ${ANTHROPIC_API_KEY:-}
+    # Run migrations before starting the server
+    command: >
+      sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
+    networks:
+      - internal
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # ── Nginx (reverse proxy + SSL termination) ──────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf.template:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    # Substitute ${DOMAIN} in the template; all other $variables are nginx-native
+    # and must not be touched — envsubst '$DOMAIN' limits substitution to that one var.
+    command: >
+      /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+      && nginx -g 'daemon off;'"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - internal
+
+  # ── Certbot (Let's Encrypt auto-renewal) ──────────────────────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Attempt renewal every 12 h; certbot skips if cert is not yet due
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done"
+    depends_on:
+      - nginx
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+
+# ── Volumes ────────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:   # PostgreSQL data — never delete in production
+  letsencrypt:     # Let's Encrypt certificates and account data
+  certbot_www:     # ACME http-01 challenge files served by nginx
