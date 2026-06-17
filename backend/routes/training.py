@@ -29,7 +29,7 @@ def _next_generation_date(plan_date: datetime) -> str:
     return date(plan_date.year, plan_date.month + 1, 1).isoformat()
 
 
-_MONTHLY_LIMIT = 10
+_MONTHLY_LIMIT = 3
 
 
 def _plans_this_month(db: Session, user_id: int) -> int:

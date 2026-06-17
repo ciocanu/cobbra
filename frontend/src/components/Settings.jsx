@@ -25,7 +25,7 @@ const STRAVA_COLOR = '#FC4C02'
 
 const TIER_FEATURES = {
   free:     ['Unlimited activity uploads', 'Basic stats & charts', 'Segment tracking', 'Personal records & goals'],
-  pro:      ['Unlimited activities', 'AI ride analysis', '10 AI training plans / month', 'CSV & GPX export', 'Segment tracking & records'],
+  pro:      ['Unlimited activities', 'AI ride analysis', '3 AI training plans / month', 'CSV & GPX export', 'Segment tracking & records'],
   annual:   ['Everything in Pro', 'Early access to new features', 'Best value: save 42%'],
   lifetime: ['Everything in Pro & Annual', 'All future features included', 'Never pay again'],
 }

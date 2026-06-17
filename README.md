@@ -22,7 +22,7 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 ### Pro / Annual tier
 - Unlimited activity uploads
 - AI ride analysis (powered by Claude Haiku)
-- AI-generated 4-week training plans (up to 10/month, powered by Claude Sonnet)
+- AI-generated 4-week training plans (up to 3/month, powered by Claude Sonnet)
 - CSV and GPX export
 - HR zone configuration
 

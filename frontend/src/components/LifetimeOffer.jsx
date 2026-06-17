@@ -140,7 +140,7 @@ export default function LifetimeOffer() {
               {[
                 'Unlimited activities forever',
                 'AI ride analysis on every ride',
-                '10 AI training plans per month',
+                '3 AI training plans per month',
                 'Activity export (CSV and GPX)',
                 'Early access to new features',
               ].map(f => (
