@@ -162,7 +162,8 @@
         "freshLabel": "Fresh",
         "fatiguedLabel": "Fatigued",
         "scoreLabel": "durability score / 100",
-        "avgDrop": "Avg drop: {{pct}}% · <5% pro level · 15–25% typical amateur · score = 100 − (drop% × 4)"
+        "avgDrop": "Avg drop: {{pct}}% · <5% pro level · 15–25% typical amateur · score = 100 − (drop% × 4)",
+        "freshVsFatigued": "Fresh MMP (first {{thresholdKj}} kJ) vs Fatigued (after) — {{totalKj}} kJ total work"
       },
       "powerQuadrant": {
         "title": "Power Quadrant Analysis",
@@ -268,7 +269,10 @@
       "intakeMl": "ml",
       "savingIntake": "Saving…",
       "saveIntake": "Save",
-      "recommendations": "Recommendations"
+      "recommendations": "Recommendations",
+      "intakeMsgSaved": "Saved.",
+      "intakeMsgRange": "Enter a value between 0 and 20000 ml.",
+      "intakeMsgFailed": "Failed to save."
     },
     "durabilityIndex": {
       "title": "Durability Index",

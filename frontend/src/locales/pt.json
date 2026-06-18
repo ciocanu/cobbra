@@ -162,7 +162,8 @@
         "freshLabel": "",
         "fatiguedLabel": "",
         "scoreLabel": "",
-        "avgDrop": ""
+        "avgDrop": "",
+        "freshVsFatigued": ""
       },
       "powerQuadrant": {
         "title": "",
@@ -268,7 +269,10 @@
       "intakeMl": "",
       "savingIntake": "",
       "saveIntake": "",
-      "recommendations": ""
+      "recommendations": "",
+      "intakeMsgSaved": "",
+      "intakeMsgRange": "",
+      "intakeMsgFailed": ""
     },
     "durabilityIndex": {
       "title": "",

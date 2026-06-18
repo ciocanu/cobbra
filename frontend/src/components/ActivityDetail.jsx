@@ -1242,7 +1242,7 @@ export default function ActivityDetail() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{t('activityDetail.powerAnalysis.durability.title')} <InfoTip text={t('activityDetail.powerAnalysis.durability.tip')} /></div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Fresh MMP (first {durability.thresholdKj} kJ) vs Fatigued (after) — {durability.totalKj} kJ total work
+                    {t('activityDetail.powerAnalysis.durability.freshVsFatigued', { thresholdKj: durability.thresholdKj, totalKj: durability.totalKj })}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -1644,7 +1644,9 @@ export default function ActivityDetail() {
                 <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleLogIntake} disabled={intakeSaving}>
                   {intakeSaving ? t('activityDetail.hydration.savingIntake') : t('activityDetail.hydration.saveIntake')}
                 </button>
-                {intakeMsg && <span style={{ fontSize: 12, color: intakeMsg === 'Saved.' ? 'var(--status-good)' : 'var(--status-alert)' }}>{intakeMsg}</span>}
+                {intakeMsg && <span style={{ fontSize: 12, color: intakeMsg === 'saved' ? 'var(--status-good)' : 'var(--status-alert)' }}>
+                  {intakeMsg === 'saved' ? t('activityDetail.hydration.intakeMsgSaved') : intakeMsg === 'range' ? t('activityDetail.hydration.intakeMsgRange') : t('activityDetail.hydration.intakeMsgFailed')}
+                </span>}
               </div>
             </div>
 
