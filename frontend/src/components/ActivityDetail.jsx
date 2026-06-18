@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
 import { format } from 'date-fns'
 import {
@@ -42,19 +43,21 @@ const ChartTooltip = ({ active, payload, label }) => {
   )
 }
 
-const PLATFORM_LABELS = {
-  zwift: 'Zwift', trainerroad: 'TrainerRoad', wahoo: 'Wahoo SYSTM',
-  mywhoosh: 'MyWhoosh', rolo: 'Trainer', other: 'Indoor',
+// Platform → i18n key suffix (resolved against activityDetail.platform.* at render)
+const PLATFORM_LABEL_KEYS = {
+  zwift: 'zwift', trainerroad: 'trainerroad', wahoo: 'wahoo',
+  mywhoosh: 'mywhoosh', rolo: 'rolo', other: 'other',
 }
 
 function EnvBadge({ activity, onOverride }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const isIndoor = activity.ride_environment === 'indoor'
   const label = isIndoor
-    ? (PLATFORM_LABELS[activity.indoor_platform] || 'Indoor')
-    : 'Outdoor'
+    ? t(`activityDetail.platform.${PLATFORM_LABEL_KEYS[activity.indoor_platform] || 'indoor'}`)
+    : t('activityDetail.platform.outdoor')
   const color = isIndoor ? 'var(--text-secondary)' : 'var(--status-good)'
   const Icon  = isIndoor ? Home : Trees
 
@@ -92,16 +95,16 @@ function EnvBadge({ activity, onOverride }) {
           borderRadius: 8, padding: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         }}>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
-            Change classification
+            {t('activityDetail.changeClassification')}
           </div>
           {[
-            { env: 'outdoor', platform: null,    label: '🌳 Outdoor' },
-            { env: 'indoor',  platform: 'zwift', label: '🏠 Zwift' },
-            { env: 'indoor',  platform: 'trainerroad', label: '🏠 TrainerRoad' },
-            { env: 'indoor',  platform: 'rolo',  label: '🏠 Trainer / Rolo' },
-            { env: 'indoor',  platform: 'other', label: '🏠 Other Indoor' },
+            { env: 'outdoor', platform: null,    labelKey: 'outdoor' },
+            { env: 'indoor',  platform: 'zwift', labelKey: 'zwift' },
+            { env: 'indoor',  platform: 'trainerroad', labelKey: 'trainerroad' },
+            { env: 'indoor',  platform: 'rolo',  labelKey: 'rolo' },
+            { env: 'indoor',  platform: 'other', labelKey: 'other' },
           ].map(opt => (
-            <div key={opt.label}
+            <div key={opt.labelKey}
               onClick={() => !saving && doOverride(opt.env, opt.platform)}
               style={{
                 padding: '5px 8px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer',
@@ -114,7 +117,7 @@ function EnvBadge({ activity, onOverride }) {
                 activity.ride_environment === opt.env && activity.indoor_platform === opt.platform
                   ? 'var(--bg-secondary)' : 'transparent'}
             >
-              {opt.label}
+              {t(`activityDetail.classifyOption.${opt.labelKey}`)}
             </div>
           ))}
         </div>
@@ -130,11 +133,11 @@ function downsample(arr, maxPoints = 500) {
 }
 
 const CAD_ZONES = [
-  { label: 'Very Low',  max: 60,       color: '#8888aa' },
-  { label: 'Low',       max: 75,       color: '#4da6ff' },
-  { label: 'Optimal',   max: 90,       color: '#6dffb8' },
-  { label: 'High',      max: 100,      color: '#ffd93d' },
-  { label: 'Very High', max: Infinity, color: '#ff8c42' },
+  { key: 'veryLow',  max: 60,       color: '#8888aa' },
+  { key: 'low',      max: 75,       color: '#4da6ff' },
+  { key: 'optimal',  max: 90,       color: '#6dffb8' },
+  { key: 'high',     max: 100,      color: '#ffd93d' },
+  { key: 'veryHigh', max: Infinity, color: '#ff8c42' },
 ]
 
 function computeCadenceZones(trackPoints) {
@@ -153,11 +156,11 @@ function computeCadenceZones(trackPoints) {
 }
 
 const HR_ZONES = [
-  { label: 'Z1 Recovery',   min: 0,    max: 0.60, color: '#6dffb8' },
-  { label: 'Z2 Endurance',  min: 0.60, max: 0.70, color: '#4da6ff' },
-  { label: 'Z3 Tempo',      min: 0.70, max: 0.80, color: '#ffd93d' },
-  { label: 'Z4 Threshold',  min: 0.80, max: 0.90, color: '#ff8c42' },
-  { label: 'Z5 VO2 Max',    min: 0.90, max: 1.00, color: '#ff4d6d' },
+  { key: 'z1',   min: 0,    max: 0.60, color: '#6dffb8' },
+  { key: 'z2',   min: 0.60, max: 0.70, color: '#4da6ff' },
+  { key: 'z3',   min: 0.70, max: 0.80, color: '#ffd93d' },
+  { key: 'z4',   min: 0.80, max: 0.90, color: '#ff8c42' },
+  { key: 'z5',   min: 0.90, max: 1.00, color: '#ff4d6d' },
 ]
 
 function computeHrZones(trackPoints, maxHr) {
@@ -254,13 +257,13 @@ function computeBestEfforts(pts) {
 // ── Power analysis ────────────────────────────────────────────────────────────
 
 const POWER_ZONES = [
-  { label: 'Z1', name: 'Active Recovery',  min: 0,    max: 0.55,     color: '#6dffb8' },
-  { label: 'Z2', name: 'Endurance',        min: 0.55, max: 0.75,     color: '#4da6ff' },
-  { label: 'Z3', name: 'Tempo',            min: 0.75, max: 0.90,     color: '#ffd93d' },
-  { label: 'Z4', name: 'Threshold',        min: 0.90, max: 1.05,     color: '#ff8c42' },
-  { label: 'Z5', name: 'VO2 Max',          min: 1.05, max: 1.20,     color: '#ff4d6d' },
-  { label: 'Z6', name: 'Anaerobic',        min: 1.20, max: 1.50,     color: '#c084fc' },
-  { label: 'Z7', name: 'Neuromuscular',    min: 1.50, max: Infinity, color: 'oklch(98% 0.005 142)' },
+  { label: 'Z1', nameKey: 'activeRecovery', min: 0,    max: 0.55,     color: '#6dffb8' },
+  { label: 'Z2', nameKey: 'endurance',      min: 0.55, max: 0.75,     color: '#4da6ff' },
+  { label: 'Z3', nameKey: 'tempo',          min: 0.75, max: 0.90,     color: '#ffd93d' },
+  { label: 'Z4', nameKey: 'threshold',      min: 0.90, max: 1.05,     color: '#ff8c42' },
+  { label: 'Z5', nameKey: 'vo2max',         min: 1.05, max: 1.20,     color: '#ff4d6d' },
+  { label: 'Z6', nameKey: 'anaerobic',      min: 1.20, max: 1.50,     color: '#c084fc' },
+  { label: 'Z7', nameKey: 'neuromuscular',  min: 1.50, max: Infinity, color: 'oklch(98% 0.005 142)' },
 ]
 
 // Standard MMP durations in actual seconds
@@ -538,10 +541,10 @@ function computePowerQuadrant(trackPoints) {
     medTorque:  Math.round(medTorque * 10) / 10,
     // arranged as 2×2: top row = high torque, left = low cadence, right = high cadence
     grid: [
-      [{ key: 'Q3', label: 'Strength',     sub: 'Low cad · High torque', pct: pct(q3), color: '#ffd93d', count: q3 },
-       { key: 'Q2', label: 'Sprint Power', sub: 'High cad · High torque', pct: pct(q2), color: '#ff4d6d', count: q2 }],
-      [{ key: 'Q4', label: 'Recovery',     sub: 'Low cad · Low torque',   pct: pct(q4), color: '#6dffb8', count: q4 },
-       { key: 'Q1', label: 'Aerobic Spin', sub: 'High cad · Low torque',  pct: pct(q1), color: '#4da6ff', count: q1 }],
+      [{ key: 'Q3', labelKey: 'strength',    subKey: 'lowCadHighTorque',  pct: pct(q3), color: '#ffd93d', count: q3 },
+       { key: 'Q2', labelKey: 'sprintPower', subKey: 'highCadHighTorque', pct: pct(q2), color: '#ff4d6d', count: q2 }],
+      [{ key: 'Q4', labelKey: 'recovery',    subKey: 'lowCadLowTorque',   pct: pct(q4), color: '#6dffb8', count: q4 },
+       { key: 'Q1', labelKey: 'aerobicSpin', subKey: 'highCadLowTorque',  pct: pct(q1), color: '#4da6ff', count: q1 }],
     ],
   }
 }
@@ -554,6 +557,7 @@ function estimateCalories(durationSeconds, avgSpeedKmh, weightKg) {
 }
 
 export default function ActivityDetail() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const [activity, setActivity] = useState(null)
@@ -591,7 +595,7 @@ export default function ActivityDetail() {
         setNewName(r.data.name)
         setNotes(r.data.notes ?? '')
       })
-      .catch(() => setError('Activity not found'))
+      .catch(() => setError(t('activityDetail.notFound')))
       .finally(() => setLoading(false))
     getActivitySegments(id).then(r => setSegmentEfforts(r.data)).catch(() => {})
     getAnalysis(id).then(r => setAnalysis(r.data.analysis)).catch(() => {})
@@ -635,7 +639,7 @@ export default function ActivityDetail() {
       const res = await getAnalysis(id)
       setAnalysis(res.data.analysis)
     } catch (e) {
-      setAnalysisError(e.response?.data?.detail || 'Failed to generate analysis')
+      setAnalysisError(e.response?.data?.detail || t('activityDetail.analysisFailed'))
     } finally {
       setAnalysisLoading(false)
     }
@@ -648,17 +652,17 @@ export default function ActivityDetail() {
 
   const handleLogIntake = async () => {
     const ml = parseInt(intakeInput, 10)
-    if (isNaN(ml) || ml < 0 || ml > 20000) { setIntakeMsg('Enter a value between 0 and 20 000 ml.'); return }
+    if (isNaN(ml) || ml < 0 || ml > 20000) { setIntakeMsg('range'); return }
     setIntakeSaving(true); setIntakeMsg('')
     try {
       const res = await updateHydrationIntake(id, ml)
       setHydration(res.data)
       // Refresh activity to pick up updated decoupling values (hydration affects the correction)
       getActivity(id).then(r => setActivity(r.data)).catch(() => {})
-      setIntakeMsg('Saved.')
+      setIntakeMsg('saved')
       clearTimeout(intakeMsgTimer.current)
       intakeMsgTimer.current = setTimeout(() => setIntakeMsg(''), 2500)
-    } catch { setIntakeMsg('Failed to save intake.') }
+    } catch { setIntakeMsg('failed') }
     finally { setIntakeSaving(false) }
   }
 
@@ -745,35 +749,35 @@ export default function ActivityDetail() {
   const hasWeather = activity.weather_temp_c != null || activity.weather_desc
 
   const metrics = [
-    { label: 'Distance', value: `${activity.distance_km.toFixed(2)}`, unit: 'km', color: 'var(--accent)' },
-    { label: 'Moving Time', value: fmtDuration(activity.duration_seconds), unit: '', color: 'var(--text-primary)' },
-    ...(activity.suffer_score != null ? [{ label: 'Suffer Score', value: activity.suffer_score, unit: '', color: 'var(--heart)' }] : []),
-    { label: 'Avg Speed', value: activity.avg_speed_kmh.toFixed(1), unit: 'km/h', color: 'var(--speed)' },
-    { label: 'Max Speed', value: activity.max_speed_kmh.toFixed(1), unit: 'km/h', color: 'var(--speed)' },
+    { label: t('common.distance'), value: `${activity.distance_km.toFixed(2)}`, unit: 'km', color: 'var(--accent)' },
+    { label: t('activityDetail.metric.movingTime'), value: fmtDuration(activity.duration_seconds), unit: '', color: 'var(--text-primary)' },
+    ...(activity.suffer_score != null ? [{ label: t('activityDetail.metric.sufferScore'), value: activity.suffer_score, unit: '', color: 'var(--heart)' }] : []),
+    { label: t('common.avgSpeed'), value: activity.avg_speed_kmh.toFixed(1), unit: 'km/h', color: 'var(--speed)' },
+    { label: t('common.maxSpeed'), value: activity.max_speed_kmh.toFixed(1), unit: 'km/h', color: 'var(--speed)' },
     ...(hasHR ? [
-      { label: 'Avg HR', value: Math.round(activity.avg_heart_rate_bpm), unit: 'bpm', color: 'var(--heart)' },
-      { label: 'Max HR', value: Math.round(activity.max_heart_rate_bpm), unit: 'bpm', color: 'var(--heart)' },
+      { label: t('common.avgHr'), value: Math.round(activity.avg_heart_rate_bpm), unit: 'bpm', color: 'var(--heart)' },
+      { label: t('activityDetail.metric.maxHr'), value: Math.round(activity.max_heart_rate_bpm), unit: 'bpm', color: 'var(--heart)' },
     ] : []),
     ...(hasCad ? [
-      { label: 'Avg Cadence', value: Math.round(activity.avg_cadence_rpm), unit: 'rpm', color: 'var(--cadence)' },
-      { label: 'Max Cadence', value: Math.round(activity.max_cadence_rpm), unit: 'rpm', color: 'var(--cadence)' },
+      { label: t('activityDetail.metric.avgCadence'), value: Math.round(activity.avg_cadence_rpm), unit: 'rpm', color: 'var(--cadence)' },
+      { label: t('activityDetail.metric.maxCadence'), value: Math.round(activity.max_cadence_rpm), unit: 'rpm', color: 'var(--cadence)' },
     ] : []),
     ...(hasPwr ? [
-      { label: 'Avg Power', value: Math.round(activity.avg_power_w), unit: 'W', color: 'var(--power)' },
-      { label: 'Max Power', value: Math.round(activity.max_power_w), unit: 'W', color: 'var(--power)' },
+      { label: t('common.avgPower'), value: Math.round(activity.avg_power_w), unit: 'W', color: 'var(--power)' },
+      { label: t('activityDetail.metric.maxPower'), value: Math.round(activity.max_power_w), unit: 'W', color: 'var(--power)' },
     ] : []),
-    { label: 'Elevation ↑', value: activity.elevation_gain_m.toFixed(0), unit: 'm', color: 'var(--elevation)' },
-    { label: 'Elevation ↓', value: activity.elevation_loss_m.toFixed(0), unit: 'm', color: 'var(--text-secondary)' },
+    { label: t('activityDetail.metric.elevationGain'), value: activity.elevation_gain_m.toFixed(0), unit: 'm', color: 'var(--elevation)' },
+    { label: t('activityDetail.metric.elevationLoss'), value: activity.elevation_loss_m.toFixed(0), unit: 'm', color: 'var(--text-secondary)' },
     ...(activity.calories
-      ? [{ label: 'Calories', value: activity.calories, unit: 'kcal', color: 'var(--heart)' }]
-      : (() => { const est = estimateCalories(activity.duration_seconds, activity.avg_speed_kmh, weightKg); return est ? [{ label: 'Est. Calories', value: est, unit: 'kcal', color: 'var(--heart)' }] : [] })()
+      ? [{ label: t('activityDetail.metric.calories'), value: activity.calories, unit: 'kcal', color: 'var(--heart)' }]
+      : (() => { const est = estimateCalories(activity.duration_seconds, activity.avg_speed_kmh, weightKg); return est ? [{ label: t('activityDetail.metric.estCalories'), value: est, unit: 'kcal', color: 'var(--heart)' }] : [] })()
     ),
   ]
 
   return (
     <div>
       <Link to="/activities" className="back-link">
-        <ArrowLeft size={14} /> All Activities
+        <ArrowLeft size={14} /> {t('activityDetail.allActivities')}
       </Link>
 
       {/* Header */}
@@ -786,20 +790,20 @@ export default function ActivityDetail() {
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleRename()}
                 autoFocus
-                aria-label="Activity name"
+                aria-label={t('activityDetail.activityNameAria')}
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--accent)',
                   color: 'var(--text-primary)', borderRadius: 6, padding: '6px 12px',
                   fontSize: 20, fontFamily: 'var(--font-display)', fontWeight: 700, outline: 'none',
                 }}
               />
-              <button className="btn btn-primary" onClick={handleRename}>Save</button>
-              <button className="btn btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleRename}>{t('activityDetail.save')}</button>
+              <button className="btn btn-ghost" onClick={() => setEditing(false)}>{t('activityDetail.cancel')}</button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1 className="page-title">{activity.name}</h1>
-              <button className="btn btn-ghost" style={{ padding: '4px 8px' }} aria-label="Edit activity name" onClick={() => setEditing(true)}>
+              <button className="btn btn-ghost" style={{ padding: '4px 8px' }} aria-label={t('activityDetail.editActivityNameAria')} onClick={() => setEditing(true)}>
                 <Pencil size={13} />
               </button>
             </div>
@@ -841,12 +845,12 @@ export default function ActivityDetail() {
           </button>
           {deleteConfirm ? (
             <>
-              <button className="btn btn-danger" onClick={handleDelete}>Confirm delete</button>
-              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleDelete}>{t('activityDetail.confirmDelete')}</button>
+              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(false)}>{t('activityDetail.cancel')}</button>
             </>
           ) : (
             <button className="btn btn-danger" onClick={() => setDeleteConfirm(true)}>
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {t('activityDetail.delete')}
             </button>
           )}
         </div>
