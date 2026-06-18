@@ -874,20 +874,20 @@ export default function ActivityDetail() {
         <div className="chart-section" style={{ padding: '14px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <Home size={14} style={{ color: 'var(--text-secondary)' }} />
-            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)' }}>Indoor Ride — Power Correction</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)' }}>{t('activityDetail.indoorCorrection.title')}</span>
           </div>
           {activity.power_correction_factor != null && activity.corrected_tss != null ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Correction factor</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.indoorCorrection.correctionFactor')}</div>
                 <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent)' }}>
                   +{((activity.power_correction_factor - 1) * 100).toFixed(1)}%
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>applied to TSS</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('activityDetail.indoorCorrection.appliedToTss')}</div>
               </div>
               {activity.tss != null && (
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Training Stress Score</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.indoorCorrection.trainingStressScore')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)' }}>
                     <span style={{ fontSize: 18, color: 'var(--text-secondary)', textDecoration: 'line-through' }}>
                       {Math.round(activity.tss)}
@@ -897,21 +897,20 @@ export default function ActivityDetail() {
                       {Math.round(activity.corrected_tss)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>corrected TSS</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('activityDetail.indoorCorrection.correctedTss')}</div>
                 </div>
               )}
               <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 280, lineHeight: 1.5, alignSelf: 'center' }}>
-                Indoor rides produce less power at the same perceived effort due to heat accumulation and lack of air cooling.
-                Your personal indoor/outdoor gap is used to scale TSS for accurate fitness tracking.
+                {t('activityDetail.indoorCorrection.indoorExplanation')}
               </div>
             </div>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              No indoor/outdoor correction applied yet.
+              {t('activityDetail.indoorCorrection.noCorrection')}
               <br />
-              Complete at least 5 indoor and 5 outdoor rides with power data, then visit{' '}
-              <Link to="/settings" style={{ color: 'var(--accent)' }}>Settings → Indoor/Outdoor Profile</Link>{' '}
-              to calibrate your personal gap.
+              {t('activityDetail.indoorCorrection.calibratePrompt')}{' '}
+              <Link to="/settings" style={{ color: 'var(--accent)' }}>{t('activityDetail.indoorCorrection.calibrateLink')}</Link>{' '}
+              {t('activityDetail.indoorCorrection.calibrateSuffix')}
             </div>
           )}
         </div>
@@ -942,7 +941,7 @@ export default function ActivityDetail() {
       {chartData.length > 0 && (
         <>
           <div className="chart-section">
-            <div className="chart-title">Speed <InfoTip text="Your speed over the ride in km/h. Consistent lines = steady pacing. Sharp dips = climbs or braking. A gradual drop in the second half may indicate fatigue." /></div>
+            <div className="chart-title">{t('activityDetail.chart.speed')} <InfoTip text={t('activityDetail.chart.speedTip')} /></div>
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -956,7 +955,7 @@ export default function ActivityDetail() {
 
           {hasHR && (
             <div className="chart-section">
-              <div className="chart-title">Heart Rate <InfoTip text="Heart rate in BPM throughout the ride. A gradual rise is normal (cardiac drift). Spikes without speed change may indicate heat or fatigue. Aerobic base rides should stay in Z2: 60–70% of your max HR." /></div>
+              <div className="chart-title">{t('activityDetail.chart.heartRate')} <InfoTip text={t('activityDetail.chart.heartRateTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -971,7 +970,7 @@ export default function ActivityDetail() {
 
           {hasCad && (
             <div className="chart-section">
-              <div className="chart-title">Cadence <InfoTip text="Pedal revolutions per minute (rpm). Optimal range is 75–90 rpm. High cadence (>90) means more cardiovascular load with less muscle fatigue. Low cadence (<70) stresses the muscles more and raises lactate." /></div>
+              <div className="chart-title">{t('activityDetail.chart.cadence')} <InfoTip text={t('activityDetail.chart.cadenceTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -986,7 +985,7 @@ export default function ActivityDetail() {
 
           {hasPwr && (
             <div className="chart-section">
-              <div className="chart-title">Power <InfoTip text="Raw power output in watts. Spikes are normal for sprints and climbs. Sustained output above your FTP means threshold or harder effort. Compare with Normalized Power (NP) for the physiological cost of the whole ride." /></div>
+              <div className="chart-title">{t('activityDetail.chart.power')} <InfoTip text={t('activityDetail.chart.powerTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -1001,7 +1000,7 @@ export default function ActivityDetail() {
 
           {hasEle && (
             <div className="chart-section">
-              <div className="chart-title">Elevation <InfoTip text="Altitude profile showing your terrain. Sharp spikes = steep climbs (or GPS noise). Total elevation gain is shown in the metrics above. Big climbs later in the ride are harder — check if your speed drops on them." /></div>
+              <div className="chart-title">{t('activityDetail.chart.elevation')} <InfoTip text={t('activityDetail.chart.elevationTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -1021,7 +1020,7 @@ export default function ActivityDetail() {
         <div className="chart-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div className="chart-title" style={{ marginBottom: 0 }}>
-              Splits <InfoTip text="Ride broken into equal distance chunks. Compare speed and HR across splits to spot pacing issues — if speed drops and HR rises in later splits, you went out too hard or are fatigued." />
+              {t('activityDetail.splits.title')} <InfoTip text={t('activityDetail.splits.tip')} />
             </div>
             <div className="split-toggle">
               {[1, 5, 10].map(km => (
@@ -1040,11 +1039,11 @@ export default function ActivityDetail() {
               <thead>
                 <tr>
                   <th scope="col">#</th>
-                  <th scope="col">Time</th>
-                  <th scope="col">Speed</th>
-                  {splits.some(s => s.avgHr) && <th scope="col">Avg HR</th>}
-                  {splits.some(s => s.avgCad) && <th scope="col">Avg Cad</th>}
-                  {splits.some(s => s.elevGain != null) && <th scope="col">Elev +</th>}
+                  <th scope="col">{t('activityDetail.splits.colTime')}</th>
+                  <th scope="col">{t('activityDetail.splits.colSpeed')}</th>
+                  {splits.some(s => s.avgHr) && <th scope="col">{t('activityDetail.splits.colAvgHr')}</th>}
+                  {splits.some(s => s.avgCad) && <th scope="col">{t('activityDetail.splits.colAvgCad')}</th>}
+                  {splits.some(s => s.elevGain != null) && <th scope="col">{t('activityDetail.splits.colElevGain')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1078,8 +1077,8 @@ export default function ActivityDetail() {
               onClick={() => setShowAllSplits(v => !v)}
             >
               {showAllSplits
-                ? 'Show less'
-                : `Show ${splits.length - SPLITS_PREVIEW} more splits`}
+                ? t('activityDetail.splits.showLess')
+                : t('activityDetail.splits.showMore', { count: splits.length - SPLITS_PREVIEW })}
             </button>
           )}
         </div>
@@ -1088,7 +1087,7 @@ export default function ActivityDetail() {
       {/* Best Efforts */}
       {efforts.length > 0 && (
         <div className="chart-section">
-          <div className="chart-title">Best Efforts <InfoTip text="Fastest time for each target distance using a sliding window across the whole ride. These are your personal bests for this session — compare across rides to track fitness gains." /></div>
+          <div className="chart-title">{t('activityDetail.bestEfforts.title')} <InfoTip text={t('activityDetail.bestEfforts.tip')} /></div>
           <div className="efforts-grid">
             {efforts.map(e => (
               <div key={e.label} className="effort-card">
@@ -1104,18 +1103,18 @@ export default function ActivityDetail() {
       {/* Laps */}
       {laps && laps.length > 0 && (
         <div className="chart-section">
-          <div className="chart-title">Laps</div>
+          <div className="chart-title">{t('activityDetail.laps.title')}</div>
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table className="table splits-table">
               <thead>
                 <tr>
-                  <th scope="col">Lap</th>
-                  <th scope="col">Distance</th>
-                  <th scope="col">Time</th>
-                  <th scope="col">Avg Speed</th>
-                  {laps.some(l => l.avg_hr) && <th scope="col">Avg HR</th>}
-                  {laps.some(l => l.avg_cadence) && <th scope="col">Avg Cad</th>}
-                  {laps.some(l => l.elevation_gain_m) && <th scope="col">Elev +</th>}
+                  <th scope="col">{t('activityDetail.laps.colLap')}</th>
+                  <th scope="col">{t('activityDetail.laps.colDistance')}</th>
+                  <th scope="col">{t('activityDetail.laps.colTime')}</th>
+                  <th scope="col">{t('activityDetail.laps.colAvgSpeed')}</th>
+                  {laps.some(l => l.avg_hr) && <th scope="col">{t('activityDetail.laps.colAvgHr')}</th>}
+                  {laps.some(l => l.avg_cadence) && <th scope="col">{t('activityDetail.laps.colAvgCad')}</th>}
+                  {laps.some(l => l.elevation_gain_m) && <th scope="col">{t('activityDetail.laps.colElevGain')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1151,16 +1150,16 @@ export default function ActivityDetail() {
       {/* Power Analysis — only shown when power data exists */}
       {hasPwr && (np || pwrZones || mmp.length > 0) && (
         <div className="chart-section">
-          <div className="chart-title">Power Analysis <InfoTip text="Advanced metrics from your power meter. NP (Normalized Power) is the physiological cost of the ride. IF (Intensity Factor) shows effort vs FTP. TSS is training load: <150 = overnight recovery, >300 = needs multiple easy days." /></div>
+          <div className="chart-title">{t('activityDetail.powerAnalysis.title')} <InfoTip text={t('activityDetail.powerAnalysis.tip')} /></div>
 
           {/* Key power metrics */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
             {[
-              np     && { label: 'Norm. Power', value: np,     unit: 'W',    color: 'var(--power)', hint: 'Coggan NP — physiological cost of variable effort' },
-              ifVal  && { label: 'Int. Factor',  value: ifVal,  unit: 'IF',   color: '#c084fc',      hint: '< 0.75 easy · 0.85 tempo · 1.0 threshold' },
-              tss    && { label: 'TSS',           value: tss,    unit: 'pts',  color: 'var(--cadence)',   hint: '< 150 recoverable · > 300 needs days off' },
-              wPerKg && { label: 'W / kg',        value: wPerKg, unit: 'w/kg', color: 'var(--elevation)', hint: 'Norm. power per kg bodyweight' },
-              eFtp   && { label: 'eFTP',           value: eFtp,  unit: 'W',    color: 'var(--power-model)',      hint: '95% of best 20-min power — estimated FTP' },
+              np     && { label: t('activityDetail.powerAnalysis.normPower'), value: np,     unit: 'W',    color: 'var(--power)', hint: t('activityDetail.powerAnalysis.normPowerHint') },
+              ifVal  && { label: t('activityDetail.powerAnalysis.intFactor'),  value: ifVal,  unit: 'IF',   color: '#c084fc',      hint: t('activityDetail.powerAnalysis.intFactorHint') },
+              tss    && { label: t('activityDetail.powerAnalysis.tss'),        value: tss,    unit: 'pts',  color: 'var(--cadence)',   hint: t('activityDetail.powerAnalysis.tssHint') },
+              wPerKg && { label: t('activityDetail.powerAnalysis.wPerKg'),     value: wPerKg, unit: 'w/kg', color: 'var(--elevation)', hint: t('activityDetail.powerAnalysis.wPerKgHint') },
+              eFtp   && { label: t('activityDetail.powerAnalysis.eFtp'),       value: eFtp,  unit: 'W',    color: 'var(--power-model)',      hint: t('activityDetail.powerAnalysis.eFtpHint') },
             ].filter(Boolean).map(({ label, value, unit, color, hint }) => (
               <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
@@ -1176,15 +1175,15 @@ export default function ActivityDetail() {
           {cpModel && (
             <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>Critical Power</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>{t('activityDetail.powerAnalysis.criticalPower')}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--power-model)', fontFamily: 'var(--font-display)' }}>{cpModel.cp} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>W</span></div>
               </div>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>W′ (Anaerobic reserve)</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>{t('activityDetail.powerAnalysis.wPrime')}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: '#c084fc', fontFamily: 'var(--font-display)' }}>{cpModel.wPrimeKj} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>kJ</span></div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, minWidth: 160, lineHeight: 1.5 }}>
-                CP = sustainable power indefinitely · W′ = anaerobic energy store depleted above CP. Fitted from 2–20 min MMP.
+                {t('activityDetail.powerAnalysis.cpDesc')}
               </div>
             </div>
           )}
@@ -1193,13 +1192,13 @@ export default function ActivityDetail() {
           {pwrZones && ftp && (
             <>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                Power zones based on FTP of <strong style={{ color: 'var(--text-primary)' }}>{ftp} W</strong>
+                {t('activityDetail.powerAnalysis.zonesBasedOnFtp')} <strong style={{ color: 'var(--text-primary)' }}>{ftp} W</strong>
               </div>
               <div className="hr-zones" style={{ marginBottom: 20 }}>
                 {pwrZones.map(z => (
                   <div key={z.label} className="hr-zone-row">
                     <div className="hr-zone-label" style={{ color: z.color }}>{z.label}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 120, flexShrink: 0 }}>{z.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 120, flexShrink: 0 }}>{t(`activityDetail.powerAnalysis.powerZone.${z.nameKey}`)}</div>
                     <div className="hr-zone-bar-wrap">
                       <div className="hr-zone-bar" style={{ transform: `scaleX(${z.pct / 100})`, background: z.color }} />
                     </div>
@@ -1214,8 +1213,8 @@ export default function ActivityDetail() {
           {mmp.length > 0 && (
             <>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                Mean Maximal Power (MMP) — best average power by duration
-                {!ftp && <span style={{ opacity: 0.6 }}> · Set FTP in Settings to see zones</span>}
+                {t('activityDetail.powerAnalysis.mmpTitle')}
+                {!ftp && <span style={{ opacity: 0.6 }}>{t('activityDetail.powerAnalysis.mmpSetFtp')}</span>}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
                 {mmp.map(({ label, secs, watts }) => {
@@ -1241,7 +1240,7 @@ export default function ActivityDetail() {
             <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Durability / Fatigue Resistance <InfoTip text="Compares your power output fresh (first 40% of kJ) vs fatigued (remaining). <5% drop = excellent — you hold power well when tired. Pros typically drop <10%, amateurs 15–25%. Score = 100 − (avg drop% × 4)." /></div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{t('activityDetail.powerAnalysis.durability.title')} <InfoTip text={t('activityDetail.powerAnalysis.durability.tip')} /></div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     Fresh MMP (first {durability.thresholdKj} kJ) vs Fatigued (after) — {durability.totalKj} kJ total work
                   </div>
@@ -1251,7 +1250,7 @@ export default function ActivityDetail() {
                     color: durability.score >= 80 ? 'var(--status-good)' : durability.score >= 60 ? 'var(--status-warn)' : 'var(--status-alert)' }}>
                     {durability.score}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>durability score / 100</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('activityDetail.powerAnalysis.durability.scoreLabel')}</div>
                 </div>
               </div>
 
@@ -1265,8 +1264,8 @@ export default function ActivityDetail() {
                     contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-bright)', borderRadius: 6, fontSize: 12 }}
                     formatter={(v, name) => [`${v} W`, name]}
                   />
-                  <Line type="monotone" dataKey="freshWatts"    stroke="var(--power)" strokeWidth={2} dot={false} name="Fresh" />
-                  <Line type="monotone" dataKey="fatiguedWatts" stroke="var(--heart)"  strokeWidth={2} dot={false} strokeDasharray="5 3" name="Fatigued" />
+                  <Line type="monotone" dataKey="freshWatts"    stroke="var(--power)" strokeWidth={2} dot={false} name={t('activityDetail.powerAnalysis.durability.freshLabel')} />
+                  <Line type="monotone" dataKey="fatiguedWatts" stroke="var(--heart)"  strokeWidth={2} dot={false} strokeDasharray="5 3" name={t('activityDetail.powerAnalysis.durability.fatiguedLabel')} />
                 </LineChart>
               </ResponsiveContainer>
 
@@ -1283,7 +1282,7 @@ export default function ActivityDetail() {
                 ))}
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
-                Avg drop: {durability.avgDrop}% · &lt;5% pro level · 15–25% typical amateur · score = 100 − (drop% × 4)
+                {t('activityDetail.powerAnalysis.durability.avgDrop', { pct: durability.avgDrop })}
               </div>
             </div>
           )}
@@ -1291,9 +1290,9 @@ export default function ActivityDetail() {
           {/* Power Quadrant */}
           {pwrQuadrant && (
             <div style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Power Quadrant Analysis <InfoTip text="Breaks riding time into 4 quadrants by cadence and torque. Aerobic Spin (high cad, low torque) = efficient pedaling. Strength (low cad, high torque) = climbing. Sprint Power = short max efforts. More time in Aerobic Spin = better cycling economy." /></div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{t('activityDetail.powerAnalysis.powerQuadrant.title')} <InfoTip text={t('activityDetail.powerAnalysis.powerQuadrant.tip')} /></div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
-                Cadence split: {pwrQuadrant.cadSplit} rpm · Torque split: {pwrQuadrant.medTorque} Nm (median)
+                {t('activityDetail.powerAnalysis.powerQuadrant.cadenceSplit', { rpm: pwrQuadrant.cadSplit, nm: pwrQuadrant.medTorque })}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 {pwrQuadrant.grid.map((row, ri) =>
@@ -1303,15 +1302,15 @@ export default function ActivityDetail() {
                       borderRadius: 10, padding: '14px 16px',
                     }}>
                       <div style={{ fontSize: 32, fontWeight: 900, color: q.color, fontFamily: 'var(--font-display)', lineHeight: 1 }}>{q.pct}%</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{q.label}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{q.sub}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{t(`activityDetail.powerAnalysis.powerQuadrant.${q.labelKey}`)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{t(`activityDetail.powerAnalysis.powerQuadrant.${q.subKey}`)}</div>
                     </div>
                   ))
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
-                <span>↑ High torque</span><span>·</span>
-                <span>→ High cadence ({pwrQuadrant.cadSplit}+ rpm)</span>
+                <span>{t('activityDetail.powerAnalysis.powerQuadrant.highTorque')}</span><span>·</span>
+                <span>{t('activityDetail.powerAnalysis.powerQuadrant.highCadence', { rpm: pwrQuadrant.cadSplit })}</span>
               </div>
             </div>
           )}
@@ -1319,7 +1318,7 @@ export default function ActivityDetail() {
           {/* Nudge to set FTP if missing */}
           {!ftp && (
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
-              Set your FTP in <strong style={{ color: 'var(--text-primary)' }}>Settings → Fitness Profile</strong> to unlock power zones, TSS, and intensity factor.
+              {t('activityDetail.powerAnalysis.noFtpNudge')}
             </div>
           )}
         </div>
@@ -1341,19 +1340,19 @@ export default function ActivityDetail() {
         const qualityColor = quality === 'high' ? S_GOOD : quality === 'medium' ? S_WARN : 'var(--text-muted)'
 
         const infoText = adjVal != null
-          ? 'Adjusted Decoupling measures genuine aerobic drift by looking only at flat terrain segments and subtracting expected drift from heat and dehydration. <5% = good aerobic efficiency. The raw value is what the numbers show before corrections.'
-          : 'HR Decoupling: how much your heart rate drifts up relative to pace across the ride. Below 5% = good aerobic base. Above 5% = fatigue, heat, or went too hard. VAM: your average climbing speed in m/h — 800 = solid endurance, 1500+ = pro climber.'
+          ? t('activityDetail.aerobicMetrics.tipAdj')
+          : t('activityDetail.aerobicMetrics.tipRaw')
 
         return (
           <div className="chart-section">
-            <div className="chart-title">Aerobic Metrics <InfoTip text={infoText} /></div>
+            <div className="chart-title">{t('activityDetail.aerobicMetrics.title')} <InfoTip text={infoText} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
 
               {/* Adjusted decoupling card — preferred over raw */}
               {adjVal != null ? (
                 <div style={{ background: 'var(--bg-secondary)', border: `1px solid color-mix(in srgb, ${adjColor} 25%, transparent)`, borderRadius: 10, padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Adjusted Decoupling</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{t('activityDetail.aerobicMetrics.adjustedDecoupling')}</div>
                     {quality && (
                       <span style={{ marginLeft: 'auto', padding: '1px 7px', borderRadius: 8, fontSize: 9, fontWeight: 700, background: `color-mix(in srgb, ${qualityColor} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${qualityColor} 28%, transparent)`, color: qualityColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         {quality}
@@ -1364,21 +1363,21 @@ export default function ActivityDetail() {
                     {adjVal > 0 ? '+' : ''}{adjVal.toFixed(1)}%
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {components?.category ?? (adjVal < 5 ? 'Good aerobic efficiency' : adjVal < 8 ? 'Moderate drift' : 'Significant drift')}
-                    {' · '}&lt;5% = well-conditioned
+                    {components?.category ?? (adjVal < 5 ? t('activityDetail.aerobicMetrics.goodAerobic') : adjVal < 8 ? t('activityDetail.aerobicMetrics.moderateDrift') : t('activityDetail.aerobicMetrics.significantDrift'))}
+                    {' · '}{t('activityDetail.aerobicMetrics.wellConditioned')}
                   </div>
                   {/* Correction breakdown */}
                   {components && (
                     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Raw drift</span>
+                        <span>{t('activityDetail.aerobicMetrics.rawDrift')}</span>
                         <span style={{ fontFamily: 'var(--font-display)', color: 'var(--text-secondary)' }}>
                           {rawVal != null ? `${rawVal > 0 ? '+' : ''}${rawVal.toFixed(1)}%` : '—'}
                         </span>
                       </div>
                       {components.expected_heat_drift_pct > 0 && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>− Heat drift</span>
+                          <span>{t('activityDetail.aerobicMetrics.heatDrift')}</span>
                           <span style={{ fontFamily: 'var(--font-display)', color: 'var(--warning)' }}>
                             {components.expected_heat_drift_pct.toFixed(1)}%
                           </span>
@@ -1386,7 +1385,7 @@ export default function ActivityDetail() {
                       )}
                       {components.expected_hydration_drift_pct > 0 && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>− Hydration drift</span>
+                          <span>{t('activityDetail.aerobicMetrics.hydrationDrift')}</span>
                           <span style={{ fontFamily: 'var(--font-display)', color: 'oklch(65% 0.10 235)' }}>
                             {components.expected_hydration_drift_pct.toFixed(1)}%
                           </span>
@@ -1394,7 +1393,7 @@ export default function ActivityDetail() {
                       )}
                       {components.flat_minutes_analyzed != null && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {components.flat_minutes_analyzed} min flat terrain analyzed
+                          {t('activityDetail.aerobicMetrics.flatMinutes', { min: components.flat_minutes_analyzed })}
                         </div>
                       )}
                     </div>
@@ -1407,13 +1406,13 @@ export default function ActivityDetail() {
                 </div>
               ) : hrDecoupling ? (
                 <div style={{ background: 'var(--bg-secondary)', border: `1px solid color-mix(in srgb, ${hrDecoupling.aerobic ? 'var(--status-good)' : 'var(--status-alert)'} 25%, transparent)`, borderRadius: 10, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{hrDecoupling.label} Decoupling</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{hrDecoupling.label} {t('activityDetail.aerobicMetrics.decoupling')}</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: hrDecoupling.aerobic ? 'var(--status-good)' : 'var(--status-alert)', fontFamily: 'var(--font-display)' }}>
                     {hrDecoupling.pct > 0 ? '+' : ''}{hrDecoupling.pct}%
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {hrDecoupling.aerobic ? 'Good aerobic efficiency' : 'Aerobic drift — fatigue or underfuelled'}
-                    {' · '}&lt;5% = well-conditioned
+                    {hrDecoupling.aerobic ? t('activityDetail.aerobicMetrics.goodAerobic') : t('activityDetail.aerobicMetrics.aerobicDrift')}
+                    {' · '}{t('activityDetail.aerobicMetrics.wellConditioned')}
                   </div>
                 </div>
               ) : null}
@@ -1425,7 +1424,7 @@ export default function ActivityDetail() {
                     {vam.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)' }}>m/h</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Climbing rate on ascending segments · 800 endurance · 1500+ pro climber
+                    {t('activityDetail.aerobicMetrics.vamDesc')}
                   </div>
                 </div>
               )}
@@ -1437,14 +1436,14 @@ export default function ActivityDetail() {
       {/* HR Zones */}
       {hrZones && (
         <div className="chart-section">
-          <div className="chart-title">Heart Rate Zones <InfoTip text="Time in each HR zone based on your max HR. Z1–Z2 (60–70%) = aerobic base. Z3 (70–80%) = tempo. Z4–Z5 (80–100%) = high intensity. For endurance improvement, aim for 80%+ of your training time in Z1–Z2." /></div>
+          <div className="chart-title">{t('activityDetail.hrZones.title')} <InfoTip text={t('activityDetail.hrZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
-            Based on max HR of {Math.round(activity.max_heart_rate_bpm)} bpm
+            {t('activityDetail.hrZones.basedOnMaxHr', { bpm: Math.round(activity.max_heart_rate_bpm) })}
           </p>
           <div className="hr-zones">
             {hrZones.map(z => (
-              <div key={z.label} className="hr-zone-row">
-                <div className="hr-zone-label" style={{ color: z.color }}>{z.label}</div>
+              <div key={z.key} className="hr-zone-row">
+                <div className="hr-zone-label" style={{ color: z.color }}>{t(`activityDetail.hrZones.${z.key}`)}</div>
                 <div className="hr-zone-bar-wrap">
                   <div className="hr-zone-bar" style={{ transform: `scaleX(${z.pct / 100})`, background: z.color }} />
                 </div>
@@ -1458,14 +1457,14 @@ export default function ActivityDetail() {
       {/* Cadence Zones */}
       {cadZones && (
         <div className="chart-section">
-          <div className="chart-title">Cadence Zones <InfoTip text="Distribution of cadence across the ride. Optimal zone (75–90 rpm) = efficient pedaling with balanced cardiovascular and muscular load. Most time here = good technique. More time in Very Low (<60 rpm) suggests you may be grinding gears." /></div>
+          <div className="chart-title">{t('activityDetail.cadenceZones.title')} <InfoTip text={t('activityDetail.cadenceZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
-            Optimal zone: 75–90 rpm · Avg: {Math.round(activity.avg_cadence_rpm)} rpm
+            {t('activityDetail.cadenceZones.optimalRange', { avg: Math.round(activity.avg_cadence_rpm) })}
           </p>
           <div className="hr-zones">
             {cadZones.map(z => (
-              <div key={z.label} className="hr-zone-row">
-                <div className="hr-zone-label" style={{ color: z.color }}>{z.label}</div>
+              <div key={z.key} className="hr-zone-row">
+                <div className="hr-zone-label" style={{ color: z.color }}>{t(`activityDetail.cadenceZones.${z.key}`)}</div>
                 <div className="hr-zone-bar-wrap">
                   <div className="hr-zone-bar" style={{ transform: `scaleX(${z.pct / 100})`, background: z.color }} />
                 </div>
@@ -1499,56 +1498,56 @@ export default function ActivityDetail() {
           <div className="chart-section">
             <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Droplets size={14} style={{ color: 'var(--text-secondary)' }} />
-              Hydration &amp; Heat Analysis
-              <InfoTip text="Estimates your sweat loss and fluid needs based on ride sensor data, conditions, and intensity. Log your intake to see your deficit and personalised recommendations." />
+              {t('activityDetail.hydration.title')}
+              <InfoTip text={t('activityDetail.hydration.tip')} />
               <span style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: `color-mix(in srgb, ${riskColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${riskColor} 35%, transparent)`, color: riskColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {hydration.risk_level} risk
+                {t('activityDetail.hydration.riskLabel', { level: hydration.risk_level })}
               </span>
             </div>
 
             {/* Primary metrics */}
             <div style={{ display: 'flex', gap: 32, marginBottom: 16, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Est. Sweat Loss</div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>{t('activityDetail.hydration.estSweatLoss')}</div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: S_WARN, lineHeight: 1 }}>{sweatL} L</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>~{Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{t('activityDetail.hydration.sweatRate', { rate: Math.round(hydration.estimated_sweat_rate_ml_h) })}</div>
                 {isCalibrated && hydration.population_sweat_rate_ml_h && (
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Generic model: ~{Math.round(hydration.population_sweat_rate_ml_h)} ml/h
+                    {t('activityDetail.hydration.genericModel', { rate: Math.round(hydration.population_sweat_rate_ml_h) })}
                   </div>
                 )}
               </div>
               {intakeL != null && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Fluid Intake</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>{t('activityDetail.hydration.fluidIntake')}</div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: S_GOOD, lineHeight: 1 }}>{intakeL} L</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>Logged</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{t('activityDetail.hydration.logged')}</div>
                 </div>
               )}
               {deficitL != null && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Deficit</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>{t('activityDetail.hydration.deficit')}</div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: riskColor, lineHeight: 1 }}>{deficitL} L</div>
-                  {hydration.deficit_body_pct != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{hydration.deficit_body_pct}% body wt</div>}
+                  {hydration.deficit_body_pct != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{t('activityDetail.hydration.deficitBodyPct', { pct: hydration.deficit_body_pct })}</div>}
                 </div>
               )}
             </div>
 
             {/* Secondary conditions row */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              <span>Target: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{targetMlH} ml/h</strong></span>
+              <span>{t('activityDetail.hydration.target')} <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{targetMlH} ml/h</strong></span>
               {hydration.humidity_pct != null && (
                 <span>
-                  Conditions: <strong style={{ color: 'var(--text-primary)' }}>
+                  {t('activityDetail.hydration.conditions')} <strong style={{ color: 'var(--text-primary)' }}>
                     {hydration.avg_temperature_c}°C
-                    {hasWindCooling && <span style={{ color: 'var(--text-muted)' }}> → {hydration.effective_temp_c}°C felt</span>}
+                    {hasWindCooling && <span style={{ color: 'var(--text-muted)' }}> {t('activityDetail.hydration.windCoolingFelt', { temp: hydration.effective_temp_c })}</span>}
                     {' · '}{hydration.humidity_pct}% RH
                   </strong>
                 </span>
               )}
               <span>
-                Model: <strong style={{ color: isCalibrated ? S_GOOD : 'var(--text-muted)' }}>
-                  {isCalibrated ? 'Personal' : 'Population'}
+                {t('activityDetail.hydration.model')} <strong style={{ color: isCalibrated ? S_GOOD : 'var(--text-muted)' }}>
+                  {isCalibrated ? t('activityDetail.hydration.personal') : t('activityDetail.hydration.population')}
                 </strong>
               </span>
             </div>
@@ -1559,47 +1558,47 @@ export default function ActivityDetail() {
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, padding: '4px 0', marginBottom: showSources ? 8 : 12, letterSpacing: '0.04em' }}
             >
               {showSources ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              How this was calculated
+              {t('activityDetail.hydration.howCalculated')}
             </button>
             {showSources && (
               <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.7 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 2 }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Temperature</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('activityDetail.hydration.sourceTemp')}</span>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    {hydration.avg_temperature_c}°C raw
-                    {hasWindCooling && ` → ${hydration.effective_temp_c}°C effective (−${hydration.wind_cooling_c}°C wind cooling from outdoor airflow)`}
+                    {t('activityDetail.hydration.sourceTempValue', { raw: hydration.avg_temperature_c })}
+                    {hasWindCooling && t('activityDetail.hydration.sourceTempWind', { eff: hydration.effective_temp_c, cooling: hydration.wind_cooling_c })}
                   </span>
 
                   {hydration.wind_speed_kmh != null && (
                     <>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Wind</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{hydration.wind_speed_kmh} km/h + ~20 km/h self-generated from cycling speed</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('activityDetail.hydration.sourceWind')}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{t('activityDetail.hydration.sourceWindValue', { speed: hydration.wind_speed_kmh })}</span>
                     </>
                   )}
 
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Sweat model</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('activityDetail.hydration.sourceSweatModel')}</span>
                   <span style={{ color: 'var(--text-secondary)' }}>
                     {isCalibrated
-                      ? `Personal calibration (${Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h) — from your sweat test, scaled by conditions above 20°C / 55% RH`
-                      : `Population average (${Math.round(hydration.estimated_sweat_rate_ml_h)} ml/h) — add a sweat test in Settings for a personalised rate`
+                      ? t('activityDetail.hydration.sourceSweatCalibrated', { rate: Math.round(hydration.estimated_sweat_rate_ml_h) })
+                      : t('activityDetail.hydration.sourceSweatPopulation', { rate: Math.round(hydration.estimated_sweat_rate_ml_h) })
                     }
                   </span>
 
                   {isCalibrated && hydration.population_sweat_rate_ml_h && (
                     <>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Reference</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('activityDetail.hydration.sourceReference')}</span>
                       <span style={{ color: 'var(--text-secondary)' }}>
-                        Generic model would estimate ~{Math.round(hydration.population_sweat_rate_ml_h)} ml/h for these conditions.
+                        {t('activityDetail.hydration.sourceReferenceValue', { rate: Math.round(hydration.population_sweat_rate_ml_h) })}
                         {Math.abs(hydration.estimated_sweat_rate_ml_h - hydration.population_sweat_rate_ml_h) > 300 &&
-                          ' Large gap vs generic model — if this feels wrong, check your sweat-test inputs in Settings.'}
+                          t('activityDetail.hydration.sourceReferenceLargeGap')}
                       </span>
                     </>
                   )}
 
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Quality</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('activityDetail.hydration.sourceQuality')}</span>
                   <span style={{ color: qualColor[hydration.analysis_quality] ?? 'var(--text-muted)' }}>
                     {hydration.analysis_quality.charAt(0).toUpperCase() + hydration.analysis_quality.slice(1)}
-                    {!isCalibrated && hydration.analysis_quality !== 'high' && ' — run a sweat test for High confidence'}
+                    {!isCalibrated && hydration.analysis_quality !== 'high' && t('activityDetail.hydration.noSweatTestNote')}
                   </span>
                 </div>
               </div>
@@ -1610,17 +1609,17 @@ export default function ActivityDetail() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                 {hydration.estimated_hr_drift_heat_bpm > 0 && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    HR drift from heat <strong style={{ color: 'var(--status-warn)', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
+                    {t('activityDetail.hydration.hrDriftHeat')} <strong style={{ color: 'var(--status-warn)', fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_heat_bpm} bpm</strong>
                   </div>
                 )}
                 {hydration.estimated_hr_drift_dehydration_bpm != null && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    HR drift from dehydration <strong style={{ color: riskColor, fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_dehydration_bpm} bpm</strong>
+                    {t('activityDetail.hydration.hrDriftDehydration')} <strong style={{ color: riskColor, fontFamily: 'var(--font-display)' }}>+{hydration.estimated_hr_drift_dehydration_bpm} bpm</strong>
                   </div>
                 )}
                 {hydration.estimated_performance_loss_pct != null && hydration.estimated_performance_loss_pct > 0 && (
                   <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Est. performance impact <strong style={{ color: 'var(--status-critical)', fontFamily: 'var(--font-display)' }}>−{hydration.estimated_performance_loss_pct}%</strong>
+                    {t('activityDetail.hydration.performanceImpact')} <strong style={{ color: 'var(--status-critical)', fontFamily: 'var(--font-display)' }}>−{hydration.estimated_performance_loss_pct}%</strong>
                   </div>
                 )}
               </div>
@@ -1629,21 +1628,21 @@ export default function ActivityDetail() {
             {/* Log intake */}
             <div style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                {hydration.reported_intake_ml != null ? 'Update your fluid intake' : 'Log your fluid intake for this ride'}
+                {hydration.reported_intake_ml != null ? t('activityDetail.hydration.logIntakeUpdate') : t('activityDetail.hydration.logIntakeNew')}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="number" min={0} max={20000} step={50}
                   value={intakeInput}
                   onChange={e => setIntakeInput(e.target.value)}
-                  placeholder="e.g. 800"
-                  aria-label="Fluid intake in ml"
+                  placeholder={t('activityDetail.hydration.intakePlaceholder')}
+                  aria-label={t('activityDetail.hydration.intakeAriaLabel')}
                   className="filter-input"
                   style={{ width: 110, padding: '6px 10px', fontSize: 13 }}
                 />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ml</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('activityDetail.hydration.intakeMl')}</span>
                 <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleLogIntake} disabled={intakeSaving}>
-                  {intakeSaving ? 'Saving…' : 'Save'}
+                  {intakeSaving ? t('activityDetail.hydration.savingIntake') : t('activityDetail.hydration.saveIntake')}
                 </button>
                 {intakeMsg && <span style={{ fontSize: 12, color: intakeMsg === 'Saved.' ? 'var(--status-good)' : 'var(--status-alert)' }}>{intakeMsg}</span>}
               </div>
@@ -1652,7 +1651,7 @@ export default function ActivityDetail() {
             {/* Recommendations */}
             {recs.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Recommendations</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('activityDetail.hydration.recommendations')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {recs.map((rec, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, padding: '7px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -1671,22 +1670,26 @@ export default function ActivityDetail() {
       {(() => {
         const DUR_COLORS = { excellent: 'var(--status-good)', good: 'oklch(65% 0.10 235)', moderate: 'var(--status-warn)', poor: 'var(--status-alert)', very_poor: 'var(--status-critical)' }
         const catColor = durabilityData?.durability_category ? (DUR_COLORS[durabilityData.durability_category] ?? 'var(--text-primary)') : 'var(--text-muted)'
-        const methodLabel = { power: 'Power meter', hr_speed: 'HR + Speed proxy', climbing_power: 'Estimated climbing power' }
+        const methodLabel = {
+          power: t('activityDetail.durabilityIndex.method.power'),
+          hr_speed: t('activityDetail.durabilityIndex.method.hr_speed'),
+          climbing_power: t('activityDetail.durabilityIndex.method.climbing_power'),
+        }
 
         if (durabilityLoading) return (
           <div className="chart-section">
-            <div className="chart-title">Durability Index</div>
+            <div className="chart-title">{t('activityDetail.durabilityIndex.title')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
-              <div className="spinner" style={{ width: 16, height: 16 }} /> Analysing…
+              <div className="spinner" style={{ width: 16, height: 16 }} /> {t('activityDetail.durabilityIndex.analysing')}
             </div>
           </div>
         )
 
         if (!durabilityData) return (
           <div className="chart-section">
-            <div className="chart-title">Durability Index</div>
+            <div className="chart-title">{t('activityDetail.durabilityIndex.title')}</div>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              Not available — ride too short or missing HR / speed data.
+              {t('activityDetail.durabilityIndex.notAvailable')}
             </p>
           </div>
         )
@@ -1704,7 +1707,7 @@ export default function ActivityDetail() {
           <div className="chart-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <div className="chart-title" style={{ marginBottom: 0 }}>Durability Index</div>
+                <div className="chart-title" style={{ marginBottom: 0 }}>{t('activityDetail.durabilityIndex.title')}</div>
                 {durabilityData.durability_category && (
                   <span style={{ fontSize: 11, fontWeight: 600, color: catColor, textTransform: 'capitalize', paddingBottom: 1 }}>
                     {durabilityData.durability_category.replace('_', ' ')}
@@ -1718,7 +1721,7 @@ export default function ActivityDetail() {
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
                 {durabilityData.quality && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', marginLeft: 6 }}>
-                    {durabilityData.quality === 'good' ? 'Good quality' : durabilityData.quality === 'fair' ? 'Fair' : durabilityData.quality}
+                    {durabilityData.quality === 'good' ? t('activityDetail.durabilityIndex.qualityGood') : durabilityData.quality === 'fair' ? t('activityDetail.durabilityIndex.qualityFair') : durabilityData.quality}
                   </span>
                 )}
               </div>
@@ -1728,7 +1731,7 @@ export default function ActivityDetail() {
             {quarters.length === 4 && (
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  Output per quarter ({unit}) — lower Q4 = more fatigue
+                  {t('activityDetail.durabilityIndex.outputPerQuarter', { unit })}
                 </div>
                 <ResponsiveContainer width="100%" height={120}>
                   <BarChart data={quarters} barCategoryGap="30%">
@@ -1756,18 +1759,18 @@ export default function ActivityDetail() {
             {/* Context row */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
               {durabilityData.fade_rate_pct_per_hour != null && (
-                <span>Fade rate: <strong style={{ color: durabilityData.fade_rate_pct_per_hour > 10 ? 'var(--warning)' : 'var(--text-primary)' }}>{durabilityData.fade_rate_pct_per_hour.toFixed(1)}%/h</strong></span>
+                <span>{t('activityDetail.durabilityIndex.fadeRate')} <strong style={{ color: durabilityData.fade_rate_pct_per_hour > 10 ? 'var(--warning)' : 'var(--text-primary)' }}>{durabilityData.fade_rate_pct_per_hour.toFixed(1)}%/h</strong></span>
               )}
               {durabilityData.total_work_kj != null && (
-                <span>Work: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(durabilityData.total_work_kj)} kJ</strong></span>
+                <span>{t('activityDetail.durabilityIndex.work')} <strong style={{ color: 'var(--text-primary)' }}>{Math.round(durabilityData.total_work_kj)} kJ</strong></span>
               )}
               {durabilityData.tsb_at_start != null && (
-                <span>TSB at start: <strong style={{ color: durabilityData.tsb_at_start >= 5 ? 'var(--status-good)' : durabilityData.tsb_at_start <= -20 ? 'var(--status-critical)' : 'var(--text-primary)' }}>{durabilityData.tsb_at_start > 0 ? '+' : ''}{durabilityData.tsb_at_start.toFixed(0)}</strong></span>
+                <span>{t('activityDetail.durabilityIndex.tsbAtStart')} <strong style={{ color: durabilityData.tsb_at_start >= 5 ? 'var(--status-good)' : durabilityData.tsb_at_start <= -20 ? 'var(--status-critical)' : 'var(--text-primary)' }}>{durabilityData.tsb_at_start > 0 ? '+' : ''}{durabilityData.tsb_at_start.toFixed(0)}</strong></span>
               )}
               {durabilityData.temperature_avg_c != null && (
-                <span>Avg temp: <strong style={{ color: 'var(--text-primary)' }}>{durabilityData.temperature_avg_c.toFixed(0)}°C</strong></span>
+                <span>{t('activityDetail.durabilityIndex.avgTemp')} <strong style={{ color: 'var(--text-primary)' }}>{durabilityData.temperature_avg_c.toFixed(0)}°C</strong></span>
               )}
-              <span style={{ color: 'var(--text-muted)' }}>via {methodLabel[durabilityData.method] ?? durabilityData.method}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('activityDetail.durabilityIndex.via')} {methodLabel[durabilityData.method] ?? durabilityData.method}</span>
             </div>
 
             {durabilityData.quality_reason && (
@@ -1782,7 +1785,7 @@ export default function ActivityDetail() {
       {/* Segments */}
       {segmentEfforts.length > 0 && (
         <div className="chart-section">
-          <div className="chart-title">Segments</div>
+          <div className="chart-title">{t('activityDetail.segments.title')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
             {segmentEfforts.map(e => {
               const s = Math.round(e.elapsed_seconds)
@@ -1809,17 +1812,17 @@ export default function ActivityDetail() {
         <div className="chart-section">
           <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
-            Climbs Detected
+            {t('activityDetail.climbs.title')}
             {climbs.length > 0 && (
               <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
-                {climbs.length} climb{climbs.length !== 1 ? 's' : ''}
+                {t('activityDetail.climbs.count', { count: climbs.length })}
               </span>
             )}
           </div>
 
           {!weightKg && (
             <div style={{ padding: '10px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)', fontSize: 13, color: 'var(--text-secondary)', marginBottom: climbs.length ? 14 : 0 }}>
-              Add your weight in <a href="/settings" style={{ color: 'var(--accent)' }}>Settings</a> to see estimated power for climbs.
+              {t('activityDetail.climbs.addWeightPrompt')} <a href="/settings" style={{ color: 'var(--accent)' }}>{t('activityDetail.climbs.addWeightSettings')}</a> {t('activityDetail.climbs.addWeightSuffix')}
             </div>
           )}
 
@@ -1828,7 +1831,7 @@ export default function ActivityDetail() {
               {climbs.map((c, i) => {
                 const expanded = expandedClimb === c.id
                 const qColor = c.estimation_quality === 'high' ? 'var(--status-good)' : c.estimation_quality === 'medium' ? 'var(--status-warn)' : 'var(--status-alert)'
-                const pacingLabel = c.pacing_type === 'negative' ? 'Negative split ✓' : c.pacing_type === 'positive' ? 'Positive split (started too fast)' : c.pacing_type === 'even' ? 'Even split' : null
+                const pacingLabel = c.pacing_type === 'negative' ? t('activityDetail.climbs.pacingNegative') : c.pacing_type === 'positive' ? t('activityDetail.climbs.pacingPositive') : c.pacing_type === 'even' ? t('activityDetail.climbs.pacingEven') : null
                 const mins = Math.floor((c.duration_seconds || 0) / 60)
                 const secs = (c.duration_seconds || 0) % 60
                 return (
@@ -1842,7 +1845,7 @@ export default function ActivityDetail() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>Climb {i + 1}</span>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>{t('activityDetail.climbs.climbLabel', { num: i + 1 })}</span>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{((c.distance_m || 0) / 1000).toFixed(1)} km</span>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{(c.avg_gradient_pct || 0).toFixed(1)}% avg</span>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{mins}:{String(secs).padStart(2, '0')}</span>
@@ -1882,34 +1885,34 @@ export default function ActivityDetail() {
                     {expanded && (
                       <div id={`climb-detail-${c.id}`} style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Elevation Gain</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.elevationGain')}</div>
                           <div style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{Math.round(c.elevation_gain_m || 0)} m</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Max Gradient</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.maxGradient')}</div>
                           <div style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{(c.max_gradient_pct || 0).toFixed(1)}%</div>
                         </div>
                         {c.avg_speed_kmh != null && (
                           <div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Avg Speed</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.avgSpeed')}</div>
                             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--speed)' }}>{c.avg_speed_kmh.toFixed(1)} km/h</div>
                           </div>
                         )}
                         {c.avg_heart_rate != null && (
                           <div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Avg HR</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.avgHr')}</div>
                             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--heart)' }}>{c.avg_heart_rate} bpm</div>
                           </div>
                         )}
                         {c.max_heart_rate != null && (
                           <div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Max HR</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.maxHr')}</div>
                             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--heart)' }}>{c.max_heart_rate} bpm</div>
                           </div>
                         )}
                         {pacingLabel && (
                           <div style={{ gridColumn: '1 / -1' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Pacing</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('activityDetail.climbs.pacing')}</div>
                             <div style={{ fontSize: 13, color: c.pacing_type === 'negative' ? 'var(--status-good)' : c.pacing_type === 'positive' ? 'var(--status-alert)' : 'var(--text-secondary)' }}>
                               {pacingLabel}
                             </div>
@@ -1917,7 +1920,7 @@ export default function ActivityDetail() {
                         )}
                         {c.estimation_method && (
                           <div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--text-muted)', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
-                            Power estimated via physics model{c.estimation_method === 'calibrated' ? ' (calibrated)' : ''}. Not measured data.
+                            {c.estimation_method === 'calibrated' ? t('activityDetail.climbs.powerEstimatedCalibrated') : t('activityDetail.climbs.powerEstimated')}. {t('activityDetail.climbs.notMeasured')}
                             {' '}Climb ID: <code style={{ fontFamily: 'monospace', background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: 3 }}>{c.id}</code>
                           </div>
                         )}
@@ -1936,17 +1939,17 @@ export default function ActivityDetail() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div className="chart-title" style={{ marginBottom: 0 }}>
             <Sparkles size={14} style={{ display: 'inline', marginRight: 6, color: 'var(--accent)' }} />
-            AI Ride Analysis
+            {t('activityDetail.aiAnalysis.title')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {analysis && (
               <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={handleClearAnalysis}>
-                <RefreshCw size={12} /> Regenerate
+                <RefreshCw size={12} /> {t('activityDetail.aiAnalysis.regenerate')}
               </button>
             )}
             {!analysis && !analysisLoading && (
               <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={handleAnalyse}>
-                <Sparkles size={13} /> Analyse Ride
+                <Sparkles size={13} /> {t('activityDetail.aiAnalysis.analyseRide')}
               </button>
             )}
           </div>
@@ -1955,7 +1958,7 @@ export default function ActivityDetail() {
         {analysisLoading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
             <div className="spinner" style={{ width: 16, height: 16 }} />
-            Generating analysis…
+            {t('activityDetail.aiAnalysis.generating')}
           </div>
         )}
 
@@ -1969,23 +1972,23 @@ export default function ActivityDetail() {
 
         {!analysis && !analysisLoading && !analysisError && (
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            Click "Analyse Ride" to get a coach-style breakdown of this ride.
+            {t('activityDetail.aiAnalysis.prompt')}
           </p>
         )}
       </div>
 
       {/* Notes */}
       <div className="chart-section">
-        <div className="chart-title">Notes</div>
+        <div className="chart-title">{t('activityDetail.notes.title')}</div>
         <textarea
           className="notes-textarea"
-          placeholder="Add notes about this ride…"
+          placeholder={t('activityDetail.notes.placeholder')}
           value={notes}
           onChange={e => handleNotesChange(e.target.value)}
           rows={4}
         />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-          Auto-saved · Notes are scanned by AI for prohibited content (hate speech, harassment). See our <a href="/privacy" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>Privacy Policy</a>.
+          {t('activityDetail.notes.autoSaved')} <a href="/privacy" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>{t('activityDetail.notes.privacyPolicy')}</a>.
         </div>
       </div>
     </div>
