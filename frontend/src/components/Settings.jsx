@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, resetSweatRate, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor, calibratePower, resetPowerCalibration } from '../services/api'
@@ -23,24 +24,24 @@ const TIER_RANK = { free: 0, pro: 1, annual: 2, lifetime: 3 }
 
 const STRAVA_COLOR = '#FC4C02'
 
-const TIER_FEATURES = {
-  free:     ['Unlimited activity uploads', 'Basic stats & charts', 'Segment tracking', 'Personal records & goals'],
-  pro:      ['Unlimited activities', 'AI ride analysis', '3 AI training plans / month', 'CSV & GPX export', 'Segment tracking & records'],
-  annual:   ['Everything in Pro', 'Early access to new features', 'Best value: save 42%'],
-  lifetime: ['Everything in Pro & Annual', 'All future features included', 'Never pay again'],
+const TIER_FEATURES_KEYS = {
+  free:     ['tierFeatures.free.0', 'tierFeatures.free.1', 'tierFeatures.free.2', 'tierFeatures.free.3'],
+  pro:      ['tierFeatures.pro.0', 'tierFeatures.pro.1', 'tierFeatures.pro.2', 'tierFeatures.pro.3', 'tierFeatures.pro.4'],
+  annual:   ['tierFeatures.annual.0', 'tierFeatures.annual.1', 'tierFeatures.annual.2'],
+  lifetime: ['tierFeatures.lifetime.0', 'tierFeatures.lifetime.1', 'tierFeatures.lifetime.2'],
 }
 
 const UPGRADE_PLANS = [
-  { tier: 'pro',    label: 'Pro',    price: '€7 / month', features: TIER_FEATURES.pro },
-  { tier: 'annual', label: 'Annual', price: '€49 / year', sub: 'Save 42%', features: TIER_FEATURES.annual },
+  { tier: 'pro',    labelKey: 'Pro',    price: '€7 / month', featuresKeys: TIER_FEATURES_KEYS.pro },
+  { tier: 'annual', labelKey: 'Annual', price: '€49 / year', subKey: 'Save 42%', featuresKeys: TIER_FEATURES_KEYS.annual },
 ]
 
 const HR_ZONES = [
-  { label: 'Z1', name: 'Recovery',  range: [0,    0.60], color: 'oklch(54% 0.12 264)', desc: 'Very light: warm-up, cool-down, active recovery.' },
-  { label: 'Z2', name: 'Endurance', range: [0.60, 0.70], color: 'oklch(58% 0.15 142)', desc: 'Comfortable aerobic effort. Builds base fitness.' },
-  { label: 'Z3', name: 'Tempo',     range: [0.70, 0.80], color: 'oklch(68% 0.14 88)',  desc: 'Moderately hard. Improves lactate threshold.' },
-  { label: 'Z4', name: 'Threshold', range: [0.80, 0.90], color: 'oklch(60% 0.15 38)',  desc: 'Hard. Speed endurance. Sustainable ~20 min.' },
-  { label: 'Z5', name: 'VO2 Max',   range: [0.90, 1.00], color: 'oklch(52% 0.14 20)',  desc: 'Maximum effort. Peak power. Short intervals only.' },
+  { label: 'Z1', nameKey: 'hrZones.z1Name', range: [0,    0.60], color: 'oklch(54% 0.12 264)', descKey: 'hrZones.z1Desc' },
+  { label: 'Z2', nameKey: 'hrZones.z2Name', range: [0.60, 0.70], color: 'oklch(58% 0.15 142)', descKey: 'hrZones.z2Desc' },
+  { label: 'Z3', nameKey: 'hrZones.z3Name', range: [0.70, 0.80], color: 'oklch(68% 0.14 88)',  descKey: 'hrZones.z3Desc' },
+  { label: 'Z4', nameKey: 'hrZones.z4Name', range: [0.80, 0.90], color: 'oklch(60% 0.15 38)',  descKey: 'hrZones.z4Desc' },
+  { label: 'Z5', nameKey: 'hrZones.z5Name', range: [0.90, 1.00], color: 'oklch(52% 0.14 20)',  descKey: 'hrZones.z5Desc' },
 ]
 
 // â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -107,6 +108,7 @@ function CollapsibleRow({ icon: Icon, label, open, onToggle, children, id }) {
 // â"€â"€ Main â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 export default function Settings() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const justUpgraded   = searchParams.get('upgraded') === '1'
 
@@ -255,19 +257,19 @@ export default function Settings() {
     setSweatMsg('')
     const before = parseFloat(sweatBefore), after = parseFloat(sweatAfter)
     const intake = parseInt(sweatIntake, 10), dur = parseFloat(sweatDuration)
-    if (isNaN(before) || before <= 0) { setSweatMsg('Enter a valid pre-ride weight.'); setSweatMsgType('error'); return }
-    if (isNaN(after)  || after  <= 0) { setSweatMsg('Enter a valid post-ride weight.'); setSweatMsgType('error'); return }
-    if (isNaN(intake) || intake < 0)  { setSweatMsg('Enter fluid intake (0 if none).'); setSweatMsgType('error'); return }
-    if (isNaN(dur)    || dur   <= 0)  { setSweatMsg('Enter a valid duration in hours.'); setSweatMsgType('error'); return }
+    if (isNaN(before) || before <= 0) { setSweatMsg(t('settings.errors.sweatBeforeWeight')); setSweatMsgType('error'); return }
+    if (isNaN(after)  || after  <= 0) { setSweatMsg(t('settings.errors.sweatAfterWeight')); setSweatMsgType('error'); return }
+    if (isNaN(intake) || intake < 0)  { setSweatMsg(t('settings.errors.sweatIntake')); setSweatMsgType('error'); return }
+    if (isNaN(dur)    || dur   <= 0)  { setSweatMsg(t('settings.errors.sweatDuration')); setSweatMsgType('error'); return }
     setSweatSaving(true)
     try {
       const res = await recordSweatTest({ weight_before_kg: before, weight_after_kg: after, intake_ml_during: intake, duration_h: dur })
       setHeatProfile(res.data)
-      setSweatMsg(`Calibrated: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h saved.`)
+      setSweatMsg(t('settings.errors.calibratedSweat', { rate: Math.round(res.data.sweat_rate_ml_per_hour) }))
       setSweatMsgType('success')
       setSweatBefore(''); setSweatAfter(''); setSweatIntake(''); setSweatDuration('')
     } catch (e) {
-      setSweatMsg(e.response?.data?.detail || 'Calculation failed. Check your inputs.')
+      setSweatMsg(e.response?.data?.detail || t('settings.errors.sweatCalcFailed'))
       setSweatMsgType('error')
     } finally { setSweatSaving(false) }
   }
@@ -275,7 +277,7 @@ export default function Settings() {
   const handleDirectSweatRate = async () => {
     const ml_h = parseInt(directSweatRate, 10)
     if (isNaN(ml_h) || ml_h < 100 || ml_h > 4000) {
-      setDirectSweatMsg('Enter a value between 100 and 4000 ml/h.')
+      setDirectSweatMsg(t('settings.errors.directSweatRange'))
       setDirectSweatMsgType('error')
       return
     }
@@ -283,11 +285,11 @@ export default function Settings() {
     try {
       const res = await setSweatRateDirect(ml_h)
       setHeatProfile(res.data)
-      setDirectSweatMsg(`Saved: ${Math.round(res.data.sweat_rate_ml_per_hour)} ml/h.`)
+      setDirectSweatMsg(t('settings.errors.savedDirectSweat', { rate: Math.round(res.data.sweat_rate_ml_per_hour) }))
       setDirectSweatMsgType('success')
       setDirectSweatRate('')
     } catch (e) {
-      setDirectSweatMsg(e.response?.data?.detail || 'Failed to save.')
+      setDirectSweatMsg(e.response?.data?.detail || t('settings.errors.directSweatFailed'))
       setDirectSweatMsgType('error')
     } finally { setDirectSweatSaving(false) }
   }
@@ -298,9 +300,9 @@ export default function Settings() {
     try {
       const res = await resetSweatRate()
       setHeatProfile(res.data)
-      setResetSweatMsg('Sweat rate cleared. Analysis will now use the population model.')
+      setResetSweatMsg(t('settings.errors.sweatRateCleared'))
     } catch (e) {
-      setResetSweatMsg(e.response?.data?.detail || 'Failed to reset.')
+      setResetSweatMsg(e.response?.data?.detail || t('settings.errors.resetSweatFailed'))
     } finally { setResetSweatSaving(false) }
   }
 
@@ -309,10 +311,10 @@ export default function Settings() {
     try {
       const res = await recalculateIndoorOutdoor()
       setIndoorProfile(res.data)
-      setIndoorMsg('Profile recalculated.')
+      setIndoorMsg(t('settings.errors.indoorProfileRecalculated'))
       setIndoorMsgType('success')
     } catch (e) {
-      setIndoorMsg(e.response?.data?.detail || 'Recalculation failed.')
+      setIndoorMsg(e.response?.data?.detail || t('settings.errors.recalcFailed'))
       setIndoorMsgType('error')
     } finally { setRecalculating(false) }
   }
@@ -320,18 +322,18 @@ export default function Settings() {
   const handleFtpCalib = async () => {
     setIndoorMsg('')
     const iF = parseFloat(indoorFtp), oF = parseFloat(outdoorFtp)
-    if (isNaN(iF) || iF <= 0) { setIndoorMsg('Enter a valid indoor FTP.'); setIndoorMsgType('error'); return }
-    if (isNaN(oF) || oF <= 0) { setIndoorMsg('Enter a valid outdoor FTP.'); setIndoorMsgType('error'); return }
+    if (isNaN(iF) || iF <= 0) { setIndoorMsg(t('settings.errors.validIndoorFtp')); setIndoorMsgType('error'); return }
+    if (isNaN(oF) || oF <= 0) { setIndoorMsg(t('settings.errors.validOutdoorFtp')); setIndoorMsgType('error'); return }
     setFtpCalibSaving(true)
     try {
       const res = await calibrateIndoorOutdoor({ method: 'ftp_comparison', indoor_ftp: iF, outdoor_ftp: oF })
       setFtpCalibResult(res.data)
       const freshProfile = await getIndoorOutdoorProfile()
       setIndoorProfile(freshProfile.data)
-      setIndoorMsg('Calibration saved.')
+      setIndoorMsg(t('settings.errors.calibrationSaved'))
       setIndoorMsgType('success')
     } catch (e) {
-      setIndoorMsg(e.response?.data?.detail || 'Calibration failed.')
+      setIndoorMsg(e.response?.data?.detail || t('settings.errors.calibrationFailed'))
       setIndoorMsgType('error')
     } finally { setFtpCalibSaving(false) }
   }
@@ -339,13 +341,13 @@ export default function Settings() {
   const handleSaveHr = async () => {
     const val = parseInt(maxHr, 10)
     if (maxHr !== '' && (isNaN(val) || val < 100 || val > 250)) {
-      setHrError('Max HR must be between 100 and 250 bpm'); return
+      setHrError(t('settings.errors.hrRange')); return
     }
     setSaving(true); setHrError('')
     try {
       await updateSettings({ max_hr: maxHr === '' ? null : val })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
-    } catch { setHrError('Failed to save') }
+    } catch { setHrError(t('settings.errors.hrSaveFailed')) }
     finally { setSaving(false) }
   }
 
@@ -354,29 +356,29 @@ export default function Settings() {
     const payload = {}
     if (age !== '') {
       const v = parseInt(age, 10)
-      if (isNaN(v) || v < 10 || v > 100) { setFitnessError('Age must be between 10 and 100.'); return }
+      if (isNaN(v) || v < 10 || v > 100) { setFitnessError(t('settings.errors.ageRange')); return }
       payload.age = v
     }
     if (restingHr !== '') {
       const v = parseInt(restingHr, 10)
-      if (isNaN(v) || v < 30 || v > 100) { setFitnessError('Resting HR must be between 30 and 100 bpm.'); return }
+      if (isNaN(v) || v < 30 || v > 100) { setFitnessError(t('settings.errors.restingHrRange')); return }
       payload.resting_hr = v
     }
     if (weightKg !== '') {
       const v = parseFloat(weightKg)
-      if (isNaN(v) || v < 30 || v > 250) { setFitnessError('Weight must be between 30 and 250 kg.'); return }
+      if (isNaN(v) || v < 30 || v > 250) { setFitnessError(t('settings.errors.weightRange')); return }
       payload.weight_kg = v
     }
     if (ftp !== '') {
       const v = parseInt(ftp, 10)
-      if (isNaN(v) || v < 50 || v > 600) { setFitnessError('FTP must be between 50 and 600 W.'); return }
+      if (isNaN(v) || v < 50 || v > 600) { setFitnessError(t('settings.errors.ftpRange')); return }
       payload.ftp = v
     }
     if (experienceLevel) payload.experience_level = experienceLevel
     if (bikeType)        payload.bike_type        = bikeType
     if (bikeWeightKg !== '') {
       const v = parseFloat(bikeWeightKg)
-      if (isNaN(v) || v < 3 || v > 50) { setFitnessError('Bike weight must be between 3 and 50 kg.'); return }
+      if (isNaN(v) || v < 3 || v > 50) { setFitnessError(t('settings.errors.bikeWeightRange')); return }
       payload.bike_weight_kg = v
     }
     setFitnessSaving(true)
@@ -384,7 +386,7 @@ export default function Settings() {
       await updateSettings(payload)
       setFitnessSaved(true); setTimeout(() => setFitnessSaved(false), 2500)
     } catch (e) {
-      setFitnessError(e.response?.data?.detail || 'Failed to save.')
+      setFitnessError(e.response?.data?.detail || t('settings.errors.fitnessSaveFailed'))
     } finally { setFitnessSaving(false) }
   }
 
@@ -394,23 +396,23 @@ export default function Settings() {
       const payload = { method }
       if (method === 'ftp') {
         const v = parseInt(calibFtp, 10)
-        if (isNaN(v) || v < 50 || v > 600) { setCalibMsg('FTP must be between 50 and 600 W.'); setCalibMsgType('error'); setCalibSaving(false); return }
+        if (isNaN(v) || v < 50 || v > 600) { setCalibMsg(t('settings.errors.calibFtpRange')); setCalibMsgType('error'); setCalibSaving(false); return }
         payload.value = v
       } else {
         const v = parseFloat(calibPower)
         const cid = parseInt(calibClimbId, 10)
-        if (isNaN(v) || v < 50) { setCalibMsg('Enter a valid power value (W).'); setCalibMsgType('error'); setCalibSaving(false); return }
-        if (isNaN(cid)) { setCalibMsg('Enter a valid climb ID.'); setCalibMsgType('error'); setCalibSaving(false); return }
+        if (isNaN(v) || v < 50) { setCalibMsg(t('settings.errors.calibPowerInvalid')); setCalibMsgType('error'); setCalibSaving(false); return }
+        if (isNaN(cid)) { setCalibMsg(t('settings.errors.calibClimbInvalid')); setCalibMsgType('error'); setCalibSaving(false); return }
         payload.value = v
         payload.climb_id = cid
       }
       const res = await calibratePower(payload)
       setCalibSource(method === 'ftp' ? 'manual_ftp' : 'known_climb')
       setCalibCda(res.data.calibrated_cda)
-      setCalibMsg(`Calibration applied. ${res.data.climbs_recalculated} climb(s) recalculated.`)
+      setCalibMsg(t('settings.errors.calibrationApplied', { count: res.data.climbs_recalculated }))
       setCalibMsgType('success')
     } catch (e) {
-      setCalibMsg(e.response?.data?.detail || 'Calibration failed.')
+      setCalibMsg(e.response?.data?.detail || t('settings.errors.calibFailed'))
       setCalibMsgType('error')
     } finally { setCalibSaving(false) }
   }
@@ -420,9 +422,9 @@ export default function Settings() {
     try {
       await resetPowerCalibration()
       setCalibSource(null); setCalibCda(null)
-      setCalibMsg('Calibration reset to defaults.')
+      setCalibMsg(t('settings.errors.calibResetDone'))
       setCalibMsgType('success')
-    } catch { setCalibMsg('Reset failed.'); setCalibMsgType('error') }
+    } catch { setCalibMsg(t('settings.errors.calibResetFailed')); setCalibMsgType('error') }
     finally { setCalibSaving(false) }
   }
 
@@ -433,33 +435,33 @@ export default function Settings() {
       const res = await createCheckout(tier)
       window.location.href = res.data.url
     } catch (e) {
-      setCheckoutError(e.response?.data?.detail || 'Could not start checkout.')
+      setCheckoutError(e.response?.data?.detail || t('settings.errors.checkoutFailed'))
       setChecking(null)
     }
   }
 
   const handleRequestEmailChange = async () => {
     setEmailError('')
-    if (!newEmail.includes('@')) { setEmailError('Enter a valid email address.'); return }
+    if (!newEmail.includes('@')) { setEmailError(t('settings.errors.emailInvalid')); return }
     setEmailSending(true)
     try {
       await requestEmailChange(newEmail); setEmailSent(true)
     } catch (e) {
-      setEmailError(e.response?.data?.detail || 'Failed to send verification email.')
+      setEmailError(e.response?.data?.detail || t('settings.errors.emailSendFailed'))
     } finally { setEmailSending(false) }
   }
 
   const handleChangePassword = async () => {
     setPwError('')
-    if (!oldPw || !newPw) { setPwError('Fill in both fields.'); return }
-    if (newPw.length < 6)  { setPwError('New password must be at least 6 characters.'); return }
+    if (!oldPw || !newPw) { setPwError(t('settings.errors.passwordBothFields')); return }
+    if (newPw.length < 6)  { setPwError(t('settings.errors.passwordTooShort')); return }
     setPwSaving(true)
     try {
       await changePassword(oldPw, newPw)
       setPwSaved(true); setOldPw(''); setNewPw('')
       setTimeout(() => { setPwSaved(false); setPwOpen(false) }, 2000)
     } catch (e) {
-      setPwError(e.response?.data?.detail || 'Failed to change password.')
+      setPwError(e.response?.data?.detail || t('settings.errors.passwordChangeFailed'))
     } finally { setPwSaving(false) }
   }
 
@@ -469,7 +471,7 @@ export default function Settings() {
       const res = await stravaAuthUrl()
       window.location.href = res.data.url
     } catch (e) {
-      setStravaMsg(e.response?.data?.detail || 'Strava is not configured on this server.')
+      setStravaMsg(e.response?.data?.detail || t('settings.errors.stravaNotConfigured'))
       setStravaMsgType('error')
       setStravaConnecting(false)
     }
@@ -481,10 +483,10 @@ export default function Settings() {
       setStravaConnected(false)
       setStravaAthleteId(null)
       setStravaLastSync(null)
-      setStravaMsg('Strava disconnected.')
+      setStravaMsg(t('settings.errors.stravaDisconnected'))
       setStravaMsgType('success')
     } catch {
-      setStravaMsg('Failed to disconnect.')
+      setStravaMsg(t('settings.errors.stravaDisconnectFailed'))
       setStravaMsgType('error')
     }
   }
@@ -495,16 +497,16 @@ export default function Settings() {
     try {
       const res = await stravaSync()
       const { imported, skipped, backfilled, capped, detail } = res.data
-      let msg = `Sync complete: ${imported} ride${imported !== 1 ? 's' : ''} imported`
-      if (backfilled > 0) msg += `, ${backfilled} updated with GPS data`
-      if (skipped > 0) msg += `, ${skipped} skipped`
+      let msg = t('settings.errors.syncComplete', { count: imported, plural: imported !== 1 ? 's' : '' })
+      if (backfilled > 0) msg += t('settings.errors.syncBackfilled', { count: backfilled })
+      if (skipped > 0) msg += t('settings.errors.syncSkipped', { count: skipped })
       msg += '.'
       if (capped) msg = detail
       setStravaMsg(msg)
       setStravaMsgType(capped ? 'error' : 'success')
       setStravaLastSync(new Date().toISOString())
     } catch (e) {
-      setStravaMsg(e.response?.data?.detail || 'Sync failed.')
+      setStravaMsg(e.response?.data?.detail || t('settings.errors.syncFailed'))
       setStravaMsgType('error')
     } finally {
       setStravaSyncing(false)
@@ -522,20 +524,20 @@ export default function Settings() {
       a.click()
       URL.revokeObjectURL(url)
     } catch {
-      setExportError('Export failed. Please try again.')
+      setExportError(t('settings.errors.exportFailed'))
     } finally { setExporting(false) }
   }
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirm !== 'DELETE') { setDeleteError('Type DELETE to confirm.'); return }
-    if (!deletePw) { setDeleteError('Enter your password.'); return }
+    if (deleteConfirm !== 'DELETE') { setDeleteError(t('settings.errors.typeDeleteToConfirm')); return }
+    if (!deletePw) { setDeleteError(t('settings.errors.enterPasswordToDelete')); return }
     setDeleting(true); setDeleteError('')
     try {
       await deleteAccount(deletePw)
       markLoggedOut()
       window.location.href = '/'
     } catch (e) {
-      setDeleteError(e.response?.data?.detail || 'Failed to delete account.')
+      setDeleteError(e.response?.data?.detail || t('settings.errors.deleteFailed'))
       setDeleting(false)
     }
   }
@@ -566,17 +568,17 @@ export default function Settings() {
   }
 
   const TABS = [
-    { id: 'account',      label: 'Account' },
-    { id: 'training',     label: 'Training' },
-    { id: 'calibration',  label: 'Calibration' },
-    { id: 'data',         label: 'Data' },
-    { id: 'integrations', label: 'Integrations' },
+    { id: 'account',      label: t('settings.tabs.account') },
+    { id: 'training',     label: t('settings.tabs.training') },
+    { id: 'calibration',  label: t('settings.tabs.calibration') },
+    { id: 'data',         label: t('settings.tabs.data') },
+    { id: 'integrations', label: t('settings.tabs.integrations') },
   ]
 
   return (
     <div style={{ maxWidth: 1140 }}>
       <div className="page-header">
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">{t('settings.title')}</h1>
       </div>
 
       <div className="imp-tab-bar" role="tablist">
@@ -600,7 +602,7 @@ export default function Settings() {
           {justUpgraded && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', borderRadius: 10, background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent)', marginBottom: 20, fontWeight: 600 }}>
               <CheckCircle size={16} />
-              Welcome to {membership.charAt(0).toUpperCase() + membership.slice(1)}! Your plan has been upgraded.
+              {t('settings.account.welcomeUpgrade', { tier: membership.charAt(0).toUpperCase() + membership.slice(1) })}
             </div>
           )}
           <div className="settings-layout-top">
@@ -612,7 +614,7 @@ export default function Settings() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{user?.username}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user?.email || <span style={{ opacity: 0.4 }}>No email on file</span>}
+                    {user?.email || <span style={{ opacity: 0.4 }}>{t('settings.account.noEmail')}</span>}
                   </div>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: ts.bg, border: `1px solid ${ts.border}`, color: ts.color, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                     {membership === 'lifetime' && <Star size={9} />}
@@ -620,80 +622,80 @@ export default function Settings() {
                   </span>
                 </div>
               </div>
-              <CollapsibleRow icon={Mail} label="Change Email" open={emailOpen} onToggle={() => { setEmailOpen(o => !o); setEmailError(''); setEmailSent(false); setNewEmail('') }}>
+              <CollapsibleRow icon={Mail} label={t('settings.account.changeEmail')} open={emailOpen} onToggle={() => { setEmailOpen(o => !o); setEmailError(''); setEmailSent(false); setNewEmail('') }}>
                 {emailSent ? (
                   <div style={{ padding: '14px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 19%, transparent)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--accent)', marginBottom: 6, fontSize: 13 }}>
-                      <CheckCircle size={14} /> Verification email sent
+                      <CheckCircle size={14} /> {t('settings.account.verificationSent')}
                     </div>
                     <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                       Sent to <strong style={{ color: 'var(--text-primary)' }}>{newEmail}</strong>. Link expires in 24 h.
                     </p>
                     <button onClick={() => { setEmailSent(false); setNewEmail('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)', padding: 0, textDecoration: 'underline' }}>
-                      Use a different address
+                      {t('settings.account.useDifferentAddress')}
                     </button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Current: <strong style={{ color: 'var(--text-secondary)' }}>{user?.email || '—'}</strong>
+                      {t('settings.account.currentEmail')} <strong style={{ color: 'var(--text-secondary)' }}>{user?.email || '—'}</strong>
                     </div>
-                    <input id="settings-new-email" aria-label="New email address" type="email" className="filter-input" style={{ width: '100%' }} value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailError('') }} placeholder="new@email.com" onKeyDown={e => e.key === 'Enter' && handleRequestEmailChange()} />
+                    <input id="settings-new-email" aria-label="New email address" type="email" className="filter-input" style={{ width: '100%' }} value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailError('') }} placeholder={t('settings.account.emailPlaceholder')} onKeyDown={e => e.key === 'Enter' && handleRequestEmailChange()} />
                     {emailError && <Alert variant="error" style={{ fontSize: 12 }}>{emailError}</Alert>}
                     <button className="btn btn-primary" onClick={handleRequestEmailChange} disabled={emailSending}>
-                      <Send size={12} />{emailSending ? 'Sending…' : 'Send verification'}
+                      <Send size={12} />{emailSending ? t('settings.account.sending') : t('settings.account.sendVerification')}
                     </button>
                   </div>
                 )}
               </CollapsibleRow>
-              <CollapsibleRow icon={Lock} label="Change Password" open={pwOpen} onToggle={() => { setPwOpen(o => !o); setPwError(''); setPwSaved(false) }}>
+              <CollapsibleRow icon={Lock} label={t('settings.account.changePassword')} open={pwOpen} onToggle={() => { setPwOpen(o => !o); setPwError(''); setPwSaved(false) }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
-                    { id: 'settings-current-pw', label: 'Current password', val: oldPw, set: setOldPw, show: showOld, toggle: () => setShowOld(s => !s) },
-                    { id: 'settings-new-pw',     label: 'New password',     val: newPw, set: setNewPw, show: showNew, toggle: () => setShowNew(s => !s), hint: 'Min. 6 characters' },
+                    { id: 'settings-current-pw', label: t('settings.account.currentPassword'), val: oldPw, set: setOldPw, show: showOld, toggle: () => setShowOld(s => !s) },
+                    { id: 'settings-new-pw',     label: t('settings.account.newPassword'),     val: newPw, set: setNewPw, show: showNew, toggle: () => setShowNew(s => !s), hint: t('settings.account.newPasswordHint') },
                   ].map(({ id, label, val, set, show, toggle, hint }) => (
-                    <div key={label}>
+                    <div key={id}>
                       <label htmlFor={id} style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 5 }}>{label}</label>
                       <div style={{ position: 'relative' }}>
-                        <input id={id} type={show ? 'text' : 'password'} className="filter-input" style={{ width: '100%', paddingRight: 36 }} value={val} onChange={e => set(e.target.value)} placeholder={hint || '••••••••'} />
-                        <button onClick={toggle} aria-label={show ? 'Hide password' : 'Show password'} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                        <input id={id} type={show ? 'text' : 'password'} className="filter-input" style={{ width: '100%', paddingRight: 36 }} value={val} onChange={e => set(e.target.value)} placeholder={hint || t('settings.account.passwordPlaceholder')} />
+                        <button onClick={toggle} aria-label={show ? t('settings.account.hidePassword') : t('settings.account.showPassword')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
                           {show ? <EyeOff size={13} /> : <Eye size={13} />}
                         </button>
                       </div>
                     </div>
                   ))}
                   {pwError && <Alert variant="error" style={{ fontSize: 12 }}>{pwError}</Alert>}
-                  {pwSaved && <Alert variant="success" style={{ fontSize: 12 }}><Shield size={12} /> Password updated. Other sessions signed out.</Alert>}
+                  {pwSaved && <Alert variant="success" style={{ fontSize: 12 }}><Shield size={12} /> {t('settings.account.passwordUpdated')}</Alert>}
                   <button className="btn btn-primary" onClick={handleChangePassword} disabled={pwSaving}>
-                    <Lock size={12} />{pwSaving ? 'Updating…' : 'Update Password'}
+                    <Lock size={12} />{pwSaving ? t('settings.account.updatingPassword') : t('settings.account.updatePassword')}
                   </button>
                 </div>
               </CollapsibleRow>
             </Card>
 
             <Card>
-              <CardTitle icon={CreditCard}>Plan & Billing</CardTitle>
+              <CardTitle icon={CreditCard}>{t('settings.billing.title')}</CardTitle>
               <div style={{ border: `1px solid ${ts.border}`, borderRadius: 12, background: ts.bg, padding: '18px 20px', marginBottom: upgradable.length ? 16 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ts.color, marginBottom: 4 }}>Current plan</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ts.color, marginBottom: 4 }}>{t('settings.billing.currentPlan')}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                       {membership === 'lifetime' && <Star size={18} style={{ color: ts.color }} />}
                       {membership.charAt(0).toUpperCase() + membership.slice(1)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
-                    {membership === 'free'     && <span>Unlimited activities</span>}
-                    {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>Never expires</span>}
+                    {membership === 'free'     && <span>{t('settings.billing.unlimitedActivities')}</span>}
+                    {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>{t('settings.billing.neverExpires')}</span>}
                     {(membership === 'pro' || membership === 'annual') && subEnd && (
-                      <span>Renews {format(subEnd, 'dd MMM yyyy')}</span>
+                      <span>{t('settings.billing.renews', { date: format(subEnd, 'dd MMM yyyy') })}</span>
                     )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px' }}>
-                  {TIER_FEATURES[membership]?.map(f => (
-                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-secondary)' }}>
-                      <CheckCircle size={12} style={{ color: ts.color, flexShrink: 0 }} />{f}
+                  {TIER_FEATURES_KEYS[membership]?.map(key => (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-secondary)' }}>
+                      <CheckCircle size={12} style={{ color: ts.color, flexShrink: 0 }} />{t(`settings.${key}`)}
                     </div>
                   ))}
                 </div>
@@ -705,21 +707,21 @@ export default function Settings() {
                     return (
                       <div key={plan.tier} style={{ border: `1px solid ${ps.border}`, borderRadius: 10, padding: '16px 18px', background: ps.bg }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15, color: ps.color }}>{plan.label}</span>
-                          {plan.sub && <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 7px' }}>{plan.sub}</span>}
+                          <span style={{ fontWeight: 700, fontSize: 15, color: ps.color }}>{plan.labelKey}</span>
+                          {plan.subKey && <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 7px' }}>{plan.subKey}</span>}
                         </div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12 }}>{plan.price}</div>
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {plan.features.map(f => (
-                            <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-muted)' }}>
-                              <Zap size={10} style={{ color: ps.color, flexShrink: 0 }} />{f}
+                          {plan.featuresKeys.map(key => (
+                            <li key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-muted)' }}>
+                              <Zap size={10} style={{ color: ps.color, flexShrink: 0 }} />{t(`settings.${key}`)}
                             </li>
                           ))}
                         </ul>
                         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: ps.color, color: 'oklch(8% 0.005 142)', fontWeight: 700 }} onClick={() => handleUpgrade(plan.tier)} disabled={checking === plan.tier}>
                           {checking === plan.tier
                             ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: 'oklch(8% 0.005 142 / 0.25)', borderTopColor: 'oklch(8% 0.005 142)' }} />
-                            : `Upgrade to ${plan.label}`}
+                            : t('settings.billing.upgradeTo', { plan: plan.labelKey })}
                         </button>
                       </div>
                     )
@@ -730,7 +732,7 @@ export default function Settings() {
               {membership === 'lifetime' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--tier-lifetime) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--tier-lifetime) 13%, transparent)', fontSize: 13, color: 'var(--text-muted)' }}>
                   <Star size={13} style={{ color: 'var(--tier-lifetime)' }} />
-                  You have lifetime access. Nothing left to upgrade.
+                  {t('settings.billing.lifetimeAccess')}
                 </div>
               )}
             </Card>
@@ -743,18 +745,18 @@ export default function Settings() {
         <div id="tab-panel-training" role="tabpanel">
           <div className="settings-layout-bottom">
             <Card>
-              <CardTitle icon={Bike}>Fitness Profile</CardTitle>
+              <CardTitle icon={Bike}>{t('settings.training.fitnessProfile')}</CardTitle>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-                Used to personalise AI training plans. More data = more accurate sessions.
+                {t('settings.training.fitnessDescription')}
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
-                  { id: 'profile-age',        label: 'Age',        unit: 'years', val: age,       set: setAge,       placeholder: '32',  min: 10, max: 100, step: 1 },
-                  { id: 'profile-weight',     label: 'Weight',     unit: 'kg',    val: weightKg,  set: setWeightKg,  placeholder: '72',  min: 30, max: 250, step: 0.1 },
-                  { id: 'profile-resting-hr', label: 'Resting HR', unit: 'bpm',   val: restingHr, set: setRestingHr, placeholder: '52',  min: 30, max: 100, step: 1,   hint: 'Morning, before getting up' },
-                  { id: 'profile-ftp',        label: 'FTP',        unit: 'W',     val: ftp,       set: setFtp,       placeholder: '220', min: 50, max: 600, step: 1,   hint: 'Only needed with a power meter' },
+                  { id: 'profile-age',        label: t('settings.training.age'),       unit: t('settings.training.years'), val: age,       set: setAge,       placeholder: '32',  min: 10, max: 100, step: 1 },
+                  { id: 'profile-weight',     label: t('settings.training.weight'),    unit: t('settings.training.kg'),    val: weightKg,  set: setWeightKg,  placeholder: '72',  min: 30, max: 250, step: 0.1 },
+                  { id: 'profile-resting-hr', label: t('settings.training.restingHr'), unit: t('settings.training.bpm'),   val: restingHr, set: setRestingHr, placeholder: '52',  min: 30, max: 100, step: 1,   hint: t('settings.training.restingHrHint') },
+                  { id: 'profile-ftp',        label: t('settings.training.ftp'),       unit: t('settings.training.watts'), val: ftp,       set: setFtp,       placeholder: '220', min: 50, max: 600, step: 1,   hint: t('settings.training.ftpHint') },
                 ].map(({ id, label, unit, val, set, placeholder, min, max, step, hint }) => (
-                  <div key={label}>
+                  <div key={id}>
                     <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input id={id} type="number" className="filter-input" style={{ flex: 1, minWidth: 0 }} value={val} onChange={e => { set(e.target.value); setFitnessError('') }} placeholder={placeholder} min={min} max={max} step={step} />
@@ -765,12 +767,12 @@ export default function Settings() {
                 ))}
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Bike Type</label>
-                <div role="group" aria-label="Bike type" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{t('settings.training.bikeType')}</label>
+                <div role="group" aria-label={t('settings.training.bikeType')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
                   {[
-                    { value: 'road', label: 'Road' }, { value: 'gravel', label: 'Gravel' },
-                    { value: 'mtb',  label: 'MTB' },  { value: 'tt',     label: 'TT' },
-                    { value: 'ebike', label: 'E-Bike' }, { value: 'other', label: 'Other' },
+                    { value: 'road', label: t('settings.training.bikeTypeRoad') }, { value: 'gravel', label: t('settings.training.bikeTypeGravel') },
+                    { value: 'mtb',  label: t('settings.training.bikeTypeMtb') },  { value: 'tt',     label: t('settings.training.bikeTypeTt') },
+                    { value: 'ebike', label: t('settings.training.bikeTypeEbike') }, { value: 'other', label: t('settings.training.bikeTypeOther') },
                   ].map(opt => (
                     <button key={opt.value} onClick={() => { setBikeType(opt.value); setFitnessError('') }} aria-pressed={bikeType === opt.value} style={{ padding: '8px 4px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600, border: bikeType === opt.value ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' : '1px solid var(--border)', background: bikeType === opt.value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)', color: bikeType === opt.value ? 'var(--accent)' : 'var(--text-muted)', transition: 'border-color 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms cubic-bezier(0.23, 1, 0.32, 1)' }}>{opt.label}</button>
                   ))}
@@ -778,21 +780,21 @@ export default function Settings() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-                  Bike Weight <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(for climb power estimates)</span>
+                  {t('settings.training.bikeWeight')} <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{t('settings.training.bikeWeightSub')}</span>
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="number" className="filter-input" style={{ width: 90 }} value={bikeWeightKg} onChange={e => { setBikeWeightKg(e.target.value); setFitnessError('') }} placeholder={bikeType === 'mtb' ? '13' : bikeType === 'ebike' ? '22' : bikeType === 'gravel' ? '10' : '9'} min={3} max={50} step={0.1} />
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leave blank to use default for bike type</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.training.kg')}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.training.bikeWeightHint')}</span>
                 </div>
               </div>
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Experience Level</label>
-                <div role="group" aria-label="Experience level" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{t('settings.training.experienceLevel')}</label>
+                <div role="group" aria-label={t('settings.training.experienceLevel')} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
-                    { value: 'beginner',     label: 'Beginner',     desc: 'Riding less than 1 year' },
-                    { value: 'intermediate', label: 'Intermediate', desc: '1–4 years of regular riding' },
-                    { value: 'advanced',     label: 'Advanced',     desc: '4+ years, structured training or racing' },
+                    { value: 'beginner',     label: t('settings.training.beginner'),     desc: t('settings.training.beginnerDesc') },
+                    { value: 'intermediate', label: t('settings.training.intermediate'), desc: t('settings.training.intermediateDesc') },
+                    { value: 'advanced',     label: t('settings.training.advanced'),     desc: t('settings.training.advancedDesc') },
                   ].map(opt => (
                     <button key={opt.value} onClick={() => { setExperienceLevel(opt.value); setFitnessError('') }} aria-pressed={experienceLevel === opt.value} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left', border: experienceLevel === opt.value ? '1px solid color-mix(in srgb, var(--accent) 25%, transparent)' : '1px solid var(--border)', background: experienceLevel === opt.value ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--bg-secondary)', transition: 'border-color 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: experienceLevel === opt.value ? 'var(--accent)' : 'var(--border)', boxShadow: experienceLevel === opt.value ? '0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)' : 'none', transition: 'background-color 150ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 150ms cubic-bezier(0.23, 1, 0.32, 1)' }} />

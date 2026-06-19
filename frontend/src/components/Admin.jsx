@@ -8,6 +8,7 @@ import {
   adminGetUsers, adminUpdateMembership, adminSendOffer, adminDeleteUser,
   adminGetSegments, adminRenameSegment, adminTransferSegment, adminDeleteSegment,
 } from '../services/api'
+import { useTranslation } from 'react-i18next'
 
 function fmtUptime(secs) {
   const d = Math.floor(secs / 86400)
@@ -68,6 +69,7 @@ const btnStyle = (variant = 'ghost') => ({
 })
 
 export default function Admin() {
+  const { t } = useTranslation()
   const [stats,    setStats]    = useState(null)
   const [system,   setSystem]   = useState(null)
   const [users,    setUsers]    = useState([])
@@ -98,7 +100,7 @@ export default function Admin() {
         setUsers(u.data); setSegments(seg.data)
       })
       .catch(err => setError(
-        err.response?.status === 403 ? 'Admin access required.' : 'Failed to load admin data.'
+        err.response?.status === 403 ? t('admin.errorAccessDenied') : t('admin.errorLoadFailed')
       ))
       .finally(() => setLoading(false))
   }
@@ -143,38 +145,38 @@ export default function Admin() {
       await adminUpdateMembership(id, membershipDraft)
       setUsers(u => u.map(x => x.id === id ? { ...x, membership: membershipDraft } : x))
       setMembershipEditId(null)
-    } catch (e) { alert(e.response?.data?.detail || 'Update failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertUpdateFailed')) }
   }
 
   const [offerSentIds, setOfferSentIds] = useState(new Set())
 
   const handleSendOffer = async (u) => {
-    if (!window.confirm(`Send a Lifetime offer email to ${u.username} (${u.email})?`)) return
+    if (!window.confirm(t('admin.confirmSendOffer', { username: u.username, email: u.email }))) return
     try {
       await adminSendOffer(u.id)
       setOfferSentIds(s => new Set([...s, u.id]))
-    } catch (e) { alert(e.response?.data?.detail || 'Failed to send email.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertSendEmailFailed')) }
   }
 
   const handleGrantLifetime = async (u) => {
     const isLifetime = u.membership === 'lifetime'
     const msg = isLifetime
-      ? `Revoke Lifetime from "${u.username}"? They will be moved back to Free.`
-      : `Grant Lifetime access to "${u.username}"? This gives them permanent Pro access at no charge.`
+      ? t('admin.confirmRevokeLifetime', { username: u.username })
+      : t('admin.confirmGrantLifetime', { username: u.username })
     if (!window.confirm(msg)) return
     const next = isLifetime ? 'free' : 'lifetime'
     try {
       await adminUpdateMembership(u.id, next)
       setUsers(us => us.map(x => x.id === u.id ? { ...x, membership: next } : x))
-    } catch (e) { alert(e.response?.data?.detail || 'Update failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertUpdateFailed')) }
   }
 
   const handleDeleteUser = async (id, username) => {
-    if (!window.confirm(`Delete user "${username}" and ALL their data? This cannot be undone.`)) return
+    if (!window.confirm(t('admin.confirmDeleteUser', { username }))) return
     try {
       await adminDeleteUser(id)
       setUsers(u => u.filter(x => x.id !== id))
-    } catch (e) { alert(e.response?.data?.detail || 'Delete failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertDeleteFailed')) }
   }
 
   const startEdit = (seg) => { cancelTransfer(); setEditingId(seg.id); setEditingName(seg.name) }
@@ -194,12 +196,12 @@ export default function Admin() {
   const saveTransfer = async (segId, segName) => {
     if (!transferUserId) return
     const newOwner = users.find(u => u.id === parseInt(transferUserId))
-    if (!window.confirm(`Transfer "${segName}" to ${newOwner?.username}?`)) return
+    if (!window.confirm(t('admin.confirmTransfer', { segName, ownerName: newOwner?.username }))) return
     try {
       const res = await adminTransferSegment(segId, parseInt(transferUserId))
       setSegments(s => s.map(x => x.id === segId ? { ...x, created_by: res.data.created_by } : x))
       cancelTransfer()
-    } catch (e) { alert(e.response?.data?.detail || 'Transfer failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertTransferFailed')) }
   }
 
   const saveEdit = async (id) => {
@@ -208,15 +210,15 @@ export default function Admin() {
       await adminRenameSegment(id, editingName.trim())
       setSegments(s => s.map(x => x.id === id ? { ...x, name: editingName.trim() } : x))
       cancelEdit()
-    } catch (e) { alert(e.response?.data?.detail || 'Rename failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertRenameFailed')) }
   }
 
   const handleDeleteSegment = async (id, name) => {
-    if (!window.confirm(`Delete segment "${name}" and all its efforts?`)) return
+    if (!window.confirm(t('admin.confirmDeleteSegment', { name }))) return
     try {
       await adminDeleteSegment(id)
       setSegments(s => s.filter(x => x.id !== id))
-    } catch (e) { alert(e.response?.data?.detail || 'Delete failed.') }
+    } catch (e) { alert(e.response?.data?.detail || t('admin.alertDeleteFailed')) }
   }
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
@@ -236,24 +238,24 @@ export default function Admin() {
       <div className="page-header">
         <h1 className="page-title">
           <Shield size={20} style={{ display: 'inline', marginRight: 8, color: 'var(--accent)' }} />
-          Admin Dashboard
+          {t('admin.title')}
         </h1>
-        <p className="page-subtitle">Site overview and moderation tools</p>
+        <p className="page-subtitle">{t('admin.subtitle')}</p>
       </div>
 
       {/* ── Stats ────────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <StatCard icon={Users}    label="Total Users"      value={stats.total_users}      color="var(--accent)" />
-        <StatCard icon={Activity} label="Total Activities" value={stats.total_activities}  color="var(--speed)" />
-        <StatCard icon={Zap}      label="Total Distance"   value={`${stats.total_distance_km.toLocaleString()} km`} color="var(--cadence)" />
-        <StatCard icon={Mountain} label="Total Elevation"  value={`${stats.total_elevation_m.toLocaleString()} m`}  color="var(--heart)" />
+        <StatCard icon={Users}    label={t('admin.statTotalUsers')}      value={stats.total_users}      color="var(--accent)" />
+        <StatCard icon={Activity} label={t('admin.statTotalActivities')} value={stats.total_activities}  color="var(--speed)" />
+        <StatCard icon={Zap}      label={t('admin.statTotalDistance')}   value={`${stats.total_distance_km.toLocaleString()} km`} color="var(--cadence)" />
+        <StatCard icon={Mountain} label={t('admin.statTotalElevation')}  value={`${stats.total_elevation_m.toLocaleString()} m`}  color="var(--heart)" />
       </div>
 
       {/* ── Chart + System ───────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 14, marginBottom: 24 }}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px 10px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
-            Weekly Signups — last 8 weeks
+            {t('admin.weeklySignupsChartTitle')}
           </div>
           <div style={{ padding: '16px 8px 8px' }}>
             <ResponsiveContainer width="100%" height={140}>
@@ -272,18 +274,18 @@ export default function Admin() {
         </div>
 
         <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>System</div>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>{t('admin.systemTitle')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Clock size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Uptime</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('admin.systemUptime')}</div>
               <div style={{ fontSize: 18, fontWeight: 600 }}>{fmtUptime(system.uptime_seconds)}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Database size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Database</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('admin.systemDatabase')}</div>
               <div style={{ fontSize: 18, fontWeight: 600 }}>{fmtBytes(system.db_size_bytes)}</div>
             </div>
           </div>
@@ -292,19 +294,19 @@ export default function Admin() {
 
       {/* ── Users ────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-        Users ({users.length})
+        {t('admin.usersSection', { count: users.length })}
       </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 28 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th style={thStyle}>Username</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>Joined</th>
-              <th style={thStyle}>Activities</th>
-              <th style={thStyle}>Subscription</th>
-              <th style={thStyle}>Membership</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
+              <th style={thStyle}>{t('admin.colUsername')}</th>
+              <th style={thStyle}>{t('admin.colEmail')}</th>
+              <th style={thStyle}>{t('admin.colJoined')}</th>
+              <th style={thStyle}>{t('admin.colActivities')}</th>
+              <th style={thStyle}>{t('admin.colSubscription')}</th>
+              <th style={thStyle}>{t('admin.colMembership')}</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>{t('admin.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -314,7 +316,7 @@ export default function Admin() {
                   {u.username}
                   {u.is_admin && (
                     <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--accent)', color: 'oklch(8% 0.015 120)', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>
-                      ADMIN
+                      {t('admin.adminBadge')}
                     </span>
                   )}
                 </td>
@@ -329,13 +331,13 @@ export default function Admin() {
                   {u.subscription_start || u.subscription_end ? (
                     <div style={{ lineHeight: 1.6 }}>
                       {u.subscription_start && (
-                        <div><span style={{ opacity: 0.55 }}>from </span>{format(new Date(u.subscription_start), 'dd MMM yyyy')}</div>
+                        <div><span style={{ opacity: 0.55 }}>{t('admin.subscriptionFrom')} </span>{format(new Date(u.subscription_start), 'dd MMM yyyy')}</div>
                       )}
                       {u.subscription_end && u.membership !== 'lifetime' && (
-                        <div><span style={{ opacity: 0.55 }}>to </span>{format(new Date(u.subscription_end), 'dd MMM yyyy')}</div>
+                        <div><span style={{ opacity: 0.55 }}>{t('admin.subscriptionTo')} </span>{format(new Date(u.subscription_end), 'dd MMM yyyy')}</div>
                       )}
                       {u.membership === 'lifetime' && (
-                        <div style={{ color: 'var(--tier-lifetime)' }}>Never expires</div>
+                        <div style={{ color: 'var(--tier-lifetime)' }}>{t('admin.subscriptionNeverExpires')}</div>
                       )}
                     </div>
                   ) : (
@@ -351,10 +353,10 @@ export default function Admin() {
                         autoFocus
                         style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12 }}
                       >
-                        <option value="free">Free</option>
-                        <option value="pro">Pro</option>
-                        <option value="annual">Annual</option>
-                        <option value="lifetime">Lifetime</option>
+                        <option value="free">{t('admin.membershipFree')}</option>
+                        <option value="pro">{t('admin.membershipPro')}</option>
+                        <option value="annual">{t('admin.membershipAnnual')}</option>
+                        <option value="lifetime">{t('admin.membershipLifetime')}</option>
                       </select>
                       <button style={{ ...btnStyle('accent'), color: 'var(--accent)', borderColor: 'var(--accent)' }} onClick={() => saveMembership(u.id)}>
                         <Check size={12} />
@@ -370,7 +372,7 @@ export default function Admin() {
                       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (setMembershipEditId(u.id), setMembershipDraft(u.membership || 'free'))}
                       tabIndex={0}
                       role="button"
-                      aria-label={`Edit membership for ${u.username}`}
+                      aria-label={t('admin.editMembershipAriaLabel', { username: u.username })}
                     >
                       <MembershipBadge tier={u.membership || 'free'} />
                       <Pencil size={11} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
@@ -383,7 +385,7 @@ export default function Admin() {
                       {u.email && u.membership !== 'lifetime' && (
                         <button
                           onClick={() => handleSendOffer(u)}
-                          title="Send Lifetime offer email"
+                          title={t('admin.sendOfferTitle')}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
@@ -394,11 +396,11 @@ export default function Admin() {
                           }}
                         >
                           <Mail size={11} />
-                          {offerSentIds.has(u.id) ? 'Offer Sent' : 'Send Offer'}
+                          {offerSentIds.has(u.id) ? t('admin.offerSentBtn') : t('admin.sendOfferBtn')}
                         </button>
                       )}
                       <button style={btnStyle('danger')} onClick={() => handleDeleteUser(u.id, u.username)}>
-                        <Trash2 size={12} /> Delete
+                        <Trash2 size={12} /> {t('admin.deleteUserBtn')}
                       </button>
                     </div>
                   )}
@@ -407,22 +409,22 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
-        {users.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No users yet</div>}
+        {users.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('admin.noUsersYet')}</div>}
       </div>
 
       {/* ── Segments ─────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-        Segments ({segments.length})
+        {t('admin.segmentsSection', { count: segments.length })}
       </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Created by</th>
-              <th style={thStyle}>Created</th>
-              <th style={thStyle}>Efforts</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
+              <th style={thStyle}>{t('admin.colName')}</th>
+              <th style={thStyle}>{t('admin.colCreatedBy')}</th>
+              <th style={thStyle}>{t('admin.colCreated')}</th>
+              <th style={thStyle}>{t('admin.colEfforts')}</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>{t('admin.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -439,10 +441,10 @@ export default function Admin() {
                         style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, width: 200 }}
                       />
                       <button style={{ ...btnStyle('accent'), color: 'var(--accent)', borderColor: 'var(--accent)' }} onClick={() => saveEdit(s.id)}>
-                        <Check size={12} /> Save
+                        <Check size={12} /> {t('admin.saveBtnLabel')}
                       </button>
                       <button style={btnStyle()} onClick={cancelEdit}>
-                        <X size={12} /> Cancel
+                        <X size={12} /> {t('admin.cancelBtnLabel')}
                       </button>
                     </div>
                   ) : s.name}
@@ -461,13 +463,13 @@ export default function Admin() {
                         autoFocus
                         style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12 }}
                       >
-                        <option value="">Pick new owner…</option>
+                        <option value="">{t('admin.pickOwnerPlaceholder')}</option>
                         {users.filter(u => u.username !== s.created_by).map(u => (
                           <option key={u.id} value={u.id}>{u.username}</option>
                         ))}
                       </select>
                       <button style={{ ...btnStyle('accent'), color: 'var(--accent)', borderColor: 'var(--accent)' }} onClick={() => saveTransfer(s.id, s.name)} disabled={!transferUserId}>
-                        <Check size={12} /> Confirm
+                        <Check size={12} /> {t('admin.confirmBtnLabel')}
                       </button>
                       <button style={btnStyle()} onClick={cancelTransfer}>
                         <X size={12} />
@@ -478,18 +480,18 @@ export default function Admin() {
                       {editingId !== s.id && (
                         <>
                           <button style={btnStyle()} onClick={() => setViewSegment(s)}>
-                            <Eye size={12} /> View
+                            <Eye size={12} /> {t('admin.viewBtnLabel')}
                           </button>
                           <button style={btnStyle()} onClick={() => startEdit(s)}>
-                            <Pencil size={12} /> Rename
+                            <Pencil size={12} /> {t('admin.renameBtnLabel')}
                           </button>
                           <button style={btnStyle()} onClick={() => startTransfer(s)}>
-                            <ArrowRightLeft size={12} /> Transfer
+                            <ArrowRightLeft size={12} /> {t('admin.transferBtnLabel')}
                           </button>
                         </>
                       )}
                       <button style={btnStyle('danger')} onClick={() => handleDeleteSegment(s.id, s.name)}>
-                        <Trash2 size={12} /> Delete
+                        <Trash2 size={12} /> {t('admin.deleteBtnLabel')}
                       </button>
                     </div>
                   )}
@@ -498,7 +500,7 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
-        {segments.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No segments yet</div>}
+        {segments.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('admin.noSegmentsYet')}</div>}
       </div>
 
       {/* ── Segment map modal ─────────────────────────────────────────── */}
@@ -525,7 +527,7 @@ export default function Admin() {
                 <div>
                   <div id="segment-modal-title" style={{ fontWeight: 700, fontSize: 14 }}>{viewSegment.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    by {viewSegment.created_by} · {viewSegment.effort_count} efforts
+                    {t('admin.segmentModalBy', { creator: viewSegment.created_by, count: viewSegment.effort_count })}
                   </div>
                 </div>
                 <button onClick={() => setViewSegment(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
@@ -550,9 +552,9 @@ export default function Admin() {
 
               {/* Legend */}
               <div style={{ background: 'var(--surface)', padding: '8px 16px', display: 'flex', gap: 20, fontSize: 12, color: 'var(--text-muted)' }}>
-                <span><span style={{ color: '#4dff91', fontWeight: 700 }}>●</span> Start</span>
-                <span><span style={{ color: '#ff4d4d', fontWeight: 700 }}>●</span> End</span>
-                <span style={{ marginLeft: 'auto' }}>Click outside to close</span>
+                <span><span style={{ color: '#4dff91', fontWeight: 700 }}>●</span> {t('admin.segmentModalStart')}</span>
+                <span><span style={{ color: '#ff4d4d', fontWeight: 700 }}>●</span> {t('admin.segmentModalEnd')}</span>
+                <span style={{ marginLeft: 'auto' }}>{t('admin.segmentModalClickToClose')}</span>
               </div>
             </div>
           </div>

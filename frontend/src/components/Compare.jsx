@@ -7,6 +7,7 @@ import {
 } from 'recharts'
 import { GitCompare, Home, Trees } from 'lucide-react'
 import { colors } from '../tokens'
+import { useTranslation } from 'react-i18next'
 
 function fmtDuration(s) {
   const h = Math.floor(s / 3600)
@@ -87,6 +88,7 @@ function EnvTag({ act, color }) {
 }
 
 export default function Compare() {
+  const { t } = useTranslation()
   const [activities, setActivities] = useState([])
   const [id1, setId1] = useState('')
   const [id2, setId2] = useState('')
@@ -130,48 +132,48 @@ export default function Compare() {
   const hasEle = chartData.some(d => d.ele1 != null || d.ele2 != null)
 
   const statRows = act1 && act2 ? [
-    { label: 'Distance',    v1: `${act1.distance_km.toFixed(2)} km`,          v2: `${act2.distance_km.toFixed(2)} km`,          win: act1.distance_km > act2.distance_km ? 1 : act2.distance_km > act1.distance_km ? 2 : 0 },
-    { label: 'Time',        v1: fmtDuration(act1.duration_seconds),           v2: fmtDuration(act2.duration_seconds),           win: 0 },
-    { label: 'Avg Speed',   v1: `${act1.avg_speed_kmh.toFixed(1)} km/h`,      v2: `${act2.avg_speed_kmh.toFixed(1)} km/h`,      win: act1.avg_speed_kmh > act2.avg_speed_kmh ? 1 : act2.avg_speed_kmh > act1.avg_speed_kmh ? 2 : 0 },
-    { label: 'Max Speed',   v1: `${act1.max_speed_kmh.toFixed(1)} km/h`,      v2: `${act2.max_speed_kmh.toFixed(1)} km/h`,      win: act1.max_speed_kmh > act2.max_speed_kmh ? 1 : act2.max_speed_kmh > act1.max_speed_kmh ? 2 : 0 },
+    { label: t('compare.statDistance'),    v1: `${act1.distance_km.toFixed(2)} km`,          v2: `${act2.distance_km.toFixed(2)} km`,          win: act1.distance_km > act2.distance_km ? 1 : act2.distance_km > act1.distance_km ? 2 : 0 },
+    { label: t('compare.statTime'),        v1: fmtDuration(act1.duration_seconds),           v2: fmtDuration(act2.duration_seconds),           win: 0 },
+    { label: t('compare.statAvgSpeed'),    v1: `${act1.avg_speed_kmh.toFixed(1)} km/h`,      v2: `${act2.avg_speed_kmh.toFixed(1)} km/h`,      win: act1.avg_speed_kmh > act2.avg_speed_kmh ? 1 : act2.avg_speed_kmh > act1.avg_speed_kmh ? 2 : 0 },
+    { label: t('compare.statMaxSpeed'),    v1: `${act1.max_speed_kmh.toFixed(1)} km/h`,      v2: `${act2.max_speed_kmh.toFixed(1)} km/h`,      win: act1.max_speed_kmh > act2.max_speed_kmh ? 1 : act2.max_speed_kmh > act1.max_speed_kmh ? 2 : 0 },
     ...(act1.avg_heart_rate_bpm && act2.avg_heart_rate_bpm ? [
-      { label: 'Avg HR', v1: `${Math.round(act1.avg_heart_rate_bpm)} bpm`, v2: `${Math.round(act2.avg_heart_rate_bpm)} bpm`, win: act1.avg_heart_rate_bpm < act2.avg_heart_rate_bpm ? 1 : act2.avg_heart_rate_bpm < act1.avg_heart_rate_bpm ? 2 : 0 },
+      { label: t('compare.statAvgHR'), v1: `${Math.round(act1.avg_heart_rate_bpm)} bpm`, v2: `${Math.round(act2.avg_heart_rate_bpm)} bpm`, win: act1.avg_heart_rate_bpm < act2.avg_heart_rate_bpm ? 1 : act2.avg_heart_rate_bpm < act1.avg_heart_rate_bpm ? 2 : 0 },
     ] : []),
     ...(act1.avg_cadence_rpm && act2.avg_cadence_rpm ? [
-      { label: 'Avg Cadence', v1: `${Math.round(act1.avg_cadence_rpm)} rpm`, v2: `${Math.round(act2.avg_cadence_rpm)} rpm`, win: 0 },
+      { label: t('compare.statAvgCadence'), v1: `${Math.round(act1.avg_cadence_rpm)} rpm`, v2: `${Math.round(act2.avg_cadence_rpm)} rpm`, win: 0 },
     ] : []),
-    { label: 'Elevation ↑', v1: `${act1.elevation_gain_m.toFixed(0)} m`,      v2: `${act2.elevation_gain_m.toFixed(0)} m`,      win: act1.elevation_gain_m > act2.elevation_gain_m ? 1 : act2.elevation_gain_m > act1.elevation_gain_m ? 2 : 0 },
+    { label: t('compare.statElevation'), v1: `${act1.elevation_gain_m.toFixed(0)} m`,      v2: `${act2.elevation_gain_m.toFixed(0)} m`,      win: act1.elevation_gain_m > act2.elevation_gain_m ? 1 : act2.elevation_gain_m > act1.elevation_gain_m ? 2 : 0 },
     ...(act1.suffer_score != null && act2.suffer_score != null ? [
-      { label: 'Suffer Score', v1: act1.suffer_score, v2: act2.suffer_score, win: act1.suffer_score > act2.suffer_score ? 1 : act2.suffer_score > act1.suffer_score ? 2 : 0 },
+      { label: t('compare.statSufferScore'), v1: act1.suffer_score, v2: act2.suffer_score, win: act1.suffer_score > act2.suffer_score ? 1 : act2.suffer_score > act1.suffer_score ? 2 : 0 },
     ] : []),
     ...(dur1 && dur2 && dur1.durability_index != null && dur2.durability_index != null ? [
-      { label: 'Durability Index', v1: `${dur1.durability_index.toFixed(1)}`, v2: `${dur2.durability_index.toFixed(1)}`, win: dur1.durability_index > dur2.durability_index ? 1 : dur2.durability_index > dur1.durability_index ? 2 : 0 },
+      { label: t('compare.statDurabilityIndex'), v1: `${dur1.durability_index.toFixed(1)}`, v2: `${dur2.durability_index.toFixed(1)}`, win: dur1.durability_index > dur2.durability_index ? 1 : dur2.durability_index > dur1.durability_index ? 2 : 0 },
     ] : []),
     ...(dur1 && dur2 && dur1.fade_rate_pct_per_hour != null && dur2.fade_rate_pct_per_hour != null ? [
-      { label: 'Fade Rate /h', v1: `${dur1.fade_rate_pct_per_hour.toFixed(1)}%`, v2: `${dur2.fade_rate_pct_per_hour.toFixed(1)}%`, win: dur1.fade_rate_pct_per_hour < dur2.fade_rate_pct_per_hour ? 1 : dur2.fade_rate_pct_per_hour < dur1.fade_rate_pct_per_hour ? 2 : 0 },
+      { label: t('compare.statFadeRate'), v1: `${dur1.fade_rate_pct_per_hour.toFixed(1)}%`, v2: `${dur2.fade_rate_pct_per_hour.toFixed(1)}%`, win: dur1.fade_rate_pct_per_hour < dur2.fade_rate_pct_per_hour ? 1 : dur2.fade_rate_pct_per_hour < dur1.fade_rate_pct_per_hour ? 2 : 0 },
     ] : []),
     ...(act1.climb_count > 0 || act2.climb_count > 0 ? [
-      { label: 'Climbs', v1: act1.climb_count || 0, v2: act2.climb_count || 0, win: (act1.climb_count || 0) > (act2.climb_count || 0) ? 1 : (act2.climb_count || 0) > (act1.climb_count || 0) ? 2 : 0 },
+      { label: t('compare.statClimbs'), v1: act1.climb_count || 0, v2: act2.climb_count || 0, win: (act1.climb_count || 0) > (act2.climb_count || 0) ? 1 : (act2.climb_count || 0) > (act1.climb_count || 0) ? 2 : 0 },
     ] : []),
     ...(act1.total_climbing_wkg_avg != null && act2.total_climbing_wkg_avg != null ? [
-      { label: 'Climb W/kg', v1: `${act1.total_climbing_wkg_avg.toFixed(2)} W/kg`, v2: `${act2.total_climbing_wkg_avg.toFixed(2)} W/kg`, win: act1.total_climbing_wkg_avg > act2.total_climbing_wkg_avg ? 1 : act2.total_climbing_wkg_avg > act1.total_climbing_wkg_avg ? 2 : 0 },
+      { label: t('compare.statClimbWkg'), v1: `${act1.total_climbing_wkg_avg.toFixed(2)} W/kg`, v2: `${act2.total_climbing_wkg_avg.toFixed(2)} W/kg`, win: act1.total_climbing_wkg_avg > act2.total_climbing_wkg_avg ? 1 : act2.total_climbing_wkg_avg > act1.total_climbing_wkg_avg ? 2 : 0 },
     ] : []),
   ] : []
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Compare Activities</h1>
-        <p className="page-subtitle">Side-by-side analysis of two rides</p>
+        <h1 className="page-title">{t('compare.title')}</h1>
+        <p className="page-subtitle">{t('compare.subtitle')}</p>
       </div>
 
       {/* Selectors */}
       <div className="compare-selectors">
         <div className="compare-selector-box" style={{ borderColor: C1 }}>
-          <div className="compare-label" style={{ color: C1 }}>Activity A</div>
+          <div className="compare-label" style={{ color: C1 }}>{t('compare.activityA')}</div>
           <select className="filter-input" style={{ width: '100%', borderColor: id1 ? C1 : undefined }}
             value={id1} onChange={e => setId1(e.target.value)}>
-            <option value="">Select a ride…</option>
+            <option value="">{t('compare.selectRidePlaceholder')}</option>
             {activities.filter(a => String(a.id) !== id2).map(a => (
               <option key={a.id} value={a.id}>
                 {format(new Date(a.date), 'dd MMM yy')} — {a.name} ({a.distance_km.toFixed(1)} km)
@@ -179,12 +181,12 @@ export default function Compare() {
             ))}
           </select>
         </div>
-        <div style={{ alignSelf: 'center', color: 'var(--text-muted)', fontSize: 20, fontWeight: 700 }}>vs</div>
+        <div style={{ alignSelf: 'center', color: 'var(--text-muted)', fontSize: 20, fontWeight: 700 }}>{t('compare.vsLabel')}</div>
         <div className="compare-selector-box" style={{ borderColor: C2 }}>
-          <div className="compare-label" style={{ color: C2 }}>Activity B</div>
+          <div className="compare-label" style={{ color: C2 }}>{t('compare.activityB')}</div>
           <select className="filter-input" style={{ width: '100%', borderColor: id2 ? C2 : undefined }}
             value={id2} onChange={e => setId2(e.target.value)}>
-            <option value="">Select a ride…</option>
+            <option value="">{t('compare.selectRidePlaceholder')}</option>
             {activities.filter(a => String(a.id) !== id1).map(a => (
               <option key={a.id} value={a.id}>
                 {format(new Date(a.date), 'dd MMM yy')} — {a.name} ({a.distance_km.toFixed(1)} km)
@@ -197,7 +199,7 @@ export default function Compare() {
       {(!act1 || !act2) && (
         <div className="empty-state" style={{ marginTop: 40 }}>
           <div className="empty-state-icon"><GitCompare size={48} /></div>
-          <h3>Select two rides to compare</h3>
+          <h3>{t('compare.emptyStateTitle')}</h3>
         </div>
       )}
 
@@ -243,10 +245,10 @@ export default function Compare() {
           {chartData.length > 0 && (
             <>
               {[
-                { key1: 'speed1', key2: 'speed2', label: 'Speed', unit: 'km/h', show: true },
-                { key1: 'hr1',    key2: 'hr2',    label: 'Heart Rate', unit: 'bpm', show: hasHR },
-                { key1: 'cad1',   key2: 'cad2',   label: 'Cadence',    unit: 'rpm', show: hasCad },
-                { key1: 'ele1',   key2: 'ele2',    label: 'Elevation',  unit: 'm',   show: hasEle },
+                { key1: 'speed1', key2: 'speed2', label: t('compare.chartSpeed'),     unit: 'km/h', show: true },
+                { key1: 'hr1',    key2: 'hr2',    label: t('compare.chartHeartRate'), unit: 'bpm', show: hasHR },
+                { key1: 'cad1',   key2: 'cad2',   label: t('compare.chartCadence'),   unit: 'rpm', show: hasCad },
+                { key1: 'ele1',   key2: 'ele2',   label: t('compare.chartElevation'), unit: 'm',   show: hasEle },
               ].filter(c => c.show).map(({ key1, key2, label, unit }) => (
                 <div key={label} className="chart-section">
                   <div className="chart-title">{label}</div>
@@ -272,10 +274,9 @@ export default function Compare() {
             <div style={{ marginTop: 8, padding: '12px 16px', background: '#a78bfa0a', border: '1px solid #a78bfa28', borderRadius: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, display: 'flex', gap: 8 }}>
               <Home size={14} style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }} />
               <span>
-                You are comparing an <strong style={{ color: '#a78bfa' }}>indoor</strong> and an <strong style={{ color: '#6dffb8' }}>outdoor</strong> ride.
-                Power and TSS values are not directly comparable — indoor rides typically produce 5–15% less power at the same perceived effort.
+                {t('compare.indoorOutdoorWarning')}
                 {(act1.corrected_tss != null || act2.corrected_tss != null) && (
-                  <> Corrected TSS (if available) accounts for this gap.</>
+                  <>{t('compare.indoorOutdoorWarningTSS')}</>
                 )}
               </span>
             </div>
@@ -284,7 +285,7 @@ export default function Compare() {
           {/* Durability comparison note */}
           {compareNote && (
             <div style={{ marginTop: 8, padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Durability Comparison</span>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('compare.durabilityComparisonTitle')}</span>
               {compareNote}
             </div>
           )}
@@ -292,13 +293,17 @@ export default function Compare() {
           {/* Climbs comparison */}
           {(climbs1.length > 0 || climbs2.length > 0) && (
             <div className="chart-section">
-              <div className="chart-title">Climbs</div>
+              <div className="chart-title">{t('compare.climbsTitle')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C1, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Activity A — {climbs1.length} climb{climbs1.length !== 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C1, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                    {t(climbs1.length === 1 ? 'compare.climbsActivityA' : 'compare.climbsActivityA_plural', { count: climbs1.length })}
+                  </div>
                   {climbs1.map((c, i) => (
                     <div key={c.id} style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C1}30`, background: `${C1}08` }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Climb {i + 1} — {((c.distance_m || 0) / 1000).toFixed(1)} km @ {(c.avg_gradient_pct || 0).toFixed(1)}%</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                        {t('compare.climbLabel', { number: i + 1, distance: ((c.distance_m || 0) / 1000).toFixed(1), gradient: (c.avg_gradient_pct || 0).toFixed(1) })}
+                      </div>
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         {c.estimated_power_w != null && (
                           <span style={{ fontSize: 13, fontFamily: 'var(--font-display)', color: C1 }}>{Math.round(c.estimated_power_w)}W</span>
@@ -312,13 +317,17 @@ export default function Compare() {
                       </div>
                     </div>
                   ))}
-                  {climbs1.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No climbs detected</div>}
+                  {climbs1.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('compare.noClimbsDetected')}</div>}
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Activity B — {climbs2.length} climb{climbs2.length !== 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                    {t(climbs2.length === 1 ? 'compare.climbsActivityB' : 'compare.climbsActivityB_plural', { count: climbs2.length })}
+                  </div>
                   {climbs2.map((c, i) => (
                     <div key={c.id} style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C2}30`, background: `${C2}08` }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Climb {i + 1} — {((c.distance_m || 0) / 1000).toFixed(1)} km @ {(c.avg_gradient_pct || 0).toFixed(1)}%</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                        {t('compare.climbLabel', { number: i + 1, distance: ((c.distance_m || 0) / 1000).toFixed(1), gradient: (c.avg_gradient_pct || 0).toFixed(1) })}
+                      </div>
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         {c.estimated_power_w != null && (
                           <span style={{ fontSize: 13, fontFamily: 'var(--font-display)', color: C2 }}>{Math.round(c.estimated_power_w)}W</span>
@@ -332,7 +341,7 @@ export default function Compare() {
                       </div>
                     </div>
                   ))}
-                  {climbs2.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No climbs detected</div>}
+                  {climbs2.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('compare.noClimbsDetected')}</div>}
                 </div>
               </div>
             </div>

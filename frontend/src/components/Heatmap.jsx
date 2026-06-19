@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Polyline, Tooltip } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getHeatmap } from '../services/api'
@@ -6,6 +7,7 @@ import { Map } from 'lucide-react'
 import { colors } from '../tokens'
 
 export default function Heatmap() {
+  const { t } = useTranslation()
   const [routes, setRoutes] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -29,15 +31,15 @@ export default function Heatmap() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Heatmap</h1>
-        <p className="page-subtitle">{routes.length} rides on the map</p>
+        <h1 className="page-title">{t('heatmap.title')}</h1>
+        <p className="page-subtitle">{t('heatmap.subtitle', { count: routes.length })}</p>
       </div>
 
       {routes.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Map size={48} /></div>
-          <h3>No GPS data yet</h3>
-          <p>Upload rides with GPS to see them here</p>
+          <h3>{t('heatmap.emptyTitle')}</h3>
+          <p>{t('heatmap.emptyDesc')}</p>
         </div>
       ) : (
         <div className="map-container" style={{ height: 600 }}>

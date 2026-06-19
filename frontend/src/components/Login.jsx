@@ -4,8 +4,10 @@ import { login, register } from '../services/api'
 import { markLoggedIn } from '../services/auth'
 import Alert from './Alert'
 import CobbraLogo from './CobbraLogo'
+import { useTranslation } from 'react-i18next'
 
 export default function Login() {
+  const { t } = useTranslation()
   const location = useLocation()
   const [mode, setMode] = useState(location.pathname === '/register' ? 'register' : 'login')   // 'login' | 'register'
   const [username, setUsername] = useState('')
@@ -32,8 +34,8 @@ export default function Login() {
     e.preventDefault()
     setError('')
     if (mode === 'register') {
-      if (!agreedAge)   { setError('You must confirm that you are at least 16 years old.'); return }
-      if (!agreedTerms) { setError('You must agree to the Terms of Service and Privacy Policy.'); return }
+      if (!agreedAge)   { setError(t('login.errorAgeRequired')); return }
+      if (!agreedTerms) { setError(t('login.errorTermsRequired')); return }
     }
     setLoading(true)
     try {
@@ -44,7 +46,7 @@ export default function Login() {
       markLoggedIn()
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Something went wrong')
+      setError(err.response?.data?.detail || t('login.errorFallback'))
     } finally {
       setLoading(false)
     }
@@ -62,25 +64,25 @@ export default function Login() {
             className={`login-tab${mode === 'login' ? ' active' : ''}`}
             onClick={() => switchMode('login')}
           >
-            Sign In
+            {t('login.tabSignIn')}
           </button>
           <button
             className={`login-tab${mode === 'register' ? ' active' : ''}`}
             onClick={() => switchMode('register')}
           >
-            Register
+            {t('login.tabRegister')}
           </button>
         </div>
 
         <p className="login-sub">
-          {mode === 'register' ? 'Create a new account' : 'Sign in to your training data'}
+          {mode === 'register' ? t('login.subRegister') : t('login.subSignIn')}
         </p>
 
         {error && <Alert variant="error" style={{ marginBottom: 16 }}>{error}</Alert>}
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
-            <label htmlFor="login-username">Username</label>
+            <label htmlFor="login-username">{t('login.usernameLabel')}</label>
             <input
               id="login-username"
               type="text"
@@ -93,7 +95,7 @@ export default function Login() {
           </div>
           {mode === 'register' && (
             <div className="login-field">
-              <label htmlFor="login-email">Email</label>
+              <label htmlFor="login-email">{t('login.emailLabel')}</label>
               <input
                 id="login-email"
                 type="email"
@@ -105,7 +107,7 @@ export default function Login() {
             </div>
           )}
           <div className="login-field">
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="login-password">{t('login.passwordLabel')}</label>
             <input
               id="login-password"
               type="password"
@@ -114,7 +116,7 @@ export default function Login() {
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               required
             />
-            {mode === 'register' && <span className="login-hint">At least 6 characters</span>}
+            {mode === 'register' && <span className="login-hint">{t('login.passwordHint')}</span>}
           </div>
           {/* Honeypot — hidden from real users, bots fill it in */}
           <input
@@ -137,7 +139,7 @@ export default function Login() {
                   style={{ marginTop: 2, accentColor: 'var(--accent)', flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  I confirm that I am at least 16 years old.
+                  {t('login.ageCheckbox')}
                 </span>
               </label>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
@@ -148,10 +150,10 @@ export default function Login() {
                   style={{ marginTop: 2, accentColor: 'var(--accent)', flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  I agree to the{' '}
-                  <Link to="/terms"   target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Terms of Service</Link>
-                  {' '}and{' '}
-                  <Link to="/privacy" target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Privacy Policy</Link>.
+                  {t('login.termsCheckboxPre')}{' '}
+                  <Link to="/terms"   target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{t('login.termsLink')}</Link>
+                  {' '}{t('login.termsAnd')}{' '}
+                  <Link to="/privacy" target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{t('login.privacyLink')}</Link>.
                 </span>
               </label>
             </div>
@@ -159,13 +161,13 @@ export default function Login() {
           <button type="submit" className="btn btn-primary login-btn" disabled={loading}>
             {loading
               ? <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-              : mode === 'register' ? 'Create Account' : 'Sign In'
+              : mode === 'register' ? t('login.submitRegister') : t('login.submitSignIn')
             }
           </button>
         </form>
 
         <p style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
-          By using Cobbra, you agree that this site uses a strictly necessary authentication cookie to keep you signed in. No tracking or advertising cookies are used.
+          {t('login.cookieNotice')}
         </p>
       </div>
     </div>

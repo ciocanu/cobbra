@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { uploadActivity } from '../services/api'
 import { Upload as UploadIcon, CheckCircle, AlertCircle } from 'lucide-react'
 import Alert from './Alert'
 
 export default function Upload() {
+  const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [success, setSuccess] = useState(null)
@@ -16,7 +18,7 @@ export default function Upload() {
     if (!file) return
     const ext = file.name.split('.').pop().toLowerCase()
     if (!['gpx', 'fit'].includes(ext)) {
-      setError('Only .gpx and .fit files are supported')
+      setError(t('upload.errorUnsupportedFormat'))
       return
     }
 
@@ -28,7 +30,7 @@ export default function Upload() {
       const res = await uploadActivity(file)
       setSuccess(res.data)
     } catch (e) {
-      setError(e.response?.data?.detail || 'Upload failed. Check the file and try again.')
+      setError(e.response?.data?.detail || t('upload.errorUploadFailed'))
     } finally {
       setUploading(false)
     }
@@ -43,8 +45,8 @@ export default function Upload() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Upload Ride</h1>
-        <p className="page-subtitle">Supports .gpx and .fit files exported from Cycplus, Garmin, Wahoo, etc.</p>
+        <h1 className="page-title">{t('upload.title')}</h1>
+        <p className="page-subtitle">{t('upload.subtitle')}</p>
       </div>
 
       {error && (
@@ -64,10 +66,10 @@ export default function Upload() {
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 24 }}>
             <button className="btn btn-primary" onClick={() => navigate(`/activities/${success.id}`)}>
-              View Activity
+              {t('upload.viewActivity')}
             </button>
             <button className="btn btn-ghost" onClick={() => setSuccess(null)}>
-              Upload Another
+              {t('upload.uploadAnother')}
             </button>
           </div>
         </div>
@@ -96,19 +98,19 @@ export default function Upload() {
           </div>
 
           <div className="upload-zone-title">
-            {uploading ? 'Processing...' : 'Drop your file here'}
+            {uploading ? t('upload.processingTitle') : t('upload.dropTitle')}
           </div>
           <div className="upload-zone-sub">
             {uploading
-              ? 'Parsing GPS data and calculating metrics'
-              : 'or click to browse · .gpx and .fit supported'
+              ? t('upload.processingSub')
+              : t('upload.dropSub')
             }
           </div>
         </div>
       )}
 
       <div style={{ marginTop: 32 }}>
-        <div className="section-title">How to export from Cycplus</div>
+        <div className="section-title">{t('upload.howToExportTitle')}</div>
         <div className="card" style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.7 }}>
           <p>1. Open the <strong style={{ color: 'var(--text-primary)' }}>Cycplus app</strong> on your phone</p>
           <p>2. Go to <strong style={{ color: 'var(--text-primary)' }}>My → Activities</strong> and select a ride</p>

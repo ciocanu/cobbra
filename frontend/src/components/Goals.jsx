@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getGoals, setGoal, deleteGoal, getWeeklyStats, getYearStats } from '../services/api'
 import { Target, Trash2, Flame, TrendingUp, TrendingDown, Plus } from 'lucide-react'
 import Alert from './Alert'
 
 const GOAL_TYPES = [
-  { value: 'weekly_distance_km',  label: 'Weekly Distance',   unit: 'km',    period: 'week',  field: 'distance_km', placeholder: '150' },
-  { value: 'weekly_rides',        label: 'Weekly Rides',      unit: 'rides', period: 'week',  field: 'rides',       placeholder: '4' },
-  { value: 'weekly_elevation_m',  label: 'Weekly Elevation',  unit: 'm',     period: 'week',  field: 'elevation_m', placeholder: '1500' },
-  { value: 'monthly_distance_km', label: 'Monthly Distance',  unit: 'km',    period: 'month', field: 'distance_km', placeholder: '600' },
-  { value: 'monthly_elevation_m', label: 'Monthly Elevation', unit: 'm',     period: 'month', field: 'elevation_m', placeholder: '5000' },
-  { value: 'annual_distance_km',  label: 'Annual Distance',   unit: 'km',    period: 'year',  field: 'distance_km', placeholder: '5000' },
+  { value: 'weekly_distance_km',  labelKey: 'goals.goalTypes.weekly_distance_km',  unit: 'km',    period: 'week',  field: 'distance_km', placeholder: '150' },
+  { value: 'weekly_rides',        labelKey: 'goals.goalTypes.weekly_rides',         unit: 'rides', period: 'week',  field: 'rides',       placeholder: '4' },
+  { value: 'weekly_elevation_m',  labelKey: 'goals.goalTypes.weekly_elevation_m',   unit: 'm',     period: 'week',  field: 'elevation_m', placeholder: '1500' },
+  { value: 'monthly_distance_km', labelKey: 'goals.goalTypes.monthly_distance_km',  unit: 'km',    period: 'month', field: 'distance_km', placeholder: '600' },
+  { value: 'monthly_elevation_m', labelKey: 'goals.goalTypes.monthly_elevation_m',  unit: 'm',     period: 'month', field: 'elevation_m', placeholder: '5000' },
+  { value: 'annual_distance_km',  labelKey: 'goals.goalTypes.annual_distance_km',   unit: 'km',    period: 'year',  field: 'distance_km', placeholder: '5000' },
 ]
 
 function daysLeftInWeek() {
@@ -35,6 +36,7 @@ function fmtVal(v, unit) {
 }
 
 export default function Goals() {
+  const { t } = useTranslation()
   const [goals, setGoals] = useState([])
   const [weeklyStats, setWeeklyStats] = useState([])
   const [yearStats, setYearStats] = useState(null)
@@ -57,7 +59,7 @@ export default function Goals() {
   }, [])
 
   const computeProgress = (goal) => {
-    const meta = GOAL_TYPES.find(t => t.value === goal.goal_type)
+    const meta = GOAL_TYPES.find(tp => tp.value === goal.goal_type)
     if (!meta) return { current: 0, pct: 0 }
     let current = 0
     if (meta.period === 'week' && weeklyStats.length > 0) {
@@ -72,7 +74,7 @@ export default function Goals() {
   }
 
   const computeStreak = (goal) => {
-    const meta = GOAL_TYPES.find(t => t.value === goal.goal_type)
+    const meta = GOAL_TYPES.find(tp => tp.value === goal.goal_type)
     if (!meta) return 0
     if (meta.period === 'week' && weeklyStats.length > 1) {
       const completed = weeklyStats.slice(0, -1)
@@ -98,7 +100,7 @@ export default function Goals() {
 
   const computePacing = (goal) => {
     if (!yearStats) return null
-    const meta = GOAL_TYPES.find(t => t.value === goal.goal_type)
+    const meta = GOAL_TYPES.find(tp => tp.value === goal.goal_type)
     if (meta?.period !== 'year') return null
     const now = new Date()
     const startOfYear = new Date(now.getFullYear(), 0, 1)
@@ -119,7 +121,7 @@ export default function Goals() {
   }
 
   const handleSave = async () => {
-    if (!target || Number(target) <= 0) { setError('Enter a valid target value'); return }
+    if (!target || Number(target) <= 0) { setError(t('goals.errorInvalidTarget')); return }
     setError('')
     setSaving(true)
     try {
@@ -131,7 +133,7 @@ export default function Goals() {
       setTarget('')
       setShowAdd(false)
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed to save goal')
+      setError(e.response?.data?.detail || t('goals.errorFailedSave'))
     } finally {
       setSaving(false)
     }
@@ -144,7 +146,7 @@ export default function Goals() {
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
-  const availableTypes = GOAL_TYPES.filter(t => !goals.find(g => g.goal_type === t.value))
+  const availableTypes = GOAL_TYPES.filter(tp => !goals.find(g => g.goal_type === tp.value))
 
   return (
     <div>
@@ -152,23 +154,23 @@ export default function Goals() {
         <div>
           <h1 className="page-title">
             <Target size={22} style={{ display: 'inline', marginRight: 8, color: 'var(--accent)' }} />
-            Goals
+            {t('goals.title')}
           </h1>
-          <p className="page-subtitle">Track weekly, monthly and annual targets</p>
+          <p className="page-subtitle">{t('goals.subtitle')}</p>
         </div>
         {availableTypes.length > 0 && !showAdd && (
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
-            <Plus size={13} /> Add Goal
+            <Plus size={13} /> {t('goals.addGoal')}
           </button>
         )}
       </div>
 
       {showAdd && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>Add a Goal</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>{t('goals.addAGoal')}</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>
-              <label htmlFor="goal-metric" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Metric</label>
+              <label htmlFor="goal-metric" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>{t('goals.metricLabel')}</label>
               <select
                 id="goal-metric"
                 className="filter-input"
@@ -176,20 +178,20 @@ export default function Goals() {
                 onChange={e => { setSelectedType(e.target.value); setTarget('') }}
                 style={{ minWidth: 210 }}
               >
-                {availableTypes.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                {availableTypes.map(tp => (
+                  <option key={tp.value} value={tp.value}>{t(tp.labelKey)}</option>
                 ))}
               </select>
             </div>
             <div>
               <label htmlFor="goal-target" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                Target ({GOAL_TYPES.find(t => t.value === selectedType)?.unit})
+                {t('goals.targetLabel', { unit: GOAL_TYPES.find(tp => tp.value === selectedType)?.unit })}
               </label>
               <input
                 id="goal-target"
                 type="number"
                 className="filter-input"
-                placeholder={GOAL_TYPES.find(t => t.value === selectedType)?.placeholder}
+                placeholder={GOAL_TYPES.find(tp => tp.value === selectedType)?.placeholder}
                 value={target}
                 onChange={e => setTarget(e.target.value)}
                 style={{ width: 130 }}
@@ -197,9 +199,9 @@ export default function Goals() {
               />
             </div>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('goals.saving') : t('goals.save')}
             </button>
-            <button className="btn btn-ghost" onClick={() => { setShowAdd(false); setError('') }}>Cancel</button>
+            <button className="btn btn-ghost" onClick={() => { setShowAdd(false); setError('') }}>{t('goals.cancel')}</button>
           </div>
           {error && <Alert variant="error" style={{ fontSize: 13, marginTop: 8 }}>{error}</Alert>}
         </div>
@@ -208,16 +210,16 @@ export default function Goals() {
       {goals.length === 0 && !showAdd ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Target size={48} /></div>
-          <h3>No goals yet</h3>
-          <p>Set a weekly, monthly, or annual target to track your progress.</p>
+          <h3>{t('goals.emptyTitle')}</h3>
+          <p>{t('goals.emptyDesc')}</p>
           <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowAdd(true)}>
-            <Plus size={13} /> Add your first goal
+            <Plus size={13} /> {t('goals.addFirstGoal')}
           </button>
         </div>
       ) : (
         <div className="goals-grid">
           {goals.map(goal => {
-            const meta = GOAL_TYPES.find(t => t.value === goal.goal_type)
+            const meta = GOAL_TYPES.find(tp => tp.value === goal.goal_type)
             if (!meta) return null
             const { current, pct } = computeProgress(goal)
             const streak = computeStreak(goal)
@@ -235,12 +237,12 @@ export default function Goals() {
                 <div className="goal-card-header">
                   <div>
                     <div className="goal-card-period">{meta.period.toUpperCase()}</div>
-                    <div className="goal-card-title">{meta.label}</div>
+                    <div className="goal-card-title">{t(meta.labelKey)}</div>
                   </div>
                   <button
                     className="btn btn-ghost"
                     style={{ padding: '4px 8px', opacity: 0.5 }}
-                    aria-label={`Delete ${meta.label} goal`}
+                    aria-label={t('goals.deleteAriaLabel', { label: t(meta.labelKey) })}
                     onClick={() => handleDelete(goal.id)}
                   >
                     <Trash2 size={13} />
@@ -271,14 +273,16 @@ export default function Goals() {
                     {streak > 0 && (
                       <span className="goal-streak">
                         <Flame size={11} style={{ color: 'var(--heart)' }} />
-                        {streak} {meta.period}{streak !== 1 ? 's' : ''} in a row
+                        {streak !== 1
+                          ? t('goals.streakLabelPlural', { count: streak, periods: meta.period + 's' })
+                          : t('goals.streakLabel', { count: streak, period: meta.period })}
                       </span>
                     )}
                     {!done && dl > 0 && (
-                      <span className="goal-days-left">{dl}d left</span>
+                      <span className="goal-days-left">{t('goals.daysLeft', { count: dl })}</span>
                     )}
                     {done && (
-                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>Goal hit!</span>
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>{t('goals.goalHit')}</span>
                     )}
                   </div>
                 </div>
@@ -288,14 +292,14 @@ export default function Goals() {
                     {pacing.delta >= 0 ? (
                       <>
                         <TrendingUp size={12} style={{ color: 'var(--accent)' }} />
-                        <span style={{ color: 'var(--accent)' }}>On pace for {pacing.pace.toLocaleString()} {meta.unit}</span>
-                        <span style={{ color: 'var(--text-muted)' }}>(+{Math.abs(pacing.delta).toLocaleString()} ahead)</span>
+                        <span style={{ color: 'var(--accent)' }}>{t('goals.onPaceFor', { pace: pacing.pace.toLocaleString(), unit: meta.unit })}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{t('goals.ahead', { count: Math.abs(pacing.delta).toLocaleString() })}</span>
                       </>
                     ) : (
                       <>
                         <TrendingDown size={12} style={{ color: 'var(--heart)' }} />
-                        <span style={{ color: 'var(--heart)' }}>On pace for {pacing.pace.toLocaleString()} {meta.unit}</span>
-                        <span style={{ color: 'var(--text-muted)' }}>({Math.abs(pacing.delta).toLocaleString()} behind pace)</span>
+                        <span style={{ color: 'var(--heart)' }}>{t('goals.onPaceFor', { pace: pacing.pace.toLocaleString(), unit: meta.unit })}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{t('goals.behindPace', { count: Math.abs(pacing.delta).toLocaleString() })}</span>
                       </>
                     )}
                   </div>

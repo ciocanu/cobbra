@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getTrainingPlan, generateTrainingPlan } from '../services/api'
 import { Brain, Calendar, RefreshCw, Zap } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -6,11 +7,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 const OBJECTIVES = [
-  { value: 'Build base endurance',        desc: 'Long Z2 rides, raise weekly volume steadily' },
-  { value: 'Improve speed and power',     desc: 'Intervals, tempo work, sprint sessions' },
-  { value: 'Prepare for a specific event',desc: 'Structured build toward your target race or sportive' },
-  { value: 'Weight loss / general fitness',desc: 'Consistent riding, calorie burn, habit building' },
-  { value: 'Recovery / maintain fitness', desc: 'Low load, keep legs moving without accumulating fatigue' },
+  { value: 'Build base endurance',         valueKey: 'training.objectives.buildBase',      descKey: 'training.objectives.buildBaseDesc' },
+  { value: 'Improve speed and power',      valueKey: 'training.objectives.improveSpeed',   descKey: 'training.objectives.improveSpeedDesc' },
+  { value: 'Prepare for a specific event', valueKey: 'training.objectives.prepareEvent',   descKey: 'training.objectives.prepareEventDesc' },
+  { value: 'Weight loss / general fitness',valueKey: 'training.objectives.weightLoss',     descKey: 'training.objectives.weightLossDesc' },
+  { value: 'Recovery / maintain fitness',  valueKey: 'training.objectives.recovery',       descKey: 'training.objectives.recoveryDesc' },
 ]
 
 function PlanText({ text }) {
@@ -48,6 +49,7 @@ function PlanText({ text }) {
 }
 
 export default function Training() {
+  const { t } = useTranslation()
   const [data, setData] = useState(null)       // { plan, can_generate, next_generation_date }
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -80,7 +82,7 @@ export default function Training() {
     setError('')
     try {
       if (trainingDays.length === 0) {
-        setError('Please select at least one training day.')
+        setError(t('training.errorSelectDay'))
         setGenerating(false)
         return
       }
@@ -95,9 +97,9 @@ export default function Training() {
     } catch (e) {
       const detail = e.response?.data?.detail
       if (Array.isArray(detail)) {
-        setError('Validation error: ' + detail.map(d => d.msg).join(', '))
+        setError(t('training.errorValidation', { detail: detail.map(d => d.msg).join(', ') }))
       } else {
-        setError(detail || e.message || 'Failed to generate plan')
+        setError(detail || e.message || t('training.errorFailedGenerate'))
       }
     } finally {
       setGenerating(false)
@@ -108,19 +110,25 @@ export default function Training() {
 
   const { plan, can_generate, next_generation_date, plans_used, plans_limit, is_free } = data || { plan: null, can_generate: true, next_generation_date: null, plans_used: 0, plans_limit: 3, is_free: false }
 
+  const daysSelectedText = trainingDays.length === 0
+    ? t('training.noneSelected')
+    : trainingDays.length === 1
+      ? t('training.daysSelected', { count: trainingDays.length })
+      : t('training.daysSelectedPlural', { count: trainingDays.length })
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className="page-title">
             <Brain size={22} style={{ display: 'inline', marginRight: 8, color: 'var(--accent)' }} />
-            Training Plan
+            {t('training.title')}
           </h1>
-          <p className="page-subtitle">AI-generated plan based on your ride history and goals</p>
+          <p className="page-subtitle">{t('training.subtitle')}</p>
         </div>
         {plan && can_generate && !showForm && (
           <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <RefreshCw size={13} /> New Plan
+            <RefreshCw size={13} /> {t('training.newPlan')}
           </button>
         )}
       </div>
@@ -130,10 +138,10 @@ export default function Training() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 10, background: '#4da6ff12', border: '1px solid #4da6ff30', marginBottom: 24 }}>
           <Zap size={16} style={{ color: '#4da6ff', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>AI training plans are a Pro feature.</span>
-            <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>Upgrade to generate personalised 4-week plans based on your ride history.</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('training.proFeatureTitle')}</span>
+            <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>{t('training.proFeatureDesc')}</span>
           </div>
-          <a href="/settings" style={{ fontSize: 12, fontWeight: 700, color: '#4da6ff', textDecoration: 'none', whiteSpace: 'nowrap' }}>Upgrade →</a>
+          <a href="/settings" style={{ fontSize: 12, fontWeight: 700, color: '#4da6ff', textDecoration: 'none', whiteSpace: 'nowrap' }}>{t('training.upgradeLink')}</a>
         </div>
       )}
 
@@ -141,7 +149,7 @@ export default function Training() {
       {!is_free && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 13, color: 'var(--text-muted)' }}>
           <Calendar size={13} />
-          <span>{plans_used} of {plans_limit} plans used this month</span>
+          <span>{t('training.plansUsed', { used: plans_used, limit: plans_limit })}</span>
         </div>
       )}
 
@@ -152,8 +160,7 @@ export default function Training() {
           color: 'var(--text-secondary)', marginBottom: 20
         }}>
           <Calendar size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-          Plan generated on {format(parseISO(plan.created_at), 'dd MMM yyyy')} ·
-          Next plan available on <strong style={{ color: 'var(--accent)' }}>
+          {t('training.rateLimitNotice', { date: format(parseISO(plan.created_at), 'dd MMM yyyy') })} <strong style={{ color: 'var(--accent)' }}>
             {next_generation_date ? format(parseISO(next_generation_date), 'dd MMM yyyy') : '—'}
           </strong>
         </div>
@@ -163,12 +170,12 @@ export default function Training() {
       {!is_free && (showForm || (!plan && can_generate)) && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 18 }}>
-            {plan ? 'Generate New Plan' : 'Set Your Goal'}
+            {plan ? t('training.formTitleNew') : t('training.formTitleFirst')}
           </div>
 
           {/* Objective */}
           <div className="training-field">
-            <label className="training-label">What is your main objective?</label>
+            <label className="training-label">{t('training.objectiveLabel')}</label>
             <div className="objective-grid">
               {OBJECTIVES.map(o => (
                 <button
@@ -176,8 +183,8 @@ export default function Training() {
                   className={`objective-card${objective === o.value ? ' selected' : ''}`}
                   onClick={() => setObjective(o.value)}
                 >
-                  <div className="objective-title">{o.value}</div>
-                  <div className="objective-desc">{o.desc}</div>
+                  <div className="objective-title">{t(o.valueKey)}</div>
+                  <div className="objective-desc">{t(o.descKey)}</div>
                 </button>
               ))}
             </div>
@@ -186,9 +193,9 @@ export default function Training() {
           {/* Available days */}
           <div className="training-field">
             <label className="training-label">
-              Which days can you train?
+              {t('training.trainingDaysLabel')}
               <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
-                {trainingDays.length === 0 ? 'None selected' : `${trainingDays.length} day${trainingDays.length !== 1 ? 's' : ''} selected`}
+                {daysSelectedText}
               </span>
             </label>
             <div className="day-picker">
@@ -198,8 +205,8 @@ export default function Training() {
                   className={`day-pill${trainingDays.includes(d) ? ' selected' : ''}`}
                   onClick={() => toggleDay(d)}
                 >
-                  <span className="day-pill-short">{d.slice(0, 3)}</span>
-                  <span className="day-pill-full">{d}</span>
+                  <span className="day-pill-short">{t(`training.days.${d}`).slice(0, 3)}</span>
+                  <span className="day-pill-full">{t(`training.days.${d}`)}</span>
                 </button>
               ))}
             </div>
@@ -207,7 +214,7 @@ export default function Training() {
 
           {/* Event date */}
           <div className="training-field">
-            <label className="training-label">Target event date <span style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
+            <label className="training-label">{t('training.eventDateLabel')} <span style={{ color: 'var(--text-muted)' }}>{t('training.optional')}</span></label>
             <input
               type="date"
               className="filter-input"
@@ -219,11 +226,11 @@ export default function Training() {
 
           {/* Notes */}
           <div className="training-field">
-            <label className="training-label">Anything else the coach should know? <span style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
+            <label className="training-label">{t('training.notesLabel')} <span style={{ color: 'var(--text-muted)' }}>{t('training.optional')}</span></label>
             <textarea
               className="notes-textarea"
               rows={3}
-              placeholder='e.g. "I have a knee injury", "I can only ride indoors", "I want to focus on climbing"'
+              placeholder={t('training.notesPlaceholder')}
               value={extraNotes}
               onChange={e => setExtraNotes(e.target.value)}
             />
@@ -234,18 +241,18 @@ export default function Training() {
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
               {generating
-                ? <><div className="spinner" style={{ width: 14, height: 14 }} /> Generating…</>
-                : <><Brain size={14} /> Generate 4-Week Plan</>
+                ? <><div className="spinner" style={{ width: 14, height: 14 }} /> {t('training.generating')}</>
+                : <><Brain size={14} /> {t('training.generateBtn')}</>
               }
             </button>
             {plan && (
-              <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => setShowForm(false)}>{t('training.cancel')}</button>
             )}
           </div>
 
           {generating && (
             <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 10 }}>
-              This takes 10–20 seconds — Sonnet is building your personalised plan…
+              {t('training.generatingNote')}
             </p>
           )}
         </div>
@@ -257,19 +264,19 @@ export default function Training() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 4 }}>
-                Objective
+                {t('training.objectiveDisplay')}
               </div>
               <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 2 }}>{plan.objective}</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 {plan.training_days?.length > 0
                   ? plan.training_days.map(d => d.slice(0, 3)).join(' · ')
                   : `${plan.available_days} days/week`}
-                {plan.event_date && ` · Target: ${format(parseISO(plan.event_date), 'dd MMM yyyy')}`}
+                {plan.event_date && ` · ${t('training.targetLabel', { date: format(parseISO(plan.event_date), 'dd MMM yyyy') })}`}
               </div>
             </div>
             {can_generate && (
               <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowForm(true)}>
-                <RefreshCw size={12} /> New Plan
+                <RefreshCw size={12} /> {t('training.newPlan')}
               </button>
             )}
           </div>
@@ -282,8 +289,8 @@ export default function Training() {
       {!plan && !showForm && !is_free && can_generate && (
         <div className="empty-state">
           <div className="empty-state-icon"><Brain size={48} /></div>
-          <h3>No plan yet</h3>
-          <p>Fill in your goal above to generate your first training plan.</p>
+          <h3>{t('training.emptyTitle')}</h3>
+          <p>{t('training.emptyDesc')}</p>
         </div>
       )}
     </div>

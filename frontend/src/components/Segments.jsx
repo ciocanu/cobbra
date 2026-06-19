@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { Flag, Trash2, ChevronDown, ChevronUp, Plus, X, MapPin, Trophy, User, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { colors } from '../tokens'
+import { useTranslation } from 'react-i18next'
 
 function fmtTime(s) {
   const sec = Math.round(s)
@@ -14,8 +15,8 @@ function fmtTime(s) {
   const m = Math.floor((sec % 3600) / 60)
   const ss = sec % 60
   return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-    : `${m}:${String(ss).padStart(2, '0')}`
+    ? `${h}:${String(m).padStart(2, '00')}:${String(ss).padStart(2, '00')}`
+    : `${m}:${String(ss).padStart(2, '00')}`
 }
 
 function MapClickHandler({ active, onPoint }) {
@@ -36,6 +37,7 @@ function wpColor(i, total) {
 const MEDAL = ['🥇', '🥈', '🥉']
 
 export default function Segments() {
+  const { t } = useTranslation()
   const [segments, setSegments] = useState([])
   const [routes, setRoutes] = useState([])
   const [me, setMe] = useState(null)
@@ -84,7 +86,7 @@ export default function Segments() {
       setSegments(prev => [res.data, ...prev])
       cancelCreating()
     } catch (e) {
-      setSaveError(e.response?.data?.detail || 'Failed to save segment')
+      setSaveError(e.response?.data?.detail || t('segments.failedToSave'))
     } finally {
       setSaving(false)
     }
@@ -92,7 +94,7 @@ export default function Segments() {
 
   const handleDelete = async (id, e) => {
     e.stopPropagation()
-    if (!confirm('Delete this segment?')) return
+    if (!confirm(t('segments.deleteConfirm'))) return
     await deleteSegment(id)
     setSegments(prev => prev.filter(s => s.id !== id))
     if (expanded === id) setExpanded(null)
@@ -123,10 +125,10 @@ export default function Segments() {
     : [38.5, -9.0]
 
   const stepLabel = waypoints.length === 0
-    ? 'Click on the map to add the start point'
+    ? t('segments.stepStart')
     : waypoints.length === 1
-      ? 'Add more points along the route (minimum 1 more to finish)'
-      : `${waypoints.length} points set — add more or save`
+      ? t('segments.stepAddMore')
+      : t('segments.stepPointsSet', { count: waypoints.length })
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
@@ -142,13 +144,15 @@ export default function Segments() {
         <div>
           <h1 className="page-title">
             <Flag size={22} style={{ display: 'inline', marginRight: 8, color: 'var(--accent)' }} />
-            Segments
+            {t('segments.title')}
           </h1>
-          <p className="page-subtitle">{segments.length} public segment{segments.length !== 1 ? 's' : ''} · ride through one to appear on the leaderboard</p>
+          <p className="page-subtitle">
+            {t(segments.length === 1 ? 'segments.subtitle' : 'segments.subtitle_plural', { count: segments.length })}
+          </p>
         </div>
         {!creating && (
           <button className="btn btn-primary" onClick={() => setCreating(true)}>
-            <Plus size={14} /> New Segment
+            <Plus size={14} /> {t('segments.newSegmentBtn')}
           </button>
         )}
       </div>
@@ -157,7 +161,7 @@ export default function Segments() {
       {creating && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontWeight: 600 }}>New Segment</span>
+            <span style={{ fontWeight: 600 }}>{t('segments.newSegmentPanelTitle')}</span>
             <button className="btn btn-ghost" style={{ padding: '4px 8px' }} onClick={cancelCreating}>
               <X size={14} />
             </button>
@@ -175,7 +179,7 @@ export default function Segments() {
                 }}>
                   <MapPin size={10} style={{ color: wpColor(i, waypoints.length) }} />
                   <span style={{ color: wpColor(i, waypoints.length) }}>
-                    {i === 0 ? 'Start' : i === waypoints.length - 1 ? 'End' : `P${i + 1}`}
+                    {i === 0 ? t('segments.waypointStart') : i === waypoints.length - 1 ? t('segments.waypointEnd') : `P${i + 1}`}
                     {' '}{wp[0].toFixed(4)}, {wp[1].toFixed(4)}
                   </span>
                   <button
@@ -191,7 +195,7 @@ export default function Segments() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 className="filter-input"
-                placeholder="Segment name"
+                placeholder={t('segments.segmentNamePlaceholder')}
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSave()}
@@ -199,9 +203,9 @@ export default function Segments() {
                 autoFocus
               />
               <button className="btn btn-primary" onClick={handleSave} disabled={saving || !newName.trim()}>
-                {saving ? 'Saving…' : `Save Segment (${waypoints.length} pts)`}
+                {saving ? t('segments.savingBtn') : t('segments.saveSegmentBtn', { count: waypoints.length })}
               </button>
-              <button className="btn btn-ghost" onClick={() => setWaypoints([])}>Clear All</button>
+              <button className="btn btn-ghost" onClick={() => setWaypoints([])}>{t('segments.clearAllBtn')}</button>
             </div>
           )}
 
@@ -253,13 +257,13 @@ export default function Segments() {
       {creating && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12, color: 'var(--text-muted)' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#6dffb8', display: 'inline-block' }} /> Start
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#6dffb8', display: 'inline-block' }} /> {t('segments.legendStart')}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ffd93d', display: 'inline-block' }} /> Intermediate
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ffd93d', display: 'inline-block' }} /> {t('segments.legendIntermediate')}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff4d6d', display: 'inline-block' }} /> End
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff4d6d', display: 'inline-block' }} /> {t('segments.legendEnd')}
           </span>
         </div>
       )}
@@ -268,8 +272,8 @@ export default function Segments() {
       {segments.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Flag size={48} /></div>
-          <h3>No segments yet</h3>
-          <p>Click "New Segment" and trace your route on the map — it becomes public for all riders</p>
+          <h3>{t('segments.emptyStateTitle')}</h3>
+          <p>{t('segments.emptyStateBody')}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -286,7 +290,7 @@ export default function Segments() {
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(seg) } }}
                   tabIndex={0}
                   role="button"
-                  aria-label={`${seg.name} segment details`}
+                  aria-label={t('segments.segmentDetailsAriaLabel', { name: seg.name })}
                   aria-expanded={expanded === seg.id}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -297,17 +301,17 @@ export default function Segments() {
                       </span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <span>{seg.waypoints.length} pts</span>
-                      <span>{seg.effort_count} effort{seg.effort_count !== 1 ? 's' : ''}</span>
+                      <span>{t('segments.pointsCount', { count: seg.waypoints.length })}</span>
+                      <span>{t(seg.effort_count === 1 ? 'segments.effortsCount' : 'segments.effortsCount_plural', { count: seg.effort_count })}</span>
                       {seg.best_time && (
                         <span>
-                          KOM: <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>{fmtTime(seg.best_time)}</span>
+                          {t('segments.komLabel')} <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>{fmtTime(seg.best_time)}</span>
                           {seg.best_speed && <span> @ {seg.best_speed} km/h</span>}
                         </span>
                       )}
                       {myRank > 0 && (
                         <span style={{ color: myRank === 1 ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                          {myRank <= 3 ? MEDAL[myRank - 1] : `#${myRank}`} You
+                          {myRank <= 3 ? MEDAL[myRank - 1] : `#${myRank}`} {t('segments.youLabel')}
                         </span>
                       )}
                     </div>
@@ -315,7 +319,7 @@ export default function Segments() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                     {seg.is_mine && (
                       <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
-                        aria-label={`Delete ${seg.name} segment`}
+                        aria-label={t('segments.deleteSegmentAriaLabel', { name: seg.name })}
                         onClick={(e) => handleDelete(seg.id, e)}>
                         <Trash2 size={13} />
                       </button>
@@ -354,22 +358,22 @@ export default function Segments() {
                         <div className="loading-center" style={{ padding: 20 }}><div className="spinner" /></div>
                       ) : lb.length === 0 ? (
                         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                          No efforts yet — upload a ride that passes through this segment.
+                          {t('segments.noEffortsYet')}
                         </p>
                       ) : (
                         <>
                           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Trophy size={11} style={{ color: 'var(--accent)' }} /> Leaderboard
+                            <Trophy size={11} style={{ color: 'var(--accent)' }} /> {t('segments.leaderboardTitle')}
                           </div>
                           <table className="table" style={{ marginBottom: 0 }}>
                             <thead>
                               <tr>
-                                <th scope="col">#</th>
-                                <th scope="col">Rider</th>
-                                <th scope="col">Time</th>
-                                <th scope="col">Speed</th>
-                                <th scope="col">Avg HR</th>
-                                <th scope="col">Date</th>
+                                <th scope="col">{t('segments.colRank')}</th>
+                                <th scope="col">{t('segments.colRider')}</th>
+                                <th scope="col">{t('segments.colTime')}</th>
+                                <th scope="col">{t('segments.colSpeed')}</th>
+                                <th scope="col">{t('segments.colAvgHR')}</th>
+                                <th scope="col">{t('segments.colDate')}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -379,7 +383,11 @@ export default function Segments() {
                                   onClick={() => e.is_me && navigate(`/activities/${e.activity_id}`)}
                                   tabIndex={e.is_me ? 0 : undefined}
                                   role={e.is_me ? 'button' : undefined}
-                                  aria-label={e.is_me ? `View your effort: ${fmtTime(e.elapsed_seconds)}${e.avg_speed_kmh ? ` at ${e.avg_speed_kmh} km/h` : ''} · ${format(new Date(e.set_at), 'dd MMM yyyy')}` : undefined}
+                                  aria-label={e.is_me ? t('segments.effortAriaLabel', {
+                                    time: fmtTime(e.elapsed_seconds),
+                                    speed: e.avg_speed_kmh ? t('segments.effortAriaLabelSpeed', { speed: e.avg_speed_kmh }) : '',
+                                    date: format(new Date(e.set_at), 'dd MMM yyyy'),
+                                  }) : undefined}
                                   onKeyDown={e.is_me ? (ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); navigate(`/activities/${e.activity_id}`) } }) : undefined}
                                   style={{
                                     cursor: e.is_me ? 'pointer' : 'default',
@@ -395,7 +403,7 @@ export default function Segments() {
                                   <td>
                                     <span style={{ fontWeight: e.is_me ? 700 : 400, color: e.is_me ? 'var(--accent)' : 'var(--text-primary)' }}>
                                       {e.username}
-                                      {e.is_me && <span style={{ fontSize: 10, marginLeft: 5, color: 'var(--text-muted)', fontWeight: 400 }}>you</span>}
+                                      {e.is_me && <span style={{ fontSize: 10, marginLeft: 5, color: 'var(--text-muted)', fontWeight: 400 }}>{t('segments.youSuffix')}</span>}
                                     </span>
                                   </td>
                                   <td style={{ fontFamily: 'var(--font-display)', color: i === 0 ? 'var(--accent)' : 'var(--text-primary)' }}>
@@ -416,9 +424,9 @@ export default function Segments() {
                         <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              Your HR Efficiency Trend
+                              {t('segments.hrTrendTitle')}
                               <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>
-                                ({hrTrend.length} efforts with HR data)
+                                {t('segments.hrTrendEfforts', { count: hrTrend.length })}
                               </span>
                             </div>
                             {efDelta !== null && (
@@ -431,9 +439,9 @@ export default function Segments() {
                                     : <Minus size={14} />}
                                 EF {efImproving ? '+' : ''}{Math.round(efDelta * 10) / 10}%
                                 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                                  {efImproving ? '— aerobic fitness improving'
-                                    : efDeclining ? '— worth investigating'
-                                    : '— stable'}
+                                  {efImproving ? t('segments.efImproving')
+                                    : efDeclining ? t('segments.efDeclining')
+                                    : t('segments.efStable')}
                                 </span>
                               </div>
                             )}
@@ -455,7 +463,7 @@ export default function Segments() {
                             </LineChart>
                           </ResponsiveContainer>
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-                            HR (solid) · EF = speed/HR×10 (dashed) · Falling HR or rising EF = aerobic adaptation. Min 8–10 efforts for a reliable trend.
+                            {t('segments.hrChartFootnote')}
                           </div>
                         </div>
                       )}

@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { getSettings, updateSettings } from '../services/api'
 import { Bike, HeartPulse } from 'lucide-react'
 import Alert from './Alert'
 
 const BIKE_TYPES = [
-  { value: 'road', label: 'Road' }, { value: 'gravel', label: 'Gravel' },
-  { value: 'mtb', label: 'MTB' }, { value: 'tt', label: 'TT' },
-  { value: 'ebike', label: 'E-Bike' }, { value: 'other', label: 'Other' },
+  { value: 'road',   labelKey: 'onboarding.bikeTypes.road' },
+  { value: 'gravel', labelKey: 'onboarding.bikeTypes.gravel' },
+  { value: 'mtb',    labelKey: 'onboarding.bikeTypes.mtb' },
+  { value: 'tt',     labelKey: 'onboarding.bikeTypes.tt' },
+  { value: 'ebike',  labelKey: 'onboarding.bikeTypes.ebike' },
+  { value: 'other',  labelKey: 'onboarding.bikeTypes.other' },
 ]
 
 const EXPERIENCE_LEVELS = [
-  { value: 'beginner', label: 'Beginner', desc: 'Riding less than 1 year' },
-  { value: 'intermediate', label: 'Intermediate', desc: '1–4 years of regular riding' },
-  { value: 'advanced', label: 'Advanced', desc: '4+ years, structured training or racing' },
+  { value: 'beginner',     labelKey: 'onboarding.experienceLevels.beginner',     descKey: 'onboarding.experienceLevels.beginnerDesc' },
+  { value: 'intermediate', labelKey: 'onboarding.experienceLevels.intermediate', descKey: 'onboarding.experienceLevels.intermediateDesc' },
+  { value: 'advanced',     labelKey: 'onboarding.experienceLevels.advanced',     descKey: 'onboarding.experienceLevels.advancedDesc' },
 ]
 
 // Mirrors backend utils.estimate_max_hr_tanaka — used only for the live preview;
@@ -23,6 +27,7 @@ function estimateMaxHrTanaka(age) {
 }
 
 export default function Onboarding() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [age, setAge] = useState('')
   const [weightKg, setWeightKg] = useState('')
@@ -59,11 +64,11 @@ export default function Onboarding() {
     setError('')
 
     if (!age || !weightKg || !experienceLevel || !bikeType) {
-      setError('Age, weight, experience level and bike type are required for accurate calculations.')
+      setError(t('onboarding.errorRequired'))
       return
     }
     if (knowsMaxHr && !maxHr) {
-      setError('Enter your max HR, or switch back to the automatic estimate.')
+      setError(t('onboarding.errorMaxHr'))
       return
     }
 
@@ -81,7 +86,7 @@ export default function Onboarding() {
       await updateSettings(payload)
       navigate('/dashboard', { replace: true })
     } catch (e) {
-      setError(e.response?.data?.detail || 'Could not save your profile. Please try again.')
+      setError(e.response?.data?.detail || t('onboarding.errorSaveFailed'))
     } finally {
       setSaving(false)
     }
@@ -97,62 +102,58 @@ export default function Onboarding() {
           <span className="sidebar-logo-text" style={{ fontSize: 22 }}>COBBRA</span>
         </div>
 
-        <div className="login-title">Set up your fitness profile</div>
-        <p className="login-sub">
-          These metrics drive every calculation we make — TSS, hydration, durability, HR zones.
-          Without them we fall back to generic defaults, which can be way off (e.g. an endurance
-          ride misclassified as a VO2max effort). Takes under a minute.
-        </p>
+        <div className="login-title">{t('onboarding.title')}</div>
+        <p className="login-sub">{t('onboarding.subtitle')}</p>
 
         {error && <Alert variant="error" style={{ marginBottom: 16 }}>{error}</Alert>}
 
         <form onSubmit={handleSubmit} className="login-form">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="login-field">
-              <label htmlFor="ob-age">Age *</label>
+              <label htmlFor="ob-age">{t('onboarding.ageLabel')}</label>
               <input id="ob-age" type="number" min={10} max={100} step={1}
-                value={age} onChange={e => setAge(e.target.value)} placeholder="32" required />
+                value={age} onChange={e => setAge(e.target.value)} placeholder={t('onboarding.agePlaceholder')} required />
             </div>
             <div className="login-field">
-              <label htmlFor="ob-weight">Weight (kg) *</label>
+              <label htmlFor="ob-weight">{t('onboarding.weightLabel')}</label>
               <input id="ob-weight" type="number" min={30} max={250} step={0.1}
-                value={weightKg} onChange={e => setWeightKg(e.target.value)} placeholder="72" required />
+                value={weightKg} onChange={e => setWeightKg(e.target.value)} placeholder={t('onboarding.weightPlaceholder')} required />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="login-field">
-              <label htmlFor="ob-resting-hr">Resting HR (bpm)</label>
+              <label htmlFor="ob-resting-hr">{t('onboarding.restingHrLabel')}</label>
               <input id="ob-resting-hr" type="number" min={30} max={100} step={1}
-                value={restingHr} onChange={e => setRestingHr(e.target.value)} placeholder="52" />
-              <span className="login-hint">Optional — improves intensity accuracy</span>
+                value={restingHr} onChange={e => setRestingHr(e.target.value)} placeholder={t('onboarding.restingHrPlaceholder')} />
+              <span className="login-hint">{t('onboarding.restingHrHint')}</span>
             </div>
             <div className="login-field">
-              <label htmlFor="ob-ftp">FTP (W)</label>
+              <label htmlFor="ob-ftp">{t('onboarding.ftpLabel')}</label>
               <input id="ob-ftp" type="number" min={50} max={600} step={1}
-                value={ftp} onChange={e => setFtp(e.target.value)} placeholder="220" />
-              <span className="login-hint">Optional — only with a power meter</span>
+                value={ftp} onChange={e => setFtp(e.target.value)} placeholder={t('onboarding.ftpPlaceholder')} />
+              <span className="login-hint">{t('onboarding.ftpHint')}</span>
             </div>
           </div>
 
           <div className="login-field">
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <HeartPulse size={13} /> Max Heart Rate *
+              <HeartPulse size={13} /> {t('onboarding.maxHrLabel')}
             </label>
-            <div role="group" aria-label="Max HR source" style={{ display: 'flex', gap: 8, marginBottom: knowsMaxHr ? 8 : 0 }}>
+            <div role="group" aria-label={t('onboarding.maxHrGroupLabel')} style={{ display: 'flex', gap: 8, marginBottom: knowsMaxHr ? 8 : 0 }}>
               <button type="button" onClick={() => setKnowsMaxHr(false)} aria-pressed={!knowsMaxHr}
                 style={{ flex: 1, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
                   border: !knowsMaxHr ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' : '1px solid var(--border)',
                   background: !knowsMaxHr ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)',
                   color: !knowsMaxHr ? 'var(--accent)' : 'var(--text-muted)' }}>
-                Estimate for me
+                {t('onboarding.estimateForMe')}
               </button>
               <button type="button" onClick={() => setKnowsMaxHr(true)} aria-pressed={knowsMaxHr}
                 style={{ flex: 1, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
                   border: knowsMaxHr ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' : '1px solid var(--border)',
                   background: knowsMaxHr ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)',
                   color: knowsMaxHr ? 'var(--accent)' : 'var(--text-muted)' }}>
-                I know my real max HR
+                {t('onboarding.knowMyMaxHr')}
               </button>
             </div>
             {knowsMaxHr ? (
@@ -162,37 +163,37 @@ export default function Onboarding() {
             ) : (
               <span className="login-hint">
                 {previewMaxHr
-                  ? `Estimated via Tanaka (2001): ${previewMaxHr} bpm — based on your age above`
-                  : 'Enter your age above to see the estimate'}
+                  ? t('onboarding.maxHrEstimate', { bpm: previewMaxHr })
+                  : t('onboarding.maxHrEnterAge')}
               </span>
             )}
           </div>
 
           <div className="login-field">
-            <label>Bike Type *</label>
-            <div role="group" aria-label="Bike type" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
+            <label>{t('onboarding.bikeTypeLabel')}</label>
+            <div role="group" aria-label={t('onboarding.bikeTypeGroupLabel')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
               {BIKE_TYPES.map(opt => (
                 <button key={opt.value} type="button" onClick={() => setBikeType(opt.value)} aria-pressed={bikeType === opt.value}
                   style={{ padding: '8px 4px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600,
                     border: bikeType === opt.value ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' : '1px solid var(--border)',
                     background: bikeType === opt.value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)',
                     color: bikeType === opt.value ? 'var(--accent)' : 'var(--text-muted)' }}>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="login-field">
-            <label>Experience Level *</label>
-            <div role="group" aria-label="Experience level" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label>{t('onboarding.experienceLevelLabel')}</label>
+            <div role="group" aria-label={t('onboarding.experienceLevelGroupLabel')} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {EXPERIENCE_LEVELS.map(opt => (
                 <button key={opt.value} type="button" onClick={() => setExperienceLevel(opt.value)} aria-pressed={experienceLevel === opt.value}
                   style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
                     border: experienceLevel === opt.value ? '1px solid color-mix(in srgb, var(--accent) 25%, transparent)' : '1px solid var(--border)',
                     background: experienceLevel === opt.value ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--bg-secondary)' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: experienceLevel === opt.value ? 'var(--accent)' : 'var(--text-primary)' }}>{opt.label}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{opt.desc}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: experienceLevel === opt.value ? 'var(--accent)' : 'var(--text-primary)' }}>{t(opt.labelKey)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t(opt.descKey)}</span>
                 </button>
               ))}
             </div>
@@ -201,10 +202,10 @@ export default function Onboarding() {
           <button type="submit" className="btn btn-primary login-btn" disabled={saving}>
             {saving
               ? <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-              : 'Save and continue'}
+              : t('onboarding.saveBtn')}
           </button>
           <button type="button" className="btn btn-ghost" style={{ justifyContent: 'center' }} onClick={handleSkip} disabled={saving}>
-            Skip for now
+            {t('onboarding.skipBtn')}
           </button>
         </form>
       </div>

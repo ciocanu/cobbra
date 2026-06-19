@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getRecords } from '../services/api'
 import { format, formatDistanceToNow } from 'date-fns'
 import { Trophy, ArrowRight, TrendingUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 const SPEED_PRS = [
   { type: 'fastest_400m',  label: '400 m',  distKm: 0.4  },
@@ -11,12 +12,6 @@ const SPEED_PRS = [
   { type: 'fastest_10km',  label: '10 km',  distKm: 10   },
   { type: 'fastest_20km',  label: '20 km',  distKm: 20   },
   { type: 'fastest_40km',  label: '40 km',  distKm: 40   },
-]
-
-const BEST_PRS = [
-  { type: 'longest_ride',   label: 'Longest Ride',    unit: 'km',   fmt: v => `${v.toFixed(1)} km`,   color: 'var(--speed)'   },
-  { type: 'best_avg_speed', label: 'Best Avg Speed',  unit: 'km/h', fmt: v => `${v.toFixed(1)} km/h`, color: 'var(--cadence)' },
-  { type: 'most_elevation', label: 'Most Elevation',  unit: 'm',    fmt: v => `${Math.round(v).toLocaleString()} m`, color: 'var(--accent)' },
 ]
 
 function fmtTime(seconds) {
@@ -33,9 +28,16 @@ function avgSpeed(distKm, seconds) {
 }
 
 export default function PersonalRecords() {
+  const { t } = useTranslation()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+
+  const BEST_PRS = [
+    { type: 'longest_ride',   label: t('personalRecords.prLabelLongestRide'),   unit: 'km',   fmt: v => `${v.toFixed(1)} km`,   color: 'var(--speed)'   },
+    { type: 'best_avg_speed', label: t('personalRecords.prLabelBestAvgSpeed'),  unit: 'km/h', fmt: v => `${v.toFixed(1)} km/h`, color: 'var(--cadence)' },
+    { type: 'most_elevation', label: t('personalRecords.prLabelMostElevation'), unit: 'm',    fmt: v => `${Math.round(v).toLocaleString()} m`, color: 'var(--accent)' },
+  ]
 
   useEffect(() => {
     getRecords()
@@ -62,16 +64,16 @@ export default function PersonalRecords() {
       <div className="page-header">
         <h1 className="page-title">
           <Trophy size={22} style={{ display: 'inline', marginRight: 8, color: 'var(--accent)' }} />
-          Personal Records
+          {t('personalRecords.title')}
         </h1>
-        <p className="page-subtitle">All-time bests — updated automatically on every upload</p>
+        <p className="page-subtitle">{t('personalRecords.subtitle')}</p>
       </div>
 
       {!hasAny ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Trophy size={48} /></div>
-          <h3>No records yet</h3>
-          <p>Upload rides to start tracking your PRs</p>
+          <h3>{t('personalRecords.noRecordsTitle')}</h3>
+          <p>{t('personalRecords.noRecordsBody')}</p>
         </div>
       ) : (
         <>
@@ -82,10 +84,10 @@ export default function PersonalRecords() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <TrendingUp size={15} style={{ color: 'var(--accent)' }} />
                   <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                    Speed Curve
+                    {t('personalRecords.speedCurveLabel')}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>
-                    — how your pace scales with distance
+                    {t('personalRecords.speedCurveDescription')}
                   </span>
                 </div>
               </div>
@@ -110,7 +112,7 @@ export default function PersonalRecords() {
                       onClick={() => pr?.activity_id && navigate(`/activities/${pr.activity_id}`)}
                       tabIndex={pr?.activity_id ? 0 : undefined}
                       role={pr?.activity_id ? 'button' : undefined}
-                      aria-label={pr?.activity_id ? `View activity for ${p.label} PR: ${fmtTime(pr.value)} at ${speed} km/h` : undefined}
+                      aria-label={pr?.activity_id ? t('personalRecords.speedPrAriaLabel', { label: p.label, time: fmtTime(pr.value), speed }) : undefined}
                       onKeyDown={e => { if (pr?.activity_id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(`/activities/${pr.activity_id}`) } }}
                     >
                       {/* Distance label */}
@@ -131,7 +133,7 @@ export default function PersonalRecords() {
                         )}
                         {!pr && (
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            not set yet
+                            {t('personalRecords.notSetYet')}
                           </div>
                         )}
                       </div>
@@ -164,7 +166,7 @@ export default function PersonalRecords() {
           {hasBestPRs && (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 14 }}>
-                All-time Bests
+                {t('personalRecords.allTimeBests')}
               </div>
               <div className="pr-bests-grid">
                 {BEST_PRS.map(meta => {
@@ -178,7 +180,11 @@ export default function PersonalRecords() {
                       style={{ cursor: pr.activity_id ? 'pointer' : 'default' }}
                       tabIndex={pr.activity_id ? 0 : undefined}
                       role={pr.activity_id ? 'button' : undefined}
-                      aria-label={pr.activity_id ? `View ${meta.label} PR: ${meta.fmt(pr.value)}${pr.activity_name ? ` — ${pr.activity_name}` : ''}` : undefined}
+                      aria-label={pr.activity_id
+                        ? (pr.activity_name
+                          ? t('personalRecords.bestPrAriaLabelWithActivity', { label: meta.label, value: meta.fmt(pr.value), activity: pr.activity_name })
+                          : t('personalRecords.bestPrAriaLabel', { label: meta.label, value: meta.fmt(pr.value) }))
+                        : undefined}
                       onKeyDown={e => { if (pr.activity_id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(`/activities/${pr.activity_id}`) } }}
                     >
                       <div className="pr-best-label">{meta.label}</div>
