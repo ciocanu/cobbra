@@ -807,42 +807,42 @@ export default function Settings() {
                 </div>
               </div>
               {fitnessError && <Alert variant="error" style={{ marginBottom: 12, fontSize: 12 }}>{fitnessError}</Alert>}
-              {fitnessSaved && <Alert variant="success" style={{ marginBottom: 12, fontSize: 12 }}>Fitness profile saved.</Alert>}
+              {fitnessSaved && <Alert variant="success" style={{ marginBottom: 12, fontSize: 12 }}>{t('settings.training.profileSaved')}</Alert>}
               <button className="btn btn-primary" onClick={handleSaveFitness} disabled={fitnessSaving}>
-                <Save size={13} />{fitnessSaving ? 'Saving…' : 'Save Profile'}
+                <Save size={13} />{fitnessSaving ? t('settings.training.savingProfile') : t('settings.training.saveProfile')}
               </button>
               <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                  Power Calibration <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(optional)</span>
+                  {t('settings.training.powerCalibration')} <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>{t('settings.training.powerCalibrationSub')}</span>
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                  Fine-tune estimated climb power using a known FTP or a climb where you know your actual power output.
+                  {t('settings.training.powerCalibrationDesc')}
                 </p>
                 {calibSource && (
                   <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--status-good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--status-good) 20%, transparent)', fontSize: 12, color: 'var(--status-good)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Calibrated from {calibSource === 'manual_ftp' ? 'FTP' : 'known climb'}, CdA: {calibCda?.toFixed(3)}</span>
-                    <button className="btn" style={{ fontSize: 11, padding: '4px 10px', minHeight: 32, color: 'var(--text-muted)' }} onClick={handleResetCalibration} disabled={calibSaving}>Reset</button>
+                    <span>{t('settings.training.calibratedFrom', { source: calibSource === 'manual_ftp' ? t('settings.training.calibratedFromFtp') : t('settings.training.calibratedFromClimb'), cda: calibCda?.toFixed(3) })}</span>
+                    <button className="btn" style={{ fontSize: 11, padding: '4px 10px', minHeight: 32, color: 'var(--text-muted)' }} onClick={handleResetCalibration} disabled={calibSaving}>{t('settings.training.resetCalibration')}</button>
                   </div>
                 )}
-                {!calibSource && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-muted)' }}>Current: Default parameters for bike type</div>}
+                {!calibSource && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.training.defaultCalibration')}</div>}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>Option 1: Calibrate from FTP</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>{t('settings.training.calibOption1')}</div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input type="number" className="filter-input" style={{ width: 90 }} value={calibFtp} onChange={e => setCalibFtp(e.target.value)} placeholder="280" min={50} max={600} />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
-                      <button className="btn" style={{ fontSize: 12, padding: '5px 12px', minHeight: 36 }} onClick={() => handleCalibratePower('ftp')} disabled={calibSaving}>Calibrate</button>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.training.watts')}</span>
+                      <button className="btn" style={{ fontSize: 12, padding: '5px 12px', minHeight: 36 }} onClick={() => handleCalibratePower('ftp')} disabled={calibSaving}>{t('settings.training.calibrate')}</button>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>Option 2: Known power on a specific climb</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>{t('settings.training.calibOption2')}</div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <input type="number" className="filter-input" style={{ width: 90 }} value={calibClimbId} onChange={e => setCalibClimbId(e.target.value)} placeholder="Climb ID" min={1} />
-                      <input type="number" className="filter-input" style={{ width: 90 }} value={calibPower} onChange={e => setCalibPower(e.target.value)} placeholder="Watts" min={50} />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
-                      <button className="btn" style={{ fontSize: 12, padding: '5px 12px', minHeight: 36 }} onClick={() => handleCalibratePower('climb')} disabled={calibSaving}>Calibrate</button>
+                      <input type="number" className="filter-input" style={{ width: 90 }} value={calibClimbId} onChange={e => setCalibClimbId(e.target.value)} placeholder={t('settings.training.climbIdPlaceholder')} min={1} />
+                      <input type="number" className="filter-input" style={{ width: 90 }} value={calibPower} onChange={e => setCalibPower(e.target.value)} placeholder={t('settings.training.wattPlaceholder')} min={50} />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.training.watts')}</span>
+                      <button className="btn" style={{ fontSize: 12, padding: '5px 12px', minHeight: 36 }} onClick={() => handleCalibratePower('climb')} disabled={calibSaving}>{t('settings.training.calibrate')}</button>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Find Climb ID in the activity detail page (expand a climb card).</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{t('settings.training.climbIdHint')}</div>
                   </div>
                 </div>
                 {calibMsg && <Alert variant={calibMsgType === 'error' ? 'error' : 'success'} style={{ marginTop: 10, fontSize: 12 }}>{calibMsg}</Alert>}
@@ -850,10 +850,9 @@ export default function Settings() {
             </Card>
 
             <Card>
-              <CardTitle icon={Heart} color="var(--heart)">Heart Rate Zones</CardTitle>
+              <CardTitle icon={Heart} color="var(--heart)">{t('settings.training.hrZones')}</CardTitle>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-                Set your max HR to unlock zone tracking and Suffer Score.
-                Add resting HR too for more precise Karvonen zones, used in AI training plans.
+                {t('settings.training.hrZonesDesc')}
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <div style={{ flex: 1 }}>
