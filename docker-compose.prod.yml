@@ -59,6 +59,9 @@ services:
       STRIPE_PRICE_ANNUAL:   ${STRIPE_PRICE_ANNUAL:-}
       STRIPE_PRICE_LIFETIME: ${STRIPE_PRICE_LIFETIME:-}
       ANTHROPIC_API_KEY:     ${ANTHROPIC_API_KEY:-}
+      STRAVA_CLIENT_ID:      ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET:  ${STRAVA_CLIENT_SECRET:-}
+      STRAVA_REDIRECT_URI:   ${STRAVA_REDIRECT_URI:-}
     # Run migrations before starting the server
     command: >
       sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
