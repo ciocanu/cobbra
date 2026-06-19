@@ -27,7 +27,8 @@ export const logout        = () => api.post('/auth/logout')
 export const getMe         = () => api.get('/auth/me')
 
 // Activities
-export const getActivities = (params = {}) => api.get('/activities/', { params })
+export const getActivities = (params = {}, cursor = null) =>
+  api.get('/activities/', { params: cursor ? { ...params, cursor } : params })
 export const getActivity   = (id) => api.get(`/activities/${id}`)
 export const deleteActivity= (id) => api.delete(`/activities/${id}`)
 export const renameActivity= (id, name) => api.patch(`/activities/${id}/rename`, { name })

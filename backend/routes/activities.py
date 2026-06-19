@@ -1,5 +1,7 @@
+import base64
 import csv
 import io
+import json
 import os
 import logging
 from datetime import datetime
@@ -595,9 +597,22 @@ async def upload_activity(
     return activity
 
 
-@router.get("/", response_model=List[schemas.ActivityOut])
+def _encode_cursor(date: datetime, id: int) -> str:
+    payload = json.dumps({"date": date.isoformat(), "id": id})
+    return base64.urlsafe_b64encode(payload.encode()).decode()
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, int]:
+    payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+    return datetime.fromisoformat(payload["date"]), payload["id"]
+
+
+PAGE_SIZE = 50
+
+
+@router.get("/", response_model=schemas.ActivityPage)
 def list_activities(
-    skip: int = 0, limit: int = 100,
+    cursor: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -606,18 +621,32 @@ def list_activities(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    query = db.query(models.Activity).filter(models.Activity.user_id == current_user.id)
+    base = db.query(models.Activity).filter(models.Activity.user_id == current_user.id)
     if search:
-        query = query.filter(models.Activity.name.ilike(f"%{search}%"))
+        base = base.filter(models.Activity.name.ilike(f"%{search}%"))
     if date_from:
-        query = query.filter(models.Activity.date >= datetime.fromisoformat(date_from))
+        base = base.filter(models.Activity.date >= datetime.fromisoformat(date_from))
     if date_to:
-        query = query.filter(models.Activity.date <= datetime.fromisoformat(date_to))
+        base = base.filter(models.Activity.date <= datetime.fromisoformat(date_to))
     if min_distance_km is not None:
-        query = query.filter(models.Activity.distance_km >= min_distance_km)
+        base = base.filter(models.Activity.distance_km >= min_distance_km)
     if max_distance_km is not None:
-        query = query.filter(models.Activity.distance_km <= max_distance_km)
-    activities = query.order_by(models.Activity.date.desc()).offset(skip).limit(limit).all()
+        base = base.filter(models.Activity.distance_km <= max_distance_km)
+
+    total_count = base.count()
+
+    query = base.order_by(models.Activity.date.desc(), models.Activity.id.desc())
+    if cursor:
+        c_date, c_id = _decode_cursor(cursor)
+        query = query.filter(
+            (models.Activity.date < c_date) |
+            ((models.Activity.date == c_date) & (models.Activity.id < c_id))
+        )
+    activities = query.limit(PAGE_SIZE + 1).all()
+
+    has_more = len(activities) > PAGE_SIZE
+    activities = activities[:PAGE_SIZE]
+    next_cursor = _encode_cursor(activities[-1].date, activities[-1].id) if has_more else None
 
     result = []
     for a in activities:
@@ -649,7 +678,7 @@ def list_activities(
             "weather_desc": a.weather_desc, "file_type": a.file_type, "created_at": a.created_at,
             "tss": tss, "intensity_factor": intensity_factor,
         })
-    return result
+    return {"items": result, "next_cursor": next_cursor, "total_count": total_count}
 
 
 @router.get("/{activity_id}/export/csv")

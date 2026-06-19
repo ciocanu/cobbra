@@ -106,6 +106,12 @@ class ActivityOut(BaseModel):
         from_attributes = True
 
 
+class ActivityPage(BaseModel):
+    items: List[ActivityOut]
+    next_cursor: Optional[str] = None
+    total_count: int
+
+
 class ActivityDetail(ActivityOut):
     track_points: List[TrackPointOut]
     laps: List[LapOut]

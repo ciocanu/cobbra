@@ -48,7 +48,10 @@
       "suffer": "Suffer",
       "elevation": "Elevation",
       "type": "Type"
-    }
+    },
+    "loadMore": "Load more (showing {{showing}} of {{total}})",
+    "loadingMore": "Loading…",
+    "allLoaded": "All {{count}} rides loaded"
   },
   "activityDetail": {
     "notFound": "Activity not found.",

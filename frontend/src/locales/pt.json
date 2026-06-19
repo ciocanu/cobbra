@@ -48,7 +48,10 @@
       "suffer": "",
       "elevation": "",
       "type": ""
-    }
+    },
+    "loadMore": "",
+    "loadingMore": "",
+    "allLoaded": ""
   },
   "activityDetail": {
     "notFound": "",
