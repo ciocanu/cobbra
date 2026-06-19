@@ -640,7 +640,7 @@ export default function Settings() {
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                       {t('settings.account.currentEmail')} <strong style={{ color: 'var(--text-secondary)' }}>{user?.email || '—'}</strong>
                     </div>
-                    <input id="settings-new-email" aria-label="New email address" type="email" className="filter-input" style={{ width: '100%' }} value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailError('') }} placeholder={t('settings.account.emailPlaceholder')} onKeyDown={e => e.key === 'Enter' && handleRequestEmailChange()} />
+                    <input id="settings-new-email" aria-label={t('settings.account.newEmailAriaLabel')} type="email" className="filter-input" style={{ width: '100%' }} value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailError('') }} placeholder={t('settings.account.emailPlaceholder')} onKeyDown={e => e.key === 'Enter' && handleRequestEmailChange()} />
                     {emailError && <Alert variant="error" style={{ fontSize: 12 }}>{emailError}</Alert>}
                     <button className="btn btn-primary" onClick={handleRequestEmailChange} disabled={emailSending}>
                       <Send size={12} />{emailSending ? t('settings.account.sending') : t('settings.account.sendVerification')}
@@ -856,22 +856,22 @@ export default function Settings() {
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Max Heart Rate</label>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{t('settings.training.maxHeartRate')}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="number" className="filter-input" style={{ width: 90 }} value={maxHr} onChange={e => { setMaxHr(e.target.value); setHrError(''); setSaved(false) }} placeholder="e.g. 185" min={100} max={250} />
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>bpm</span>
+                    <input type="number" className="filter-input" style={{ width: 90 }} value={maxHr} onChange={e => { setMaxHr(e.target.value); setHrError(''); setSaved(false) }} placeholder={t('settings.training.maxHrPlaceholder')} min={100} max={250} />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.training.bpm')}</span>
                   </div>
                 </div>
                 {zonesReady && (
                   <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: useKarvonen ? 'color-mix(in srgb, var(--status-good) 8%, transparent)' : 'color-mix(in srgb, var(--text-secondary) 8%, transparent)', border: useKarvonen ? '1px solid color-mix(in srgb, var(--status-good) 20%, transparent)' : '1px solid color-mix(in srgb, var(--text-secondary) 20%, transparent)', color: useKarvonen ? 'var(--status-good)' : 'var(--text-secondary)', whiteSpace: 'nowrap', marginTop: 18 }}>
-                    {useKarvonen ? 'Karvonen zones' : '% of max HR'}
+                    {useKarvonen ? t('settings.training.karvonenZones') : t('settings.training.percentMaxHr')}
                   </div>
                 )}
               </div>
               {zonesReady && (
                 <>
                   <div style={{ display: 'flex', height: 8, borderRadius: 6, overflow: 'hidden', marginBottom: 5 }}>
-                    {HR_ZONES.map(z => <div key={z.label} style={{ flex: z.range[1] - z.range[0], background: z.color }} title={z.name} />)}
+                    {HR_ZONES.map(z => <div key={z.label} style={{ flex: z.range[1] - z.range[0], background: z.color }} title={t(`settings.${z.nameKey}`)} />)}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 16, fontFamily: 'var(--font-mono)' }}>
                     {HR_ZONES.map((z, i) => { const bpm = zoneBpm(z.range[0], z.range[1]); return <span key={z.label}>{i === 0 ? bpm?.lo : bpm?.hi}</span> })}
@@ -885,11 +885,11 @@ export default function Settings() {
                         <div key={z.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: `color-mix(in srgb, ${z.color} 4%, transparent)`, border: `1px solid color-mix(in srgb, ${z.color} 12%, transparent)` }}>
                           <div style={{ width: 26, height: 26, borderRadius: 7, background: `color-mix(in srgb, ${z.color} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${z.color} 25%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: z.color, flexShrink: 0 }}>{z.label}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: z.color }}>{z.name}</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{z.desc}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: z.color }}>{t(`settings.${z.nameKey}`)}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{t(`settings.${z.descKey}`)}</div>
                           </div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-                            {bpm?.lo}–{hiStr} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>bpm</span>
+                            {bpm?.lo}–{hiStr} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>{t('settings.training.bpm')}</span>
                           </div>
                         </div>
                       )
@@ -900,13 +900,13 @@ export default function Settings() {
               {!zonesReady && (
                 <div style={{ padding: '20px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', textAlign: 'center' }}>
                   <Heart size={24} style={{ color: 'var(--text-muted)', opacity: 0.4, marginBottom: 8 }} />
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Enter your max HR to see your zones</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.training.enterMaxHr')}</div>
                 </div>
               )}
               {hrError && <Alert variant="error" style={{ marginTop: 14, fontSize: 12 }}>{hrError}</Alert>}
-              {saved   && <Alert variant="success" style={{ marginTop: 14, fontSize: 12 }}>Heart rate saved.</Alert>}
+              {saved   && <Alert variant="success" style={{ marginTop: 14, fontSize: 12 }}>{t('settings.training.hrSaved')}</Alert>}
               <div style={{ marginTop: 16 }}>
-                <button className="btn btn-primary" onClick={handleSaveHr} disabled={saving}><Save size={13} />{saving ? 'Saving…' : 'Save'}</button>
+                <button className="btn btn-primary" onClick={handleSaveHr} disabled={saving}><Save size={13} />{saving ? t('settings.training.saving') : t('settings.training.save')}</button>
               </div>
             </Card>
           </div>
@@ -919,50 +919,50 @@ export default function Settings() {
 
           {/* ── Accuracy Overview ── */}
           <Card>
-            <CardTitle icon={CheckCircle}>Accuracy Overview</CardTitle>
+            <CardTitle icon={CheckCircle}>{t('settings.calibration.accuracyOverview')}</CardTitle>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-              Every physiological input below sharpens a specific calculation. Missing values fall back to population estimates.
+              {t('settings.calibration.accuracyDesc')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               {[
                 {
-                  label: 'Body Weight',
-                  value: weightKg !== '' ? `${weightKg} kg` : null,
-                  affects: 'Sweat-loss %, calorie burn, W/kg power',
+                  label: t('settings.calibration.bodyWeight'),
+                  value: weightKg !== '' ? `${weightKg} ${t('settings.training.kg')}` : null,
+                  affects: t('settings.calibration.bodyWeightAffects'),
                   critical: true,
                 },
                 {
-                  label: 'FTP',
-                  value: ftp !== '' ? `${ftp} W` : null,
-                  affects: 'TSS, training load, intensity factor for hydration',
+                  label: t('settings.calibration.ftpLabel'),
+                  value: ftp !== '' ? `${ftp} ${t('settings.training.watts')}` : null,
+                  affects: t('settings.calibration.ftpAffects'),
                   critical: false,
                 },
                 {
-                  label: 'Max Heart Rate',
-                  value: maxHr !== '' ? `${maxHr} bpm` : null,
-                  affects: 'HR-based TSS, zone boundaries, effort calibration',
+                  label: t('settings.calibration.maxHrLabel'),
+                  value: maxHr !== '' ? `${maxHr} ${t('settings.training.bpm')}` : null,
+                  affects: t('settings.calibration.maxHrAffects'),
                   critical: false,
                 },
                 {
-                  label: 'Resting HR',
-                  value: restingHr !== '' ? `${restingHr} bpm` : null,
-                  affects: 'TRIMP heart rate reserve (more accurate training load)',
+                  label: t('settings.calibration.restingHrLabel'),
+                  value: restingHr !== '' ? `${restingHr} ${t('settings.training.bpm')}` : null,
+                  affects: t('settings.calibration.restingHrAffects'),
                   critical: false,
                 },
                 {
-                  label: 'Sweat Rate',
-                  value: heatProfile?.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : null,
-                  missing: 'Population avg (~700 ml/h base)',
-                  affects: 'Estimated sweat loss, hydration deficit, risk level',
+                  label: t('settings.calibration.sweatRateLabel'),
+                  value: heatProfile?.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ${t('settings.calibration.mlPerHour')}` : null,
+                  missing: t('settings.calibration.sweatRateMissing'),
+                  affects: t('settings.calibration.sweatRateAffects'),
                   critical: true,
                 },
                 {
-                  label: 'Heat Adaptation',
+                  label: t('settings.calibration.heatAdaptationLabel'),
                   value: heatProfile?.heat_adaptation_level && heatProfile.heat_adaptation_level !== 'none'
                     ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1)
                     : null,
-                  missing: 'Auto-computed from hot-ride history',
-                  affects: 'Sweat efficiency multiplier (adapted athletes sweat more efficiently)',
+                  missing: t('settings.calibration.heatAdaptationMissing'),
+                  affects: t('settings.calibration.heatAdaptationAffects'),
                   critical: false,
                   auto: true,
                 },
@@ -977,7 +977,7 @@ export default function Settings() {
                   <div style={{ minWidth: 110, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</div>
                   <div style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}>{affects}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: value ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {value || <span style={{ fontStyle: 'italic', fontFamily: 'inherit', fontWeight: 400 }}>{missing || (auto ? 'Auto' : 'Not set')}</span>}
+                    {value || <span style={{ fontStyle: 'italic', fontFamily: 'inherit', fontWeight: 400 }}>{missing || (auto ? t('settings.calibration.auto') : t('settings.calibration.notSet'))}</span>}
                   </div>
                 </div>
               ))}
@@ -985,29 +985,27 @@ export default function Settings() {
           </Card>
 
           <Card>
-            <CardTitle icon={Droplets}>Heat &amp; Hydration</CardTitle>
+            <CardTitle icon={Droplets}>{t('settings.calibration.heatHydration')}</CardTitle>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
-              Your personal sweat rate calibrates sweat-loss estimates. When set, it anchors the calculation to your physiology;
-              only temperature and humidity <em>above</em> typical test conditions (20°C / 55% RH) are added on top.
-              If estimates seem too high or too low, reset below and re-run a sweat test.
+              {t('settings.calibration.heatHydrationDesc')}
             </p>
             {heatProfile && (
               <div style={{ display: 'flex', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
                 <div style={{ flex: 1, padding: '11px 16px', background: 'var(--bg-card)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Sweat Rate</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{t('settings.calibration.sweatRateTitle')}</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: heatProfile.has_calibrated_rate ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
-                    {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ml/h` : 'Population avg'}
+                    {heatProfile.has_calibrated_rate ? `${Math.round(heatProfile.sweat_rate_ml_per_hour)} ${t('settings.calibration.mlPerHour')}` : t('settings.calibration.populationAvg')}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    {heatProfile.has_calibrated_rate ? 'Personal calibration — used in all analyses' : 'No calibration set — using generic model'}
+                    {heatProfile.has_calibrated_rate ? t('settings.calibration.sweatRatePersonal') : t('settings.calibration.sweatRatePopulation')}
                   </div>
                 </div>
                 <div style={{ flex: 1, padding: '11px 16px', background: 'var(--bg-card)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Heat Adaptation</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{t('settings.calibration.heatAdaptationTitle')}</div>
                   <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', marginBottom: 2, color: heatProfile.heat_adaptation_level === 'high' ? 'var(--status-good)' : heatProfile.heat_adaptation_level === 'moderate' ? 'var(--status-warn)' : 'var(--text-muted)' }}>
-                    {heatProfile.heat_adaptation_level ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1) : 'Low'}
+                    {heatProfile.heat_adaptation_level ? heatProfile.heat_adaptation_level.charAt(0).toUpperCase() + heatProfile.heat_adaptation_level.slice(1) : t('settings.calibration.heatAdaptationLow')}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{heatProfile.heat_rides_last_14d} hot rides (≥27°C) in last 14 days</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('settings.calibration.hotRidesCount', { count: heatProfile.heat_rides_last_14d })}</div>
                 </div>
               </div>
             )}
@@ -1019,23 +1017,23 @@ export default function Settings() {
                   onClick={handleResetSweatRate}
                   disabled={resetSweatSaving}
                 >
-                  <RefreshCw size={12} /> {resetSweatSaving ? 'Resetting…' : 'Reset to population model'}
+                  <RefreshCw size={12} /> {resetSweatSaving ? t('settings.calibration.resetting') : t('settings.calibration.resetToPopulation')}
                 </button>
                 {resetSweatMsg && (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{resetSweatMsg}</div>
                 )}
               </div>
             )}
-            <CollapsibleRow icon={Thermometer} label="Run a Sweat Test" open={sweatTestOpen} onToggle={() => { setSweatTestOpen(o => !o); setSweatMsg('') }}>
+            <CollapsibleRow icon={Thermometer} label={t('settings.calibration.runSweatTest')} open={sweatTestOpen} onToggle={() => { setSweatTestOpen(o => !o); setSweatMsg('') }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
-                Ride at a steady effort for exactly 1 hour with no fluid intake, or log any intake below. Weigh yourself (dry, no kit) immediately before and after.
+                {t('settings.calibration.sweatTestDesc')}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 12 }}>
                 {[
-                  { id: 'sweat-before', label: 'Weight before', unit: 'kg', val: sweatBefore, set: setSweatBefore, placeholder: '72.4', step: '0.1' },
-                  { id: 'sweat-after',  label: 'Weight after',  unit: 'kg', val: sweatAfter,  set: setSweatAfter,  placeholder: '71.1', step: '0.1' },
-                  { id: 'sweat-intake', label: 'Fluid intake',  unit: 'ml', val: sweatIntake, set: setSweatIntake, placeholder: '500',  step: '50' },
-                  { id: 'sweat-dur',    label: 'Duration',      unit: 'h',  val: sweatDuration, set: setSweatDuration, placeholder: '1.0', step: '0.25' },
+                  { id: 'sweat-before', label: t('settings.calibration.weightBefore'), unit: t('settings.training.kg'), val: sweatBefore, set: setSweatBefore, placeholder: '72.4', step: '0.1' },
+                  { id: 'sweat-after',  label: t('settings.calibration.weightAfter'),  unit: t('settings.training.kg'), val: sweatAfter,  set: setSweatAfter,  placeholder: '71.1', step: '0.1' },
+                  { id: 'sweat-intake', label: t('settings.calibration.fluidIntake'),  unit: 'ml', val: sweatIntake, set: setSweatIntake, placeholder: '500',  step: '50' },
+                  { id: 'sweat-dur',    label: t('settings.calibration.duration'),      unit: 'h',  val: sweatDuration, set: setSweatDuration, placeholder: '1.0', step: '0.25' },
                 ].map(({ id, label, unit, val, set, placeholder, step }) => (
                   <div key={id}>
                     <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
@@ -1048,17 +1046,17 @@ export default function Settings() {
               </div>
               {sweatMsg && <Alert variant={sweatMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 10, fontSize: 12 }}>{sweatMsg}</Alert>}
               <button className="btn btn-primary" onClick={handleSweatTest} disabled={sweatSaving}>
-                <Droplets size={12} />{sweatSaving ? 'Calculating…' : 'Calculate & Save'}
+                <Droplets size={12} />{sweatSaving ? t('settings.calibration.calculating') : t('settings.calibration.calculateAndSave')}
               </button>
             </CollapsibleRow>
             <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Already know your sweat rate?</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>Enter it directly (e.g. from a lab test or a previous calibration). Typical range: 500–2000 ml/h.</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{t('settings.calibration.directSweatRateTitle')}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>{t('settings.calibration.directSweatRateDesc')}</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="number" min={100} max={4000} step={50} value={directSweatRate} onChange={e => { setDirectSweatRate(e.target.value); setDirectSweatMsg('') }} placeholder="e.g. 900" className="filter-input" style={{ width: 100 }} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ml/h</span>
+                <input type="number" min={100} max={4000} step={50} value={directSweatRate} onChange={e => { setDirectSweatRate(e.target.value); setDirectSweatMsg('') }} placeholder={t('settings.calibration.directSweatRatePlaceholder')} className="filter-input" style={{ width: 100 }} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.calibration.mlPerHour')}</span>
                 <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12, minHeight: 36 }} onClick={handleDirectSweatRate} disabled={directSweatSaving}>
-                  {directSweatSaving ? 'Saving…' : 'Set Rate'}
+                  {directSweatSaving ? t('settings.training.saving') : t('settings.calibration.setRate')}
                 </button>
                 {directSweatMsg && <span style={{ fontSize: 12, color: directSweatMsgType === 'error' ? 'var(--status-alert)' : 'var(--status-good)' }}>{directSweatMsg}</span>}
               </div>
@@ -1066,19 +1064,18 @@ export default function Settings() {
           </Card>
 
           <Card>
-            <CardTitle icon={Home}>Indoor / Outdoor Profile</CardTitle>
+            <CardTitle icon={Home}>{t('settings.calibration.indoorOutdoorProfile')}</CardTitle>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
-              Cobbra automatically detects whether each ride was indoor or outdoor and calculates your personal power gap,
-              the difference in sustainable power between environments. This corrects your TSS and CTL/ATL/TSB for more accurate fitness tracking.
+              {t('settings.calibration.indoorOutdoorDesc')}
             </p>
             {indoorProfile && (
               <>
                 <div style={{ display: 'flex', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
                   {[
-                    { label: 'Power Gap', value: indoorProfile.effective_power_gap_pct != null ? `${indoorProfile.effective_power_gap_pct.toFixed(1)}%` : '—', color: 'var(--text-primary)', hint: indoorProfile.manual_power_gap_pct != null ? 'manual' : 'auto-calculated' },
-                    { label: 'Confidence', value: indoorProfile.power_gap_confidence ? indoorProfile.power_gap_confidence.replace('_', ' ') : '—', color: indoorProfile.power_gap_confidence === 'high' ? 'var(--status-good)' : indoorProfile.power_gap_confidence === 'medium' ? 'var(--status-warn)' : indoorProfile.power_gap_confidence === 'low' ? 'var(--status-alert)' : 'var(--text-muted)', hint: indoorProfile.last_calculated ? `Updated ${new Date(indoorProfile.last_calculated).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '' },
-                    { label: 'Indoor',  value: indoorProfile.indoor_rides_analyzed,  color: 'var(--text-secondary)', hint: 'rides analysed' },
-                    { label: 'Outdoor', value: indoorProfile.outdoor_rides_analyzed, color: 'var(--text-secondary)', hint: 'rides analysed' },
+                    { label: t('settings.calibration.powerGap'), value: indoorProfile.effective_power_gap_pct != null ? `${indoorProfile.effective_power_gap_pct.toFixed(1)}%` : '—', color: 'var(--text-primary)', hint: indoorProfile.manual_power_gap_pct != null ? t('settings.calibration.manual') : t('settings.calibration.autoCalculated') },
+                    { label: t('settings.calibration.confidence'), value: indoorProfile.power_gap_confidence ? indoorProfile.power_gap_confidence.replace('_', ' ') : '—', color: indoorProfile.power_gap_confidence === 'high' ? 'var(--status-good)' : indoorProfile.power_gap_confidence === 'medium' ? 'var(--status-warn)' : indoorProfile.power_gap_confidence === 'low' ? 'var(--status-alert)' : 'var(--text-muted)', hint: indoorProfile.last_calculated ? t('settings.calibration.updated', { date: new Date(indoorProfile.last_calculated).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }) : '' },
+                    { label: t('settings.calibration.indoor'),  value: indoorProfile.indoor_rides_analyzed,  color: 'var(--text-secondary)', hint: t('settings.calibration.ridesAnalysed') },
+                    { label: t('settings.calibration.outdoor'), value: indoorProfile.outdoor_rides_analyzed, color: 'var(--text-secondary)', hint: t('settings.calibration.ridesAnalysed') },
                   ].map(({ label, value, color, hint }) => (
                     <div key={label} style={{ flex: 1, minWidth: 80, padding: '11px 14px', background: 'var(--bg-card)' }}>
                       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{label}</div>
@@ -1090,7 +1087,7 @@ export default function Settings() {
                 {(indoorProfile.indoor_rides_analyzed < 3 || indoorProfile.outdoor_rides_analyzed < 3) && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--status-warn) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--status-warn) 20%, transparent)', fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
                     <Home size={13} style={{ color: 'var(--status-warn)', flexShrink: 0, marginTop: 1 }} />
-                    Need at least 3 indoor and 3 outdoor rides with power data (at Z3 intensity) for automatic gap calculation. Use the FTP calibration below as a shortcut.
+                    {t('settings.calibration.needMoreRides')}
                   </div>
                 )}
               </>
@@ -1098,37 +1095,37 @@ export default function Settings() {
             <div style={{ display: 'flex', gap: 8, marginBottom: indoorMsg ? 12 : 0 }}>
               <button className="btn btn-ghost" onClick={handleRecalculateIndoor} disabled={recalculating} style={{ fontSize: 13 }}>
                 <RefreshCw size={13} style={recalculating ? { animation: 'spin 1s linear infinite' } : {}} />
-                {recalculating ? 'Recalculating…' : 'Recalculate Gap'}
+                {recalculating ? t('settings.calibration.recalculating') : t('settings.calibration.recalculateGap')}
               </button>
             </div>
             {indoorMsg && <Alert variant={indoorMsgType === 'error' ? 'error' : 'success'} style={{ marginBottom: 12, fontSize: 12 }}>{indoorMsg}</Alert>}
-            <CollapsibleRow icon={Zap} label="Calibrate via FTP Comparison" open={ftpCalibOpen} onToggle={() => { setFtpCalibOpen(o => !o); setFtpCalibResult(null); setIndoorMsg('') }}>
+            <CollapsibleRow icon={Zap} label={t('settings.calibration.calibrateViaFtp')} open={ftpCalibOpen} onToggle={() => { setFtpCalibOpen(o => !o); setFtpCalibResult(null); setIndoorMsg('') }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
-                If you know your indoor and outdoor FTP values (e.g. from separate 20-min tests), enter them to manually calibrate your power gap. The calibrated gap overrides the auto-calculated one.
+                {t('settings.calibration.ftpComparisonDesc')}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12, marginBottom: 12 }}>
                 {[
-                  { id: 'indoor-ftp',  label: 'Indoor FTP',  val: indoorFtp,  set: setIndoorFtp,  placeholder: '200' },
-                  { id: 'outdoor-ftp', label: 'Outdoor FTP', val: outdoorFtp, set: setOutdoorFtp, placeholder: '230' },
+                  { id: 'indoor-ftp',  label: t('settings.calibration.indoorFtp'),  val: indoorFtp,  set: setIndoorFtp,  placeholder: '200' },
+                  { id: 'outdoor-ftp', label: t('settings.calibration.outdoorFtp'), val: outdoorFtp, set: setOutdoorFtp, placeholder: '230' },
                 ].map(({ id, label, val, set, placeholder }) => (
                   <div key={id}>
                     <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input id={id} type="number" className="filter-input" style={{ flex: 1 }} value={val} onChange={e => { set(e.target.value); setIndoorMsg('') }} placeholder={placeholder} min={50} max={600} />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>W</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.training.watts')}</span>
                     </div>
                   </div>
                 ))}
               </div>
               {ftpCalibResult && (
                 <div style={{ padding: '12px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--status-good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--status-good) 20%, transparent)', marginBottom: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-good)', marginBottom: 4 }}>Gap: {ftpCalibResult.power_gap_pct?.toFixed(1)}%</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-good)', marginBottom: 4 }}>{t('settings.calibration.powerGapResult', { gap: ftpCalibResult.power_gap_pct?.toFixed(1) })}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{ftpCalibResult.interpretation}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{ftpCalibResult.recommendation}</div>
                 </div>
               )}
               <button className="btn btn-primary" onClick={handleFtpCalib} disabled={ftpCalibSaving}>
-                <Zap size={12} />{ftpCalibSaving ? 'Calibrating…' : 'Calibrate & Save'}
+                <Zap size={12} />{ftpCalibSaving ? t('settings.calibration.calibrating') : t('settings.calibration.calibrateAndSave')}
               </button>
             </CollapsibleRow>
           </Card>
@@ -1139,51 +1136,51 @@ export default function Settings() {
       {activeTab === 'data' && (
         <div id="tab-panel-data" role="tabpanel">
           <Card>
-            <CardTitle icon={Shield}>Privacy &amp; Data</CardTitle>
+            <CardTitle icon={Shield}>{t('settings.data.privacyData')}</CardTitle>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
-              Under GDPR you have the right to export all your data or permanently delete your account.
-              {' '}<a href="/privacy" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Privacy Policy</a>
-              {' · '}<a href="/terms" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Terms of Service</a>
+              {t('settings.data.privacyDesc')}
+              {' '}<a href="/privacy" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{t('settings.data.privacyPolicy')}</a>
+              {' · '}<a href="/terms" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{t('settings.data.termsOfService')}</a>
             </p>
             <div style={{ padding: '14px 16px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Export My Data</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{t('settings.data.exportTitle')}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                Download a JSON file containing your profile, all activity metadata, goals, segments, and training plans. Raw GPS track data can be exported per-activity via the CSV / GPX buttons.
+                {t('settings.data.exportDesc')}
               </div>
               <button className="btn btn-ghost" onClick={handleExportData} disabled={exporting} style={{ fontSize: 13 }}>
-                <Download size={13} />{exporting ? 'Preparing…' : 'Download My Data'}
+                <Download size={13} />{exporting ? t('settings.data.preparing') : t('settings.data.downloadMyData')}
               </button>
               {exportError && <Alert variant="error" style={{ marginTop: 10, fontSize: 12 }}>{exportError}</Alert>}
             </div>
             <div style={{ padding: '14px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--status-critical) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--status-critical) 13%, transparent)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--status-critical)', marginBottom: 2 }}>Delete Account</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Permanently removes your account and all associated data. This cannot be undone.</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--status-critical)', marginBottom: 2 }}>{t('settings.data.deleteAccount')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.data.deleteDesc')}</div>
                 </div>
                 <button className="btn" style={{ fontSize: 12, color: 'var(--status-critical)', borderColor: 'color-mix(in srgb, var(--status-critical) 25%, transparent)', marginLeft: 16, flexShrink: 0 }} onClick={() => { setDeleteOpen(o => !o); setDeleteError(''); setDeletePw(''); setDeleteConfirm('') }}>
-                  <Trash2 size={13} /> {deleteOpen ? 'Cancel' : 'Delete…'}
+                  <Trash2 size={13} /> {deleteOpen ? t('settings.data.deleteCancel') : t('settings.data.deleteOpen')}
                 </button>
               </div>
               {deleteOpen && (
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--status-critical) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--status-critical) 19%, transparent)', fontSize: 12, color: 'var(--text-secondary)' }}>
                     <AlertTriangle size={13} />
-                    All activities, track data, goals, segments, and personal records will be permanently erased.
+                    {t('settings.data.deleteWarning')}
                   </div>
                   <div>
-                    <label htmlFor="delete-pw" style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Your password</label>
-                    <input id="delete-pw" type="password" className="filter-input" style={{ width: '100%' }} value={deletePw} onChange={e => { setDeletePw(e.target.value); setDeleteError('') }} placeholder="Enter your password" />
+                    <label htmlFor="delete-pw" style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>{t('settings.data.yourPassword')}</label>
+                    <input id="delete-pw" type="password" className="filter-input" style={{ width: '100%' }} value={deletePw} onChange={e => { setDeletePw(e.target.value); setDeleteError('') }} placeholder={t('settings.data.enterPassword')} />
                   </div>
                   <div>
                     <label htmlFor="delete-confirm" style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>
-                      Type <strong style={{ color: 'var(--status-critical)' }}>DELETE</strong> to confirm
+                      {t('settings.data.typeDeleteConfirm')} <strong style={{ color: 'var(--status-critical)' }}>DELETE</strong> {t('settings.data.typeDeleteConfirmSuffix')}
                     </label>
-                    <input id="delete-confirm" type="text" className="filter-input" style={{ width: '100%' }} value={deleteConfirm} onChange={e => { setDeleteConfirm(e.target.value); setDeleteError('') }} placeholder="DELETE" />
+                    <input id="delete-confirm" type="text" className="filter-input" style={{ width: '100%' }} value={deleteConfirm} onChange={e => { setDeleteConfirm(e.target.value); setDeleteError('') }} placeholder={t('settings.data.deletePlaceholder')} />
                   </div>
                   {deleteError && <Alert variant="error" style={{ fontSize: 12 }}>{deleteError}</Alert>}
                   <button className="btn btn-danger" onClick={handleDeleteAccount} disabled={deleting || deleteConfirm !== 'DELETE'}>
-                    <Trash2 size={13} />{deleting ? 'Deleting…' : 'Permanently Delete My Account'}
+                    <Trash2 size={13} />{deleting ? t('settings.data.deleting') : t('settings.data.permanentlyDelete')}
                   </button>
                 </div>
               )}
@@ -1207,11 +1204,11 @@ export default function Settings() {
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Strava</div>
                   {stravaConnected ? (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Connected{stravaAthleteId && <span style={{ opacity: 0.6 }}> · athlete #{stravaAthleteId}</span>}
-                      {stravaLastSync && <span> · last synced {new Date(stravaLastSync).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                      {t('settings.integrations.stravaConnected')}{stravaAthleteId && <span style={{ opacity: 0.6 }}> · {t('settings.integrations.stravaAthleteId', { id: stravaAthleteId })}</span>}
+                      {stravaLastSync && <span> · {t('settings.integrations.stravaLastSync', { datetime: new Date(stravaLastSync).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}</span>}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Import your cycling activities from Strava</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.integrations.stravaImportDesc')}</div>
                   )}
                 </div>
               </div>
@@ -1219,15 +1216,15 @@ export default function Settings() {
                 {stravaConnected ? (
                   <>
                     <button className="btn btn-primary" style={{ background: STRAVA_COLOR, color: 'oklch(98% 0.005 120)', fontWeight: 700, gap: 6 }} onClick={handleStravaSync} disabled={stravaSyncing}>
-                      {stravaSyncing ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> Syncing…</> : <><RefreshCw size={13} /> Sync Rides</>}
+                      {stravaSyncing ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> {t('settings.integrations.syncing')}</> : <><RefreshCw size={13} /> {t('settings.integrations.syncRides')}</>}
                     </button>
                     <button className="btn" style={{ fontSize: 12, color: 'var(--text-muted)', borderColor: 'var(--border)', gap: 6 }} onClick={handleStravaDisconnect}>
-                      <Link2Off size={13} /> Disconnect
+                      <Link2Off size={13} /> {t('settings.integrations.disconnect')}
                     </button>
                   </>
                 ) : (
                   <button className="btn btn-primary" style={{ background: STRAVA_COLOR, color: 'oklch(98% 0.005 120)', fontWeight: 700, gap: 6 }} onClick={handleStravaConnect} disabled={stravaConnecting}>
-                    {stravaConnecting ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> Redirecting…</> : <><Link2 size={13} /> Connect Strava</>}
+                    {stravaConnecting ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2, borderColor: 'oklch(98% 0.005 120 / 0.25)', borderTopColor: 'oklch(98% 0.005 120)' }} /> {t('settings.integrations.redirecting')}</> : <><Link2 size={13} /> {t('settings.integrations.connectStrava')}</>}
                   </button>
                 )}
               </div>
@@ -1235,9 +1232,9 @@ export default function Settings() {
             {stravaMsg && <Alert variant={stravaMsgType === 'error' ? 'error' : 'success'} style={{ marginTop: 12, fontSize: 12 }}>{stravaMsg}</Alert>}
             {stravaConnected && (
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Only cycling activities (Ride, Virtual Ride, Gravel, MTB) are imported.
-                {membership === 'free' && ' AI analysis and export require a Pro plan.'}
-                {' '}GPS track data is not available; activities imported from Strava won't generate personal records.
+                {t('settings.integrations.stravaOnlyCycling')}
+                {membership === 'free' && t('settings.integrations.stravaProRequired')}
+                {t('settings.integrations.stravaNoGps')}
               </div>
             )}
           </Card>

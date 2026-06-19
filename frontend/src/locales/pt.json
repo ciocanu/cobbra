@@ -685,7 +685,8 @@
       "hidePassword": "",
       "updatePassword": "",
       "updatingPassword": "",
-      "passwordUpdated": ""
+      "passwordUpdated": "",
+      "newEmailAriaLabel": ""
     },
     "billing": {
       "title": "",
@@ -852,7 +853,8 @@
       "outdoorFtp": "",
       "calibrateAndSave": "",
       "calibrating": "",
-      "powerGapResult": ""
+      "powerGapResult": "",
+      "heatAdaptationLow": ""
     },
     "data": {
       "privacyData": "",
@@ -873,7 +875,8 @@
       "typeDeleteConfirm": "",
       "deletePlaceholder": "",
       "permanentlyDelete": "",
-      "deleting": ""
+      "deleting": "",
+      "typeDeleteConfirmSuffix": ""
     },
     "integrations": {
       "stravaConnected": "",

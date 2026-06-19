@@ -685,7 +685,8 @@
       "hidePassword": "Hide password",
       "updatePassword": "Update Password",
       "updatingPassword": "Updating…",
-      "passwordUpdated": "Password updated. Other sessions signed out."
+      "passwordUpdated": "Password updated. Other sessions signed out.",
+      "newEmailAriaLabel": "New email address"
     },
     "billing": {
       "title": "Plan & Billing",
@@ -852,7 +853,8 @@
       "outdoorFtp": "Outdoor FTP",
       "calibrateAndSave": "Calibrate & Save",
       "calibrating": "Calibrating…",
-      "powerGapResult": "Gap: {{gap}}%"
+      "powerGapResult": "Gap: {{gap}}%",
+      "heatAdaptationLow": "Low"
     },
     "data": {
       "privacyData": "Privacy & Data",
@@ -873,7 +875,8 @@
       "typeDeleteConfirm": "Type <1>DELETE</1> to confirm",
       "deletePlaceholder": "DELETE",
       "permanentlyDelete": "Permanently Delete My Account",
-      "deleting": "Deleting…"
+      "deleting": "Deleting…",
+      "typeDeleteConfirmSuffix": "to confirm"
     },
     "integrations": {
       "stravaConnected": "Connected",
