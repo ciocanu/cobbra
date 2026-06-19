@@ -101,9 +101,17 @@ class ActivityOut(BaseModel):
     decoupling_components_json: Optional[str]   = None
     decoupling_quality:         Optional[str]   = None
     decoupling_warning:         Optional[str]   = None
+    has_ai_analysis:            bool            = False
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        instance = super().model_validate(obj, *args, **kwargs)
+        if hasattr(obj, 'ai_analysis'):
+            instance.has_ai_analysis = bool(obj.ai_analysis)
+        return instance
 
 
 class ActivityPage(BaseModel):

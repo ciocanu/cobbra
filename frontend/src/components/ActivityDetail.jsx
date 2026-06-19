@@ -589,16 +589,33 @@ export default function ActivityDetail() {
   const intakeMsgTimer = useRef(null)
 
   useEffect(() => {
-    getActivity(id)
-      .then(r => {
-        setActivity(r.data)
-        setNewName(r.data.name)
-        setNotes(r.data.notes ?? '')
-      })
-      .catch(() => setError(t('activityDetail.notFound')))
-      .finally(() => setLoading(false))
+    const fetchActivity = (attempt = 0) => {
+      getActivity(id)
+        .then(r => {
+          setActivity(r.data)
+          setNewName(r.data.name)
+          setNotes(r.data.notes ?? '')
+          if (r.data.has_ai_analysis) {
+            getAnalysis(id).then(r2 => setAnalysis(r2.data.analysis)).catch(() => {})
+          }
+          setLoading(false)
+        })
+        .catch(e => {
+          const status = e.response?.status
+          if (status === 404) {
+            setError(t('activityDetail.notFound'))
+            setLoading(false)
+          } else if (attempt < 3) {
+            // Transient server error (e.g. DB busy after upload) — retry up to 3×
+            setTimeout(() => fetchActivity(attempt + 1), 800 * (attempt + 1))
+          } else {
+            setError(t('activityDetail.notFound'))
+            setLoading(false)
+          }
+        })
+    }
+    fetchActivity()
     getActivitySegments(id).then(r => setSegmentEfforts(r.data)).catch(() => {})
-    getAnalysis(id).then(r => setAnalysis(r.data.analysis)).catch(() => {})
     getActivityClimbs(id).then(r => setClimbs(r.data)).catch(() => {})
     getSettings().then(r => {
       setFtp(r.data.ftp || null)
@@ -635,11 +652,38 @@ export default function ActivityDetail() {
   const handleAnalyse = async () => {
     setAnalysisLoading(true)
     setAnalysisError('')
+    setAnalysis('')
     try {
-      const res = await getAnalysis(id)
-      setAnalysis(res.data.analysis)
+      const res = await fetch(`/api/activities/${id}/analysis/stream`, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || t('activityDetail.analysisFailed'))
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const msg = JSON.parse(line.slice(6))
+          if (msg.error) throw new Error(msg.error)
+          if (msg.cached) {
+            setAnalysis(msg.text)
+          } else if (msg.text) {
+            setAnalysis(prev => prev + msg.text)
+          }
+          if (msg.done) { setAnalysisLoading(false); return }
+        }
+      }
     } catch (e) {
-      setAnalysisError(e.response?.data?.detail || t('activityDetail.analysisFailed'))
+      setAnalysisError(e.message || t('activityDetail.analysisFailed'))
     } finally {
       setAnalysisLoading(false)
     }
@@ -1677,6 +1721,11 @@ export default function ActivityDetail() {
           hr_speed: t('activityDetail.durabilityIndex.method.hr_speed'),
           climbing_power: t('activityDetail.durabilityIndex.method.climbing_power'),
         }
+        const unitLabel = {
+          speed_hr_ratio: 'km/h÷bpm',
+          W: 'W',
+          watts: 'W',
+        }
 
         if (durabilityLoading) return (
           <div className="chart-section">
@@ -1704,6 +1753,7 @@ export default function ActivityDetail() {
         ].filter(q => q.value != null)
 
         const unit = durabilityData.output_unit ?? ''
+        const displayUnit = unitLabel[unit] ?? unit
 
         return (
           <div className="chart-section">
@@ -1733,7 +1783,7 @@ export default function ActivityDetail() {
             {quarters.length === 4 && (
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  {t('activityDetail.durabilityIndex.outputPerQuarter', { unit })}
+                  {t('activityDetail.durabilityIndex.outputPerQuarter', { unit: displayUnit })}
                 </div>
                 <ResponsiveContainer width="100%" height={120}>
                   <BarChart data={quarters} barCategoryGap="30%">
@@ -1744,7 +1794,7 @@ export default function ActivityDetail() {
                       content={({ active, payload }) => active && payload?.length ? (
                         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-bright)', borderRadius: 6, padding: '6px 10px', fontSize: 12 }}>
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, color: catColor }}>{payload[0].value?.toFixed(1)}</span>
-                          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>{unit}</span>
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>{displayUnit}</span>
                         </div>
                       ) : null}
                     />

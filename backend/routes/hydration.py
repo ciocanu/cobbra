@@ -5,7 +5,7 @@ from database import get_db
 from auth import get_current_user
 import models
 import schemas
-from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation
+from utils.hydration import build_analysis as build_hydration_analysis, update_heat_adaptation, hr_to_intensity_factor
 from utils.decoupling import calculate_adjusted_decoupling
 
 router = APIRouter()
@@ -28,14 +28,15 @@ def _run_analysis(activity: models.Activity, user: models.User, db: Session) -> 
         if activity.sensor_temp_avg_c is not None
         else (activity.weather_temp_c if activity.weather_temp_c is not None else 20.0)
     )
-    duration_h = (activity.elapsed_seconds or activity.duration_seconds or 0) / 3600
+    duration_h = (activity.duration_seconds or activity.elapsed_seconds or 0) / 3600
 
     if activity.normalized_power_w and user.ftp and user.ftp > 0:
         intensity_factor = min(1.0, activity.normalized_power_w / user.ftp)
-    elif activity.avg_heart_rate_bpm and user.max_hr and user.max_hr > 0:
-        intensity_factor = min(1.0, activity.avg_heart_rate_bpm / user.max_hr)
     else:
-        intensity_factor = 0.65
+        hr_if = hr_to_intensity_factor(
+            activity.avg_heart_rate_bpm, user.max_hr, user.resting_hr
+        )
+        intensity_factor = hr_if if hr_if is not None else 0.65
 
     is_indoor = activity.ride_environment == "indoor"
 

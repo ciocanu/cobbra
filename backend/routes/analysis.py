@@ -1,5 +1,7 @@
+import json
 import os
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
@@ -198,6 +200,60 @@ def get_analysis(
     activity.ai_analysis = analysis
     db.commit()
     return {"analysis": analysis, "cached": False}
+
+
+@router.get("/{activity_id}/analysis/stream")
+async def stream_analysis(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    activity = db.query(models.Activity).filter(
+        models.Activity.id == activity_id,
+        models.Activity.user_id == current_user.id,
+    ).first()
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    if (current_user.membership or "free") == "free":
+        raise HTTPException(status_code=403, detail="AI ride analysis is a Pro feature.")
+
+    if activity.ai_analysis:
+        async def send_cached():
+            yield f"data: {json.dumps({'text': activity.ai_analysis, 'done': True, 'cached': True})}\n\n"
+        return StreamingResponse(send_cached(), media_type="text/event-stream",
+                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not set.")
+
+    prompt = _build_prompt(activity, current_user)
+    activity_id_val = activity.id
+
+    async def generate():
+        full_text = ""
+        try:
+            async_client = anthropic.AsyncAnthropic(api_key=api_key)
+            async with async_client.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=750,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    full_text += text
+                    yield f"data: {json.dumps({'text': text, 'done': False})}\n\n"
+
+            act = db.query(models.Activity).filter_by(id=activity_id_val).first()
+            if act:
+                act.ai_analysis = full_text
+                db.commit()
+            yield f"data: {json.dumps({'text': '', 'done': True, 'cached': False})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.delete("/{activity_id}/analysis")

@@ -85,7 +85,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    getActivities({ limit: 7 }).then(r => setRecentRides(r.data)).catch(() => setRecentRides([]))
+    getActivities({ limit: 7 }).then(r => setRecentRides(r.data?.items ?? r.data)).catch(() => setRecentRides([]))
     getWeeklyStats(16).then(r => setWeeklyData(r.data)).catch(() => setWeeklyData([]))
     getFitnessStats(60).then(r => setFitnessData(r.data)).catch(() => setFitnessData([]))
     getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})

@@ -102,7 +102,7 @@ export default function Compare() {
   const [compareNote, setCompareNote] = useState('')
 
   useEffect(() => {
-    getActivities({ limit: 200 }).then(r => setActivities(r.data)).catch(console.error)
+    getActivities({ limit: 200 }).then(r => setActivities(r.data?.items ?? r.data)).catch(console.error)
   }, [])
 
   useEffect(() => {
