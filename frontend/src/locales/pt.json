@@ -12,7 +12,9 @@
     "date": "",
     "name": "",
     "ride": "",
-    "rides": ""
+    "rides": "",
+    "errorLoad": "",
+    "retry": ""
   },
   "languageSwitcher": {
     "label": ""

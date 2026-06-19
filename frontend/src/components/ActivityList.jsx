@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getActivities } from '../services/api'
 import { format } from 'date-fns'
-import { Route, Search, X } from 'lucide-react'
+import { Route, Search, X, RefreshCw } from 'lucide-react'
+import Alert from './Alert'
 
 function fmtDuration(s) {
   const h = Math.floor(s / 3600)
@@ -15,6 +16,7 @@ export default function ActivityList() {
   const { t } = useTranslation()
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -31,9 +33,10 @@ export default function ActivityList() {
     if (maxDist) params.max_distance_km = maxDist
 
     setLoading(true)
+    setError(null)
     getActivities(params)
       .then(r => setActivities(r.data))
-      .catch(console.error)
+      .catch(e => { console.error(e); setError(e) })
       .finally(() => setLoading(false))
   }, [search, dateFrom, dateTo, minDist, maxDist])
 
@@ -111,7 +114,14 @@ export default function ActivityList() {
         )}
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="empty-state">
+          <Alert variant="error" style={{ marginBottom: 16 }}>{t('common.errorLoad')}</Alert>
+          <button className="btn btn-ghost" onClick={fetchActivities}>
+            <RefreshCw size={14} /> {t('common.retry')}
+          </button>
+        </div>
+      ) : loading ? (
         <div className="loading-center"><div className="spinner" /></div>
       ) : activities.length === 0 ? (
         <div className="empty-state">

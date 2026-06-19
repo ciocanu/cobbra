@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getRecords } from '../services/api'
 import { format, formatDistanceToNow } from 'date-fns'
-import { Trophy, ArrowRight, TrendingUp } from 'lucide-react'
+import { Trophy, ArrowRight, TrendingUp, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import Alert from './Alert'
 
 const SPEED_PRS = [
   { type: 'fastest_400m',  label: '400 m',  distKm: 0.4  },
@@ -31,6 +32,8 @@ export default function PersonalRecords() {
   const { t } = useTranslation()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
   const navigate = useNavigate()
 
   const BEST_PRS = [
@@ -40,13 +43,23 @@ export default function PersonalRecords() {
   ]
 
   useEffect(() => {
+    setLoading(true)
+    setError(null)
     getRecords()
       .then(r => setRecords(r.data))
-      .catch(console.error)
+      .catch(e => { console.error(e); setError(e) })
       .finally(() => setLoading(false))
-  }, [])
+  }, [retryKey])
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
+  if (error) return (
+    <div className="empty-state">
+      <Alert variant="error" style={{ marginBottom: 16 }}>{t('common.errorLoad')}</Alert>
+      <button className="btn btn-ghost" onClick={() => setRetryKey(k => k + 1)}>
+        <RefreshCw size={14} /> {t('common.retry')}
+      </button>
+    </div>
+  )
 
   const byType = Object.fromEntries(records.map(r => [r.pr_type, r]))
 

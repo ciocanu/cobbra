@@ -12,7 +12,9 @@
     "date": "Date",
     "name": "Name",
     "ride": "Ride",
-    "rides": "Rides"
+    "rides": "Rides",
+    "errorLoad": "Failed to load. Check your connection and try again.",
+    "retry": "Try again"
   },
   "languageSwitcher": {
     "label": "Language"
