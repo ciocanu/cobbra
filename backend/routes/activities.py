@@ -1,5 +1,6 @@
 import base64
 import csv
+import hashlib
 import io
 import json
 import os
@@ -503,6 +504,14 @@ async def upload_activity(
     if len(content) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Maximum size is 50 MB.")
 
+    file_hash = hashlib.sha256(content).hexdigest()
+    duplicate = db.query(models.Activity).filter(
+        models.Activity.user_id == current_user.id,
+        models.Activity.file_hash == file_hash,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail=f"This ride was already uploaded (activity #{duplicate.id}).")
+
     # Validate actual content, not just the extension
     is_gpx_content = content.lstrip()[:5] == b"<?xml" or b"<gpx" in content[:512]
     # FIT files have a fixed 12/14-byte header ending with the ASCII string ".FIT"
@@ -543,7 +552,7 @@ async def upload_activity(
         if sensor_avg_temp is not None:
             data["weather_temp_c"] = sensor_avg_temp
 
-    activity = models.Activity(**data, user_id=current_user.id)
+    activity = models.Activity(**data, user_id=current_user.id, file_hash=file_hash)
     db.add(activity)
     db.flush()
 

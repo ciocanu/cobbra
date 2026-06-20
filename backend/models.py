@@ -126,6 +126,7 @@ class Activity(Base):
     total_climbing_power_avg_w = Column(Float, nullable=True)
     total_climbing_wkg_avg     = Column(Float, nullable=True)
     climb_count                = Column(Integer, default=0)
+    file_hash = Column(String, nullable=True, index=True)  # SHA-256 of raw uploaded bytes
     created_at = Column(DateTime, default=datetime.utcnow)
 
     track_points = relationship("TrackPoint", back_populates="activity", cascade="all, delete-orphan")
