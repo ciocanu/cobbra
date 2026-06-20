@@ -5,7 +5,7 @@ import io
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Body, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -528,6 +528,28 @@ async def upload_activity(
 
     track_points = data.pop("track_points")
     laps_data = data.pop("laps", [])
+
+    # Fuzzy duplicate check — catches rides uploaded before the hash system
+    # and cross-format duplicates (same ride as GPX then FIT).
+    # Match: same day + duration within 60 s + distance within 0.5 km.
+    if data.get("date") and data.get("duration_seconds") and data.get("distance_km"):
+        ride_date = data["date"]
+        day_start = ride_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end   = day_start + timedelta(days=1)
+        dur       = data["duration_seconds"]
+        dist      = data["distance_km"]
+        fuzzy_dup = db.query(models.Activity).filter(
+            models.Activity.user_id == current_user.id,
+            models.Activity.date >= day_start,
+            models.Activity.date <  day_end,
+            models.Activity.duration_seconds >= dur - 60,
+            models.Activity.duration_seconds <= dur + 60,
+            models.Activity.distance_km      >= dist - 0.5,
+            models.Activity.distance_km      <= dist + 0.5,
+        ).first()
+        if fuzzy_dup:
+            raise HTTPException(status_code=409, detail=f"This ride was already uploaded (activity #{fuzzy_dup.id}).")
+
     data["suffer_score"] = compute_suffer_score(track_points, data.get("max_heart_rate_bpm"))
 
     # Recompute avg cadence excluding zeros (coasting / downhill)
