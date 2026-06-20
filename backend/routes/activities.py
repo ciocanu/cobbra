@@ -753,6 +753,14 @@ def delete_activity(activity_id: int, db: Session = Depends(get_db), current_use
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
+    # Bulk-delete child rows in one SQL statement each — avoids ORM loading
+    # thousands of TrackPoints into memory before deleting them one by one.
+    db.query(models.TrackPoint).filter(models.TrackPoint.activity_id == activity_id).delete(synchronize_session=False)
+    db.query(models.Lap).filter(models.Lap.activity_id == activity_id).delete(synchronize_session=False)
+    db.query(models.HydrationAnalysis).filter(models.HydrationAnalysis.activity_id == activity_id).delete(synchronize_session=False)
+    db.query(models.DurabilityAnalysis).filter(models.DurabilityAnalysis.activity_id == activity_id).delete(synchronize_session=False)
+    db.query(models.ClimbDetection).filter(models.ClimbDetection.activity_id == activity_id).delete(synchronize_session=False)
+    db.query(models.PersonalRecord).filter(models.PersonalRecord.activity_id == activity_id).delete(synchronize_session=False)
     db.delete(activity)
     db.commit()
     return {"message": "Deleted"}
