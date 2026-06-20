@@ -12,12 +12,12 @@ from utils import compute_normalized_power, compute_tss
 router = APIRouter()
 
 # Strava API migration (effective 2027-06-01):
-# API base URL moved from www.strava.com/api/v3 to api-v3.strava.com;
-# oauth/deauthorize replaced by oauth/revoke.
-_STRAVA_AUTH_URL  = "https://www.strava.com/oauth/authorize"
-_STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
+# _STRAVA_API_BASE must be changed to https://www.api-v3.strava.com on that date.
+# oauth/deauthorize was already replaced by oauth/revoke (done, endpoint is live).
+_STRAVA_AUTH_URL   = "https://www.strava.com/oauth/authorize"
+_STRAVA_TOKEN_URL  = "https://www.strava.com/oauth/token"
 _STRAVA_REVOKE_URL = "https://www.strava.com/oauth/revoke"
-_STRAVA_API_BASE  = "https://www.api-v3.strava.com"
+_STRAVA_API_BASE   = "https://www.strava.com/api/v3"  # TODO 2027-06-01: change to https://www.api-v3.strava.com
 
 _FREE_ACTIVITY_CAP = 15
 _CYCLING_TYPES = {"Ride", "VirtualRide", "GravelRide", "MountainBikeRide", "EBikeRide"}
