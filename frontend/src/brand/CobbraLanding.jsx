@@ -463,7 +463,7 @@ export default function CobbraLanding() {
             &copy; {new Date().getFullYear()} COBBRA
           </span>
           <div style={{ display: 'flex', gap: 20 }}>
-            {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '#']].map(([l, href]) => (
+            {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact']].map(([l, href]) => (
               <a key={l} href={href} className="cb-footer-link">{l}</a>
             ))}
           </div>

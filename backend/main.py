@@ -13,7 +13,7 @@ from starlette.requests import Request
 from sqlalchemy import text
 from database import engine, _is_sqlite
 import models
-from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor, climbs
+from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor, climbs, contact
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -388,6 +388,7 @@ app.include_router(hydration.router,      prefix="/api",  tags=["hydration"])
 app.include_router(durability.router,     prefix="/api",  tags=["durability"])
 app.include_router(indoor_outdoor.router, prefix="/api",  tags=["indoor_outdoor"])
 app.include_router(climbs.router,         prefix="/api",  tags=["climbs"])
+app.include_router(contact.router,        prefix="/api",  tags=["contact"])
 
 
 @app.get("/health")

@@ -13,6 +13,7 @@ const VerifyEmail    = lazy(() => import('./components/VerifyEmail'))
 const StravaCallback = lazy(() => import('./components/StravaCallback'))
 const PrivacyPolicy  = lazy(() => import('./components/PrivacyPolicy'))
 const TermsOfService = lazy(() => import('./components/TermsOfService'))
+const Contact        = lazy(() => import('./components/Contact'))
 const CobbraLanding  = lazy(() => import('./brand/CobbraLanding'))
 
 // App routes — lazy (all behind auth or heavy deps like Leaflet/Recharts)
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/strava/callback" element={<StravaCallback />} />
           <Route path="/privacy"        element={<PrivacyPolicy />} />
           <Route path="/terms"          element={<TermsOfService />} />
+          <Route path="/contact"        element={<Contact />} />
           <Route path="/brand"          element={<CobbraLanding />} />
           <Route path="/onboarding"     element={<RequireAuth><Onboarding /></RequireAuth>} />
 

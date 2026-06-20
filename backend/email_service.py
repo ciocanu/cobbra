@@ -11,13 +11,15 @@ SMTP_FROM     = os.getenv("SMTP_FROM", "") or SMTP_USER
 APP_URL       = os.getenv("APP_URL", "https://velostats.app")
 
 
-def _send(to: str, subject: str, html: str, plain: str):
+def _send(to: str, subject: str, html: str, plain: str, reply_to: str | None = None):
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
         raise RuntimeError("SMTP is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in .env")
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = SMTP_FROM
     msg["To"]      = to
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.attach(MIMEText(plain, "plain"))
     msg.attach(MIMEText(html,  "html"))
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
@@ -94,6 +96,57 @@ The VeloStats Team
 
     _send(to_email, subject, html, plain)
 
+
+def send_contact_message(name: str, from_email: str, subject: str, message: str):
+    recipient = os.getenv("CONTACT_EMAIL") or SMTP_FROM
+    if not recipient:
+        raise RuntimeError("No contact email configured (set CONTACT_EMAIL or SMTP_FROM).")
+
+    full_subject = f"[Cobbra] {subject}"
+    plain = f"From: {name} <{from_email}>\n\n{message}"
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f;padding:48px 16px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#0f0f1a;border-radius:16px;border:1px solid #1e1e38;overflow:hidden;">
+        <tr>
+          <td style="padding:32px 40px 24px;border-bottom:1px solid #1e1e38;">
+            <span style="font-size:20px;font-weight:800;letter-spacing:0.1em;color:#f0f0ff;">COB</span><span style="font-size:20px;font-weight:800;letter-spacing:0.1em;color:#4ade80;">BRA</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 32px;">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4ade80;">Contact form</p>
+            <h1 style="margin:0 0 24px;font-size:24px;font-weight:800;color:#f0f0ff;">New message</h1>
+            <div style="background:#1a1a2e;border:1px solid #1e1e38;border-radius:8px;padding:16px 20px;margin-bottom:16px;">
+              <p style="margin:0 0 4px;font-size:12px;color:#8888aa;text-transform:uppercase;letter-spacing:0.08em;">From</p>
+              <p style="margin:0;font-size:15px;color:#f0f0ff;font-weight:600;">{name}</p>
+              <p style="margin:2px 0 0;font-size:13px;color:#8888aa;">{from_email}</p>
+            </div>
+            <div style="background:#1a1a2e;border:1px solid #1e1e38;border-radius:8px;padding:16px 20px;margin-bottom:16px;">
+              <p style="margin:0 0 4px;font-size:12px;color:#8888aa;text-transform:uppercase;letter-spacing:0.08em;">Subject</p>
+              <p style="margin:0;font-size:15px;color:#f0f0ff;">{subject}</p>
+            </div>
+            <div style="background:#1a1a2e;border:1px solid #1e1e38;border-radius:8px;padding:16px 20px;">
+              <p style="margin:0 0 8px;font-size:12px;color:#8888aa;text-transform:uppercase;letter-spacing:0.08em;">Message</p>
+              <p style="margin:0;font-size:15px;color:#f0f0ff;line-height:1.7;white-space:pre-wrap;">{message}</p>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 40px;border-top:1px solid #1e1e38;">
+            <p style="margin:0;font-size:12px;color:#3a3a5a;">Reply directly to this email to respond to {name}.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    _send(recipient, full_subject, html, plain, reply_to=f"{name} <{from_email}>")
 
 def send_lifetime_offer(to_email: str, username: str, token: str, expires_at):
     offer_url   = f"{APP_URL}/lifetime-offer?token={token}"
