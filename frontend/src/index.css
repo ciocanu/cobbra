@@ -357,6 +357,38 @@ html, body, #root {
   }
 }
 
+@media (max-width: 640px) {
+  .last-ride-strip {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .lrs-identity {
+    width: auto;
+  }
+
+  .lrs-divider {
+    width: auto;
+    height: 1px;
+    margin: 0;
+    align-self: auto;
+  }
+
+  .lrs-metrics {
+    gap: 16px 24px;
+  }
+
+  .lrs-metric-value {
+    font-size: 20px;
+  }
+
+  .lrs-delta {
+    gap: 20px;
+  }
+}
+
 /* Recent Rides list */
 .recent-rides-list {
   background: var(--surface-grad);
