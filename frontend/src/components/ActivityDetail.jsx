@@ -671,6 +671,7 @@ export default function ActivityDetail() {
       getActivity(id)
         .then(r => {
           setActivity(r.data)
+          setProfileMaxHr(r.data.profile_max_hr || null)
           setNewName(r.data.name)
           setNotes(r.data.notes ?? '')
           if (r.data.has_ai_analysis) {
@@ -698,7 +699,7 @@ export default function ActivityDetail() {
     getSettings().then(r => {
       setFtp(r.data.ftp || null)
       setWeightKg(r.data.weight_kg || null)
-      setProfileMaxHr(r.data.max_hr || null)
+      if (r.data.max_hr) setProfileMaxHr(r.data.max_hr)
     }).catch(() => {})
     getHydrationAnalysis(id).then(r => {
       setHydration(r.data)

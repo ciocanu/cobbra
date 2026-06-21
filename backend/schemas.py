@@ -123,6 +123,8 @@ class ActivityPage(BaseModel):
 class ActivityDetail(ActivityOut):
     track_points: List[TrackPointOut]
     laps: List[LapOut]
+    profile_max_hr: Optional[int] = None
+    profile_resting_hr: Optional[int] = None
 
     class Config:
         from_attributes = True

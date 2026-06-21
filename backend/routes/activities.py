@@ -749,7 +749,11 @@ def get_activity(activity_id: int, db: Session = Depends(get_db), current_user=D
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
-    return activity
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    detail = schemas.ActivityDetail.model_validate(activity)
+    detail.profile_max_hr = user.max_hr
+    detail.profile_resting_hr = user.resting_hr
+    return detail
 
 
 @router.patch("/{activity_id}/rename")
