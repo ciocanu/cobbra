@@ -254,6 +254,83 @@ function computeBestEfforts(pts) {
   return results
 }
 
+// ── AI Analysis helpers ───────────────────────────────────────────────────────
+
+function parseAnalysis(raw) {
+  if (!raw) return []
+  const lines = raw.split('\n').filter(l => !/^#{1,6}\s/.test(l))
+  const paras = lines.join('\n').split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean)
+  return paras.map((text, i) => {
+    const isTip = /\bcoaching tip\b|here.?s my (coaching )?tip\b/i.test(text)
+    return { text, type: i === 0 ? 'lead' : isTip ? 'tip' : 'body' }
+  })
+}
+
+function MetricSpan({ text }) {
+  const re = /\b(\d+(?:[.,]\d+)?)\s*(km\/h|bpm|rpm|W\/kg|kJ|km(?=[\s,.]|$)|%|°C)\b/g
+  const parts = []
+  let last = 0, m, key = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>)
+    parts.push(
+      <span key={key++} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.88em', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+        {m[0]}
+      </span>
+    )
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>)
+  return <>{parts}</>
+}
+
+function AnalysisRenderer({ text }) {
+  const paragraphs = parseAnalysis(text)
+  const bodyParas = paragraphs.filter(p => p.type !== 'tip')
+  const tip = paragraphs.find(p => p.type === 'tip')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {bodyParas.map((para, i) => (
+        <p key={i} style={{
+          margin: 0,
+          fontSize: para.type === 'lead' ? 15 : 14,
+          fontWeight: para.type === 'lead' ? 500 : 400,
+          lineHeight: 1.78,
+          color: para.type === 'lead' ? 'var(--text-primary)' : 'var(--text-secondary)',
+          maxWidth: '72ch',
+          paddingBottom: (i < bodyParas.length - 1 || tip) ? 16 : 0,
+          marginBottom: (i < bodyParas.length - 1 || tip) ? 16 : 0,
+          borderBottom: (i < bodyParas.length - 1 || tip) ? '1px solid var(--border)' : 'none',
+        }}>
+          <MetricSpan text={para.text} />
+        </p>
+      ))}
+      {tip && (
+        <div style={{
+          background: 'color-mix(in srgb, #39FF14 5%, transparent)',
+          border: '1px solid color-mix(in srgb, #39FF14 16%, transparent)',
+          borderRadius: 8,
+          padding: '14px 16px',
+        }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: '#39FF14',
+            marginBottom: 8,
+          }}>
+            Coaching Tip
+          </div>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.75, color: 'var(--text-secondary)' }}>
+            <MetricSpan text={tip.text} />
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Power analysis ────────────────────────────────────────────────────────────
 
 const POWER_ZONES = [
@@ -692,6 +769,11 @@ export default function ActivityDetail() {
   const handleClearAnalysis = async () => {
     await clearAnalysis(id).catch(() => {})
     setAnalysis(null)
+  }
+
+  const handleRegenerateAnalysis = async () => {
+    await clearAnalysis(id).catch(() => {})
+    handleAnalyse()
   }
 
   const handleLogIntake = async () => {
@@ -1988,14 +2070,14 @@ export default function ActivityDetail() {
 
       {/* AI Analysis */}
       <div className="chart-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div className="chart-title" style={{ marginBottom: 0 }}>
             <Sparkles size={14} style={{ display: 'inline', marginRight: 6, color: 'var(--accent)' }} />
             {t('activityDetail.aiAnalysis.title')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {analysis && (
-              <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={handleClearAnalysis}>
+            {analysis && !analysisLoading && (
+              <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={handleRegenerateAnalysis}>
                 <RefreshCw size={12} /> {t('activityDetail.aiAnalysis.regenerate')}
               </button>
             )}
@@ -2007,25 +2089,40 @@ export default function ActivityDetail() {
           </div>
         </div>
 
-        {analysisLoading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
-            <div className="spinner" style={{ width: 16, height: 16 }} />
-            {t('activityDetail.aiAnalysis.generating')}
-          </div>
-        )}
-
         {analysisError && (
           <div className="alert alert-error">{analysisError}</div>
         )}
 
-        {analysis && !analysisLoading && (
-          <p className="ai-analysis-text">{analysis}</p>
+        {/* Skeleton: initial loading before first token arrives */}
+        {analysisLoading && !analysis && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: '72ch' }}>
+            {[0.95, 0.88, 0.72, 0.97, 0.82, 0.60, 0.91, 0.75, 0.46].map((w, i) => (
+              <div key={i} className="analysis-skel-line" style={{ width: `${w * 100}%`, animationDelay: `${i * 80}ms` }} />
+            ))}
+          </div>
         )}
 
-        {!analysis && !analysisLoading && !analysisError && (
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            {t('activityDetail.aiAnalysis.prompt')}
+        {/* Streaming: plain text with cursor while tokens arrive */}
+        {analysisLoading && analysis && (
+          <p style={{ margin: 0, maxWidth: '72ch', fontSize: 14, lineHeight: 1.78, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+            {analysis.replace(/^#[^\n]*\n?/m, '')}
+            <span className="analysis-cursor">▌</span>
           </p>
+        )}
+
+        {/* Rich view: structured paragraphs with metric highlighting */}
+        {!analysisLoading && analysis && (
+          <AnalysisRenderer text={analysis} />
+        )}
+
+        {/* Empty state */}
+        {!analysis && !analysisLoading && !analysisError && (
+          <div style={{ textAlign: 'center', padding: '28px 0 20px' }}>
+            <Sparkles size={20} style={{ color: 'var(--text-muted)', opacity: 0.35, display: 'block', margin: '0 auto 10px' }} />
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
+              {t('activityDetail.aiAnalysis.prompt')}
+            </p>
+          </div>
         )}
       </div>
 
