@@ -1683,6 +1683,32 @@ select.filter-input {
   margin-bottom: 22px;
 }
 
+/* ── Admin ────────────────────────────────────────────────────────────────── */
+.admin-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.admin-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-table-scroll table {
+  min-width: 640px;
+}
+.admin-users-table {
+  min-width: 760px;
+}
+@media (max-width: 768px) {
+  .admin-chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-action-btns {
+    flex-wrap: wrap;
+  }
+}
+
 .training-label {
   display: block;
   font-size: 12px;

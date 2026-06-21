@@ -252,7 +252,7 @@ export default function Admin() {
       </div>
 
       {/* ── Chart + System ───────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 14, marginBottom: 24 }}>
+      <div className="admin-chart-grid">
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px 10px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
             {t('admin.weeklySignupsChartTitle')}
@@ -297,7 +297,8 @@ export default function Admin() {
         {t('admin.usersSection', { count: users.length })}
       </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 28 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="admin-table-scroll">
+        <table className="admin-users-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
               <th style={thStyle}>{t('admin.colUsername')}</th>
@@ -381,7 +382,7 @@ export default function Admin() {
                 </td>
                 <td style={{ ...tdStyle, textAlign: 'right' }}>
                   {!u.is_admin && (
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <div className="admin-action-btns" style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
                       {u.email && u.membership !== 'lifetime' && (
                         <button
                           onClick={() => handleSendOffer(u)}
@@ -409,6 +410,7 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
+        </div>
         {users.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('admin.noUsersYet')}</div>}
       </div>
 
@@ -417,6 +419,7 @@ export default function Admin() {
         {t('admin.segmentsSection', { count: segments.length })}
       </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="admin-table-scroll">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -500,6 +503,7 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
+        </div>
         {segments.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('admin.noSegmentsYet')}</div>}
       </div>
 
