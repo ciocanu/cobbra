@@ -1,12 +1,12 @@
 import json
 import secrets
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from auth import get_current_user, verify_password, hash_password
-from utils import estimate_max_hr_tanaka
+from utils import estimate_max_hr_tanaka, compute_suffer_score, compute_hrtss
 import models
 import schemas
 
@@ -15,6 +15,47 @@ router = APIRouter()
 
 _VALID_EXPERIENCE = {"beginner", "intermediate", "advanced"}
 _VALID_BIKE_TYPE  = {"road", "gravel", "mtb", "tt", "ebike", "other"}
+
+
+def _recalculate_hr_metrics(user_id: int) -> None:
+    """Background task: recompute suffer_score and hrTSS for all HR activities."""
+    db: Session = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user or not user.max_hr:
+            return
+
+        activities = (
+            db.query(models.Activity)
+            .filter(
+                models.Activity.user_id == user_id,
+                models.Activity.avg_heart_rate_bpm.isnot(None),
+            )
+            .all()
+        )
+
+        for activity in activities:
+            # Recompute suffer score from stored track points
+            track_points = [
+                {"timestamp": tp.timestamp, "heart_rate_bpm": tp.heart_rate_bpm}
+                for tp in activity.track_points
+                if tp.heart_rate_bpm is not None
+            ]
+            if track_points:
+                activity.suffer_score = compute_suffer_score(track_points, user.max_hr)
+
+            # Recompute hrTSS only for activities without a power meter
+            if not activity.avg_power_w and activity.avg_heart_rate_bpm:
+                activity.tss = compute_hrtss(
+                    activity.duration_seconds,
+                    activity.avg_heart_rate_bpm,
+                    user.max_hr,
+                    resting_hr=user.resting_hr,
+                )
+
+        db.commit()
+    finally:
+        db.close()
 
 
 @router.get("/", response_model=schemas.SettingsOut)
@@ -39,10 +80,14 @@ def get_settings(db: Session = Depends(get_db), current_user=Depends(get_current
 @router.patch("/", response_model=schemas.SettingsOut)
 def update_settings(
     body: schemas.SettingsIn,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     user = db.query(models.User).filter(models.User.id == current_user.id).first()
+
+    prev_max_hr     = user.max_hr
+    prev_resting_hr = user.resting_hr
 
     if body.max_hr is not None:
         if not (100 <= body.max_hr <= 250):
@@ -93,6 +138,10 @@ def update_settings(
 
     db.commit()
     db.refresh(user)
+
+    if (user.max_hr != prev_max_hr or user.resting_hr != prev_resting_hr) and user.max_hr:
+        background_tasks.add_task(_recalculate_hr_metrics, user.id)
+
     return schemas.SettingsOut(
         max_hr=user.max_hr,
         max_hr_source=user.max_hr_source,
