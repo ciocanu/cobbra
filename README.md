@@ -176,7 +176,84 @@ stripe listen --forward-to localhost:8000/api/payments/webhook
 
 ---
 
-## Production with Docker
+## Production deploy (cobbra.app)
+
+The live instance runs on a Hetzner VPS at **cobbra.app**. Docker is only available on the server — not locally. All deploys go via SSH + SCP.
+
+### SSH access
+
+```bash
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app
+```
+
+Project lives at `/home/cobbra/cobbra/` on the server.
+
+> **Note:** The server has no GitHub SSH key configured, so `git pull` does not work there. Changes must be SCP'd from the local machine.
+
+### Deploy workflow
+
+**Every time you make changes:**
+
+**1. SCP changed files to the server** (one command per file):
+
+```bash
+scp -i ~/.ssh/cobbra_hetzner <local_path> root@cobbra.app:/home/cobbra/cobbra/<same_path>
+```
+
+Examples:
+```bash
+# Backend file
+scp -i ~/.ssh/cobbra_hetzner backend/routes/activities.py root@cobbra.app:/home/cobbra/cobbra/backend/routes/activities.py
+
+# Frontend component
+scp -i ~/.ssh/cobbra_hetzner frontend/src/components/ActivityDetail.jsx root@cobbra.app:/home/cobbra/cobbra/frontend/src/components/ActivityDetail.jsx
+
+# Multiple files (run one line per file — do NOT group into a directory destination)
+scp -i ~/.ssh/cobbra_hetzner backend/schemas.py root@cobbra.app:/home/cobbra/cobbra/backend/schemas.py
+scp -i ~/.ssh/cobbra_hetzner backend/routes/settings.py root@cobbra.app:/home/cobbra/cobbra/backend/routes/settings.py
+```
+
+**2. Rebuild and restart containers:**
+
+```bash
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
+  "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build backend frontend"
+```
+
+Backend only (no frontend changes):
+```bash
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
+  "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build backend"
+```
+
+> **Never use `docker compose restart`** — it reuses the old image and won't pick up code changes. Always use `--build`.
+
+> **Always pass `--env-file .env.prod`** — without it, Docker recreates postgres with empty env vars and the backend can't connect to the DB.
+
+### Check container status
+
+```bash
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app "docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml ps"
+```
+
+### View backend logs
+
+```bash
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app "docker logs cobbra-backend-1 --tail 50"
+```
+
+### Database
+
+SQLite DB is stored at `/home/cobbra/cobbra/data/cycling.db` on the server (mounted volume — survives rebuilds).
+
+To back it up locally:
+```bash
+scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/data/cycling.db ./backup-cycling.db
+```
+
+---
+
+## Production with Docker (generic)
 
 ```bash
 docker-compose up --build -d
@@ -189,34 +266,6 @@ Pass all env vars either directly in `docker-compose.yml` or via a root-level `.
 Data is persisted in `./data/cycling.db` (mounted volume).
 
 For HTTPS, put Nginx or Caddy in front and set `COOKIE_SECURE=true` and `APP_URL=https://yourdomain.com`.
-
----
-
-## Hosting options
-
-### VPS (recommended for self-hosting)
-
-```bash
-git clone <your-repo> && cd cycling-tracker
-# create backend/.env with production values
-docker-compose up -d
-```
-
-Add a domain, Nginx reverse proxy, and Let's Encrypt for HTTPS.
-
-### Railway
-
-1. Push this repo to GitHub
-2. Create a new project at [railway.app](https://railway.app)
-3. Add two services from `./backend` and `./frontend`
-4. Set env vars in the Railway dashboard
-5. Set `VITE_API_URL` to your backend's private URL in the frontend build settings
-
-### Render
-
-1. Backend: Web Service — Python, start command `uvicorn main:app --host 0.0.0.0 --port $PORT`
-2. Frontend: Static Site — build `npm run build`, publish dir `dist`
-3. Set `VITE_API_URL` to the backend Render URL as a build env var
 
 ---
 
