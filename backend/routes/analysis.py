@@ -76,17 +76,37 @@ def _estimate_calories(activity: models.Activity, user: models.User) -> int | No
 def _build_prompt(activity: models.Activity, user: models.User) -> str:
     lines = [
         "You are a friendly cycling coach. Write a 2-3 paragraph analysis of the ride below.",
-        "Be specific with the numbers. Cover: overall effort level, pacing and speed consistency,",
-        "heart rate performance and zone distribution (if available), elevation impact,",
-        "aerobic efficiency (HR decoupling and VAM if available), weather effect (if available),",
-        "and close with one short recovery or training tip.",
+        "Be specific with the numbers. Cover: overall effort level, pacing and HR performance,",
+        "climbing performance if climbs are listed (VAM, gradient, pacing, estimated power),",
+        "aerobic efficiency (decoupling if available), durability/power fade if available,",
+        "environment and weather context, and close with one specific coaching tip.",
         "Tone: conversational, encouraging, coach-like. No bullet points — flowing paragraphs only.",
+        "Do not start with a markdown heading.",
         "",
         "RIDE DATA:",
         f"  Name:           {activity.name}",
         f"  Date:           {activity.date.strftime('%A %d %B %Y')}",
+    ]
+
+    # Indoor/outdoor context
+    env = activity.ride_environment
+    if env == "indoor":
+        platform = activity.indoor_platform or "trainer"
+        lines.append(f"  Environment:    Indoor ({platform})")
+    elif env == "outdoor":
+        lines.append(f"  Environment:    Outdoor")
+
+    lines += [
         f"  Distance:       {activity.distance_km:.2f} km",
         f"  Duration:       {_fmt_duration(activity.duration_seconds)}",
+    ]
+
+    # Stop time
+    if activity.elapsed_seconds and activity.elapsed_seconds > activity.duration_seconds + 60:
+        stop_secs = activity.elapsed_seconds - activity.duration_seconds
+        lines.append(f"  Elapsed time:   {_fmt_duration(activity.elapsed_seconds)} ({_fmt_duration(stop_secs)} stopped)")
+
+    lines += [
         f"  Avg speed:      {activity.avg_speed_kmh:.1f} km/h",
         f"  Max speed:      {activity.max_speed_kmh:.1f} km/h",
         f"  Elevation gain: {activity.elevation_gain_m:.0f} m",
@@ -103,9 +123,8 @@ def _build_prompt(activity: models.Activity, user: models.User) -> str:
         lines.append(f"  Avg HR:         {activity.avg_heart_rate_bpm:.0f} bpm")
         lines.append(f"  Max HR:         {activity.max_heart_rate_bpm:.0f} bpm")
         if user.max_hr:
-            max_hr = user.max_hr
-            avg_pct = (activity.avg_heart_rate_bpm / max_hr) * 100
-            lines.append(f"  Rider max HR:   {max_hr} bpm  (avg was {avg_pct:.0f}% of max)")
+            avg_pct = (activity.avg_heart_rate_bpm / user.max_hr) * 100
+            lines.append(f"  Rider max HR:   {user.max_hr} bpm  (avg was {avg_pct:.0f}% of max)")
 
     if activity.avg_cadence_rpm:
         lines.append(f"  Avg cadence:    {activity.avg_cadence_rpm:.0f} rpm")
@@ -113,50 +132,104 @@ def _build_prompt(activity: models.Activity, user: models.User) -> str:
 
     if activity.avg_power_w:
         lines.append(f"  Avg power:      {activity.avg_power_w:.0f} W")
+        if activity.normalized_power_w:
+            lines.append(f"  Norm. power:    {activity.normalized_power_w} W  (higher NP vs avg = more variable effort)")
         lines.append(f"  Max power:      {activity.max_power_w:.0f} W")
-        if activity.tss is not None:
-            lines.append(f"  TSS:            {activity.tss:.0f} pts  (<150 recoverable overnight, >300 needs days off)")
+        tss_val = activity.corrected_tss or activity.tss
+        if tss_val is not None:
+            tss_label = "TSS (corrected)" if activity.corrected_tss else "TSS"
+            lines.append(f"  {tss_label}:      {tss_val:.0f} pts  (<150 recoverable overnight, >300 needs days off)")
 
-    # VAM — computed from track points
-    vam = _compute_vam(activity)
-    if vam:
-        lines.append(f"  VAM (climb rate): {vam} m/h  (800 = solid endurance, 1500+ = pro climber)")
+    # Detailed climbs from climb detection
+    climbs = activity.climb_detections
+    if climbs:
+        lines.append(f"  Climbs detected: {len(climbs)}")
+        for i, c in enumerate(climbs, 1):
+            parts = [f"{c.elevation_gain_m:.0f}m gain", f"{c.avg_gradient_pct:.1f}% avg gradient"]
+            if c.max_gradient_pct:
+                parts.append(f"{c.max_gradient_pct:.1f}% max")
+            if c.distance_m:
+                parts.append(f"{c.distance_m / 1000:.1f} km long")
+            if c.duration_seconds:
+                parts.append(_fmt_duration(c.duration_seconds))
+            if c.vam_m_per_hour:
+                parts.append(f"VAM {c.vam_m_per_hour:.0f} m/h")
+            if c.pacing_type:
+                parts.append(f"pacing={c.pacing_type}")
+            if c.estimated_wkg:
+                parts.append(f"est. {c.estimated_wkg:.2f} W/kg")
+            elif c.estimated_power_w:
+                parts.append(f"est. {c.estimated_power_w:.0f} W")
+            lines.append(f"    Climb {i}: {', '.join(parts)}")
+    elif activity.climb_count:
+        lines.append(f"  Climbs:         {activity.climb_count}")
+        if activity.total_climbing_wkg_avg:
+            lines.append(f"  Avg climb W/kg: {activity.total_climbing_wkg_avg:.2f}")
+        # Compute VAM from track points as fallback
+        vam = _compute_vam(activity)
+        if vam:
+            lines.append(f"  VAM (climb rate): {vam} m/h  (800 = solid endurance, 1500+ = pro climber)")
+    else:
+        # No climbs — still compute VAM if there's any elevation
+        if (activity.elevation_gain_m or 0) > 20:
+            vam = _compute_vam(activity)
+            if vam:
+                lines.append(f"  VAM (climb rate): {vam} m/h  (800 = solid endurance, 1500+ = pro climber)")
 
-    # Adjusted decoupling — prefer the terrain/heat/hydration-corrected value
+    # Decoupling — prefer adjusted value
     if activity.decoupling_adjusted is not None:
         adj = activity.decoupling_adjusted
         quality = activity.decoupling_quality or "unknown"
-        adj_note = "aerobic drift controlled for terrain, heat & hydration"
         lines.append(
-            f"  Adjusted Decoupling: {adj:+.1f}%  (<5% = good aerobic efficiency, quality={quality}; {adj_note})"
+            f"  Adj. Decoupling: {adj:+.1f}%  (<5% = good aerobic efficiency, quality={quality}; corrected for terrain/heat/hydration)"
         )
         if activity.decoupling_warning:
             lines.append(f"  Decoupling note: {activity.decoupling_warning}")
     else:
-        # Fall back to simple raw computation for activities without track point data
         hr_dec = _compute_hr_decoupling(activity)
         if hr_dec:
             aerobic_note = "good aerobic efficiency" if hr_dec['aerobic'] else "aerobic drift — fatigue or under-fuelled"
+            lines.append(f"  HR Decoupling:  {hr_dec['pct']:+.1f}%  (<5% = well-conditioned, {aerobic_note})")
+
+    # Durability analysis
+    da = activity.durability_analysis
+    if da and da.durability_index is not None:
+        fade = f", fade {da.fade_rate_pct_per_hour:+.1f}%/h" if da.fade_rate_pct_per_hour is not None else ""
+        lines.append(f"  Durability:     {da.durability_index:.0f}/100 ({da.durability_category or 'n/a'}){fade}")
+        if all(v is not None for v in [da.q1_output, da.q2_output, da.q3_output, da.q4_output]):
+            unit = da.output_unit or ""
             lines.append(
-                f"  HR Decoupling:  {hr_dec['pct']:+.1f}%  (<5% = well-conditioned, {aerobic_note})"
+                f"  Quarter outputs ({unit}): Q1={da.q1_output:.1f}, Q2={da.q2_output:.1f}, "
+                f"Q3={da.q3_output:.1f}, Q4={da.q4_output:.1f}"
             )
 
-    if activity.weather_desc or activity.weather_temp_c is not None:
-        parts = []
-        if activity.weather_desc:
-            parts.append(activity.weather_desc)
-        if activity.weather_temp_c is not None:
-            parts.append(f"{activity.weather_temp_c}°C")
-        if activity.weather_wind_kmh is not None:
-            parts.append(f"wind {activity.weather_wind_kmh} km/h")
-        lines.append(f"  Weather:        {', '.join(parts)}")
+    # Weather (skip for indoor rides)
+    if env != "indoor":
+        temp_c = activity.sensor_temp_avg_c or activity.weather_temp_c
+        if activity.weather_desc or temp_c is not None or activity.weather_wind_kmh is not None:
+            parts = []
+            if activity.weather_desc:
+                parts.append(activity.weather_desc)
+            if temp_c is not None:
+                label = "sensor" if activity.sensor_temp_avg_c else "station"
+                parts.append(f"{temp_c:.0f}°C ({label})")
+            if activity.weather_wind_kmh is not None:
+                parts.append(f"wind {activity.weather_wind_kmh:.0f} km/h")
+            if activity.weather_humidity_pct is not None:
+                parts.append(f"humidity {activity.weather_humidity_pct:.0f}%")
+            lines.append(f"  Weather:        {', '.join(parts)}")
 
+    # Calories
     if activity.calories:
         lines.append(f"  Calories:       {activity.calories} kcal")
     else:
         est = _estimate_calories(activity, user)
         if est:
             lines.append(f"  Est. calories:  {est} kcal  (MET-based estimate)")
+
+    # Hydration
+    if activity.hydration_ml:
+        lines.append(f"  Hydration:      {activity.hydration_ml} ml logged")
 
     return "\n".join(lines)
 
@@ -190,7 +263,7 @@ def get_analysis(
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=750,
+            max_tokens=900,
             messages=[{"role": "user", "content": prompt}],
         )
         analysis = message.content[0].text
@@ -237,7 +310,7 @@ async def stream_analysis(
             async_client = anthropic.AsyncAnthropic(api_key=api_key)
             async with async_client.messages.stream(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=750,
+                max_tokens=900,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 async for text in stream.text_stream:
