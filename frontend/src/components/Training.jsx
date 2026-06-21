@@ -49,7 +49,7 @@ function PlanText({ text }) {
 }
 
 export default function Training() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [data, setData] = useState(null)       // { plan, can_generate, next_generation_date }
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -91,6 +91,7 @@ export default function Training() {
         training_days: trainingDays,
         event_date: eventDate || null,
         extra_notes: extraNotes || null,
+        lang: i18n.resolvedLanguage || i18n.language,
       })
       setData(res.data)
       setShowForm(false)

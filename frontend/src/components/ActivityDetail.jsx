@@ -635,7 +635,7 @@ function estimateCalories(durationSeconds, avgSpeedKmh, weightKg) {
 }
 
 export default function ActivityDetail() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const [activity, setActivity] = useState(null)
@@ -732,7 +732,7 @@ export default function ActivityDetail() {
     setAnalysisError('')
     setAnalysis('')
     try {
-      const res = await fetch(`/api/activities/${id}/analysis/stream`, {
+      const res = await fetch(`/api/activities/${id}/analysis/stream?lang=${encodeURIComponent(i18n.resolvedLanguage || i18n.language)}`, {
         credentials: 'include',
       })
       if (!res.ok) {
@@ -1782,12 +1782,17 @@ export default function ActivityDetail() {
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('activityDetail.hydration.recommendations')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {recs.map((rec, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, padding: '7px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                      <Droplets size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: 1 }} />
-                      {rec}
-                    </div>
-                  ))}
+                  {recs.map((rec, i) => {
+                    const text = typeof rec === 'string'
+                      ? rec
+                      : t(`activityDetail.hydration.rec.${rec.key}`, rec)
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, padding: '7px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                        <Droplets size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: 1 }} />
+                        {text}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

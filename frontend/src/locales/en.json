@@ -277,7 +277,23 @@
       "recommendations": "Recommendations",
       "intakeMsgSaved": "Saved.",
       "intakeMsgRange": "Enter a value between 0 and 20000 ml.",
-      "intakeMsgFailed": "Failed to save."
+      "intakeMsgFailed": "Failed to save.",
+      "rec": {
+        "target_intake": "Target intake: ~{{rate_ml_h}} ml/h ({{interval_ml}} ml every 15 min) to replace ~75% of estimated sweat loss.",
+        "pre_ride_hot": "Pre-ride: drink 500–600 ml of water 2 hours before, then 150–250 ml 15 min before start.",
+        "pre_ride_normal": "Pre-ride: drink 400–500 ml 1–2 hours before the ride.",
+        "high_sweat_rate": "High sweat rate ({{rate_ml_h}} ml/h): use a large-volume bidon (750 ml+) and set a reminder every 10–12 min to drink.",
+        "drink_proactive": "Drink proactively every 15–20 min — do not wait for thirst.",
+        "drink_thirsty": "Drink when thirsty; aim for a consistent small sip every 20–25 min.",
+        "electrolytes": "Add electrolytes (sodium 500–700 mg/h) to at least one bottle — plain water carries a dilutional hyponatraemia risk on long or hot rides.",
+        "post_ride_deficit": "Post-ride: replace the ~{{deficit_ml}} ml deficit — drink ~{{recovery_ml}} ml over the next 2–4 hours (include sodium to retain fluid).",
+        "post_ride_generic": "Post-ride: drink ~{{recovery_ml}} ml over the next 2–4 hours to restore fluid balance.",
+        "risk_critical": "CRITICAL dehydration risk: consider shortening or rescheduling this ride type until you can hydrate adequately throughout.",
+        "risk_high": "High dehydration risk: carry more fluid capacity (camelbak or extra bidons) and plan resupply points on routes > 60 km.",
+        "heat_adaptation_low": "You have low heat adaptation. Build heat tolerance with 3–5 rides/week in warm conditions for 10–14 days — reduces cardiovascular strain by ~20–30%.",
+        "no_calibration": "For personalised targets, run a sweat test: weigh yourself (dry) before and after a 1-hour effort and record your fluid intake. Enter results in Settings → Sweat Test.",
+        "calibrated_check": "Using your personal sweat rate calibration. If this estimate seems off, review your sweat-test inputs in Settings → Sweat Rate, or reset to use the population model."
+      }
     },
     "durabilityIndex": {
       "title": "Durability Index",

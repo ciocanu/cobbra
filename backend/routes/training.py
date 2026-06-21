@@ -20,6 +20,7 @@ class PlanRequest(BaseModel):
     training_days: List[str]   # e.g. ["Monday", "Wednesday", "Friday"]
     event_date: Optional[str] = None
     extra_notes: Optional[str] = None
+    lang: Optional[str] = "en"
 
 
 def _next_generation_date(plan_date: datetime) -> str:
@@ -181,8 +182,15 @@ def _build_prompt(request: PlanRequest, user: models.User, db: Session) -> str:
     session_cap_min = (longest_ride_min + 20) if longest_ride_min > 0 else None
     week1_cap_km    = (avg_weekly_km * 1.05)  if avg_weekly_km  > 0 else None
 
+    lang = request.lang or "en"
+    lang_instruction = (
+        "Write entirely in European Portuguese (Portugal). Use natural PT-PT phrasing."
+        if lang.startswith("pt") else
+        "Write entirely in English."
+    )
+
     lines: list[str] = [
-        "You are an expert cycling coach. Create a personalised 4-week training plan for the rider below.",
+        f"You are an expert cycling coach. {lang_instruction} Create a personalised 4-week training plan for the rider below.",
         "",
         "══════════════════════════════════════════════════════════",
         "ANTI-HALLUCINATION RULES — read before generating anything",

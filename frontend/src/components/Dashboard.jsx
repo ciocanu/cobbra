@@ -73,7 +73,7 @@ const WeeklyTooltip = ({ active, payload, label }) => {
 
 
 export default function Dashboard() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [recentRides, setRecentRides]       = useState(null)
   const [weeklyData, setWeeklyData]         = useState(null)
   const [fitnessData, setFitnessData]       = useState(null)
@@ -93,24 +93,28 @@ export default function Dashboard() {
     getTrainingLoadComparison(60).then(r => setLoadComparison(r.data)).catch(() => {})
   }, [])
 
-  // Fitness insight: fires once fitnessData is loaded and has actual training data
+  // Fitness insight: re-fetches when data loads or language changes
   useEffect(() => {
     if (fitnessData === null) return
     if (!fitnessData.some(d => d.load > 0)) { setFitnessInsight(false); return }
 
+    setFitnessInsight(null) // show "a analisar…" while re-fetching
+
     const current  = fitnessData[fitnessData.length - 1]
     const sevenAgo = fitnessData.length >= 8 ? fitnessData[fitnessData.length - 8] : null
 
+    const lang = localStorage.getItem('cobbra_lang') || i18n.resolvedLanguage || i18n.language || 'en'
     getDashboardFitnessInsight({
       ctl: current.ctl,
       atl: current.atl,
       tsb: current.tsb,
       ctl_7d_ago: sevenAgo?.ctl ?? null,
       atl_7d_ago: sevenAgo?.atl ?? null,
+      lang,
     })
       .then(r => setFitnessInsight(r.data.insight))
       .catch(() => setFitnessInsight(false))
-  }, [fitnessData])
+  }, [fitnessData, i18n.resolvedLanguage])
 
   // Derived values
   const lastRide       = recentRides?.[0] ?? null

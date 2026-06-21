@@ -309,79 +309,46 @@ def generate_hydration_recommendations(
     heat_adaptation:   Optional[str],
     has_calibrated_rate: bool,
     model_method:      str,
-) -> list[str]:
-    """Return an ordered list of actionable recommendation strings."""
-    recs: list[str] = []
+) -> list[dict]:
+    """Return an ordered list of structured recommendation objects for frontend i18n rendering."""
+    recs: list[dict] = []
 
     target_ml_h = round(sweat_rate_ml_h * 0.75)
     target_ml_h = max(400, min(1200, target_ml_h))
-    recs.append(
-        f"Target intake: ~{target_ml_h} ml/h ({round(target_ml_h / 60 * 15)} ml every 15 min) "
-        f"to replace ~75% of estimated sweat loss."
-    )
+    recs.append({"key": "target_intake", "rate_ml_h": target_ml_h, "interval_ml": round(target_ml_h / 60 * 15)})
 
     if temp_c >= 25 or (humidity_pct or 0) >= 70:
-        recs.append(
-            "Pre-ride: drink 500–600 ml of water 2 hours before, then 150–250 ml 15 min before start."
-        )
+        recs.append({"key": "pre_ride_hot"})
     else:
-        recs.append("Pre-ride: drink 400–500 ml 1–2 hours before the ride.")
+        recs.append({"key": "pre_ride_normal"})
 
     if sweat_rate_ml_h >= 1200:
-        recs.append(
-            f"High sweat rate ({round(sweat_rate_ml_h)} ml/h): use a large-volume bidon (750 ml+) "
-            "and set a reminder every 10–12 min to drink."
-        )
+        recs.append({"key": "high_sweat_rate", "rate_ml_h": round(sweat_rate_ml_h)})
     elif sweat_rate_ml_h >= 800:
-        recs.append("Drink proactively every 15–20 min — do not wait for thirst.")
+        recs.append({"key": "drink_proactive"})
     else:
-        recs.append("Drink when thirsty; aim for a consistent small sip every 20–25 min.")
+        recs.append({"key": "drink_thirsty"})
 
     if duration_h >= 1.5 or sweat_rate_ml_h >= 1000 or temp_c >= 28:
-        recs.append(
-            "Add electrolytes (sodium 500–700 mg/h) to at least one bottle — plain water carries "
-            "a dilutional hyponatraemia risk on long or hot rides."
-        )
+        recs.append({"key": "electrolytes"})
 
     if intake_ml is not None and deficit_ml is not None and deficit_ml > 0:
-        recovery_ml = round(deficit_ml * 1.5)
-        recs.append(
-            f"Post-ride: replace the ~{round(deficit_ml)} ml deficit — drink ~{recovery_ml} ml "
-            "over the next 2–4 hours (include sodium to retain fluid)."
-        )
+        recs.append({"key": "post_ride_deficit", "deficit_ml": round(deficit_ml), "recovery_ml": round(deficit_ml * 1.5)})
     else:
-        recs.append(
-            f"Post-ride: drink ~{round(total_sweat_ml * 1.5)} ml over the next 2–4 hours "
-            "to restore fluid balance."
-        )
+        recs.append({"key": "post_ride_generic", "recovery_ml": round(total_sweat_ml * 1.5)})
 
     if risk_level == "critical":
-        recs.append(
-            "CRITICAL dehydration risk: consider shortening or rescheduling this ride type "
-            "until you can hydrate adequately throughout."
-        )
+        recs.append({"key": "risk_critical"})
     elif risk_level == "high":
-        recs.append(
-            "High dehydration risk: carry more fluid capacity (camelbak or extra bidons) "
-            "and plan resupply points on routes > 60 km."
-        )
+        recs.append({"key": "risk_high"})
 
     if temp_c >= 25 and (heat_adaptation or "low") == "low":
-        recs.append(
-            "You have low heat adaptation. Build heat tolerance with 3–5 rides/week in warm "
-            "conditions for 10–14 days — reduces cardiovascular strain by ~20–30%."
-        )
+        recs.append({"key": "heat_adaptation_low"})
 
     if not has_calibrated_rate:
-        recs.append(
-            "For personalised targets, run a sweat test: weigh yourself (dry) before and after "
-            "a 1-hour effort and record your fluid intake. Enter results in Settings → Sweat Test."
-        )
+        recs.append({"key": "no_calibration"})
     elif model_method == "calibrated":
-        recs.append(
-            "Using your personal sweat rate calibration. If this estimate seems off, review your "
-            "sweat-test inputs in Settings → Sweat Rate, or reset to use the population model."
-        )
+        recs.append({"key": "calibrated_check"})
 
     return recs
 

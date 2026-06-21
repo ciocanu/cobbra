@@ -20,6 +20,7 @@ class RideInsightRequest(BaseModel):
     avg_distance_km: float | None = None   # per-ride average over last 4 complete weeks
     avg_elevation_m: float | None = None
     avg_hr_bpm: float | None = None        # avg HR over last 4 weeks (if available)
+    lang: str = "en"
 
 
 class FitnessInsightRequest(BaseModel):
@@ -28,24 +29,31 @@ class FitnessInsightRequest(BaseModel):
     tsb: float
     ctl_7d_ago: float | None = None
     atl_7d_ago: float | None = None
+    lang: str = "en"
 
 
 def _fallback_ride_insight(req: RideInsightRequest) -> dict:
+    pt = req.lang.startswith("pt")
     if req.avg_distance_km and req.avg_distance_km > 0:
         pct = ((req.ride_distance_km - req.avg_distance_km) / req.avg_distance_km) * 100
         sign = "+" if pct >= 0 else ""
+        if pt:
+            return {"insight": f"{sign}{pct:.0f}% da distância vs média das últimas 4 semanas."}
         return {"insight": f"{sign}{pct:.0f}% distance vs 4-week average."}
+    if pt:
+        return {"insight": f"{req.ride_distance_km:.1f} km concluídos."}
     return {"insight": f"{req.ride_distance_km:.1f} km completed."}
 
 
-def _fallback_fitness_insight(tsb: float) -> str:
+def _fallback_fitness_insight(tsb: float, lang: str = "en") -> str:
+    pt = lang.startswith("pt")
     if tsb < -20:
-        return "Carrying significant fatigue — prioritise easy days."
+        return "Fadiga significativa acumulada — prioriza dias fáceis." if pt else "Carrying significant fatigue — prioritise easy days."
     if tsb < -5:
-        return "Normal training load with moderate fatigue."
+        return "Carga de treino normal com fadiga moderada." if pt else "Normal training load with moderate fatigue."
     if tsb < 5:
-        return "Balanced form — solid baseline for steady work."
-    return "Fresh and ready — good window for intensity."
+        return "Forma equilibrada — boa base para trabalho consistente." if pt else "Balanced form — solid baseline for steady work."
+    return "Descansado e pronto — bom momento para intensidade." if pt else "Fresh and ready — good window for intensity."
 
 
 @router.post("/ride-insight")
@@ -53,6 +61,7 @@ def get_ride_insight(req: RideInsightRequest, current_user=Depends(get_current_u
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         return _fallback_ride_insight(req)
+    lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     h = req.ride_duration_seconds // 3600
     m = (req.ride_duration_seconds % 3600) // 60
@@ -82,20 +91,15 @@ def get_ride_insight(req: RideInsightRequest, current_user=Depends(get_current_u
 
     avg_section = ("\n\n4-WEEK PER-RIDE AVERAGES:\n" + "\n".join(avg_lines)) if avg_lines else ""
 
-    prompt = f"""You are a cycling coach. Write ONE sentence, max 12 words, about this ride.
+    prompt = f"""You are a cycling coach. {lang_instruction} Write ONE sentence, max 12 words, about this ride.
 
 Rules:
 - Combine: the most notable finding + the most likely reason or implication
-- Use plain English. No acronyms. No filler ("it seems", "you may", "overall").
+- No acronyms. No filler ("it seems", "you may", "overall").
 - Format: "<what happened> — <why or so what>."
 - If TSB is available and negative, consider fatigue as a contributing factor.
 - If temperature is high (>28°C), consider heat as a factor.
 - Be specific with numbers when they strengthen the insight.
-
-Good examples:
-  "HR 8 bpm above average for this distance — TSB suggests accumulated fatigue."
-  "Best pace-to-elevation ratio this month despite tired legs."
-  "Speed 2 km/h below average — 200m more climbing than usual."
 
 THIS RIDE:
 {chr(10).join(ride_lines)}{avg_section}
@@ -119,15 +123,17 @@ Respond with ONLY the sentence. No quotes, no period at the end unless natural."
 def get_fitness_insight(req: FitnessInsightRequest, current_user=Depends(get_current_user)):
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        return {"insight": _fallback_fitness_insight(req.tsb)}
+        return {"insight": _fallback_fitness_insight(req.tsb, req.lang)}
+
+    lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     ctl_trend = ""
     if req.ctl_7d_ago is not None:
         delta = req.ctl - req.ctl_7d_ago
         ctl_trend = f"\nCTL changed {'+' if delta >= 0 else ''}{delta:.1f} over the last 7 days."
 
-    prompt = f"""You are a cycling coach. Write ONE sentence (max 12 words) about the athlete's current training state.
-Be direct. No jargon acronyms. Plain English. Action-oriented when appropriate.
+    prompt = f"""You are a cycling coach. {lang_instruction} Write ONE sentence (max 12 words) about the athlete's current training state.
+Be direct. No jargon acronyms. Action-oriented when appropriate.
 
 CTL (Fitness, 42-day load): {req.ctl:.0f}
 ATL (Fatigue, 7-day load): {req.atl:.0f}
@@ -147,4 +153,4 @@ Respond with ONLY the sentence. No quotes, no explanation."""
         insight = msg.content[0].text.strip().strip('"\'')
         return {"insight": insight}
     except Exception:
-        return {"insight": _fallback_fitness_insight(req.tsb)}
+        return {"insight": _fallback_fitness_insight(req.tsb, req.lang)}

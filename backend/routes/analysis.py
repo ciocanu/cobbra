@@ -1,6 +1,6 @@
 import json
 import os
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db
@@ -73,9 +73,15 @@ def _estimate_calories(activity: models.Activity, user: models.User) -> int | No
     return round(met * weight * (activity.duration_seconds / 3600))
 
 
-def _build_prompt(activity: models.Activity, user: models.User) -> str:
+def _build_prompt(activity: models.Activity, user: models.User, lang: str = "en") -> str:
+    lang_instruction = (
+        "Write entirely in European Portuguese (Portugal). Use natural PT-PT phrasing, not Brazilian Portuguese."
+        if lang.startswith("pt") else
+        "Write entirely in English."
+    )
     lines = [
-        "You are a friendly cycling coach. Write a 2-3 paragraph analysis of the ride below.",
+        f"You are a friendly cycling coach. {lang_instruction}",
+        "Write a 2-3 paragraph analysis of the ride below.",
         "Be specific with the numbers. Cover: overall effort level, pacing and HR performance,",
         "climbing performance if climbs are listed (VAM, gradient, pacing, estimated power),",
         "aerobic efficiency (decoupling if available), durability/power fade if available,",
@@ -239,6 +245,7 @@ def get_analysis(
     activity_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    lang: str = Query(default="en"),
 ):
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
@@ -257,7 +264,7 @@ def get_analysis(
             detail="ANTHROPIC_API_KEY is not set. Add it to your environment and restart the server."
         )
 
-    prompt = _build_prompt(activity, current_user)
+    prompt = _build_prompt(activity, current_user, lang)
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
@@ -280,6 +287,7 @@ async def stream_analysis(
     activity_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    lang: str = Query(default="en"),
 ):
     activity = db.query(models.Activity).filter(
         models.Activity.id == activity_id,
@@ -301,7 +309,7 @@ async def stream_analysis(
     if not api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not set.")
 
-    prompt = _build_prompt(activity, current_user)
+    prompt = _build_prompt(activity, current_user, lang)
     activity_id_val = activity.id
 
     async def generate():
