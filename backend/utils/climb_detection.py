@@ -4,8 +4,9 @@ from datetime import datetime
 
 def smooth_elevation(track_points: list, window: int = 30) -> list:
     """
-    Applies a time-based rolling average over elevation to remove barometric altimeter noise.
-    Window is in seconds. Also offsets readings if min elevation < -30m (sensor drift).
+    Applies a centered rolling average over elevation to reduce barometric altimeter noise.
+    Window is in seconds. Two-pointer sliding window: O(n * window_size) vs original O(n²).
+    Also offsets readings if min elevation < -30m (sensor drift).
     Returns a new list of points with 'elevation_smooth' key added.
     """
     pts = []
@@ -15,22 +16,34 @@ def smooth_elevation(track_points: list, window: int = 30) -> list:
             t = datetime.fromisoformat(t)
         pts.append({**tp, "_ts": t})
 
+    half = window / 2
+    n = len(pts)
+
+    # Pre-compute unix timestamps for fast comparison
+    ts_arr = [p["_ts"].timestamp() if isinstance(p["_ts"], datetime) else None for p in pts]
+
     smoothed = []
-    for i, pt in enumerate(pts):
-        t_i = pt["_ts"]
+    left = 0
+    right = 0
+
+    for i in range(n):
+        t_i = ts_arr[i]
         if t_i is None:
-            smoothed.append({**pt, "elevation_smooth": pt.get("elevation")})
+            smoothed.append({**pts[i], "elevation_smooth": pts[i].get("elevation")})
             continue
-        window_pts = []
-        for p in pts:
-            t_j = p["_ts"]
-            if t_j is not None and abs((t_i - t_j).total_seconds()) <= window / 2:
-                if p.get("elevation") is not None:
-                    window_pts.append(p["elevation"])
-        if window_pts:
-            smoothed.append({**pt, "elevation_smooth": sum(window_pts) / len(window_pts)})
+
+        # Expand right pointer while within forward half-window
+        while right < n and ts_arr[right] is not None and ts_arr[right] - t_i <= half:
+            right += 1
+        # Shrink left pointer while outside backward half-window
+        while left < i and (ts_arr[left] is None or t_i - ts_arr[left] > half):
+            left += 1
+
+        elev_in_window = [pts[k]["elevation"] for k in range(left, right) if pts[k].get("elevation") is not None]
+        if elev_in_window:
+            smoothed.append({**pts[i], "elevation_smooth": sum(elev_in_window) / len(elev_in_window)})
         else:
-            smoothed.append({**pt, "elevation_smooth": pt.get("elevation")})
+            smoothed.append({**pts[i], "elevation_smooth": pts[i].get("elevation")})
 
     # Fix descalibrated sensors (e.g. Cycplus M1 reading -42m)
     min_elev = min((p["elevation_smooth"] for p in smoothed if p["elevation_smooth"] is not None), default=0)
