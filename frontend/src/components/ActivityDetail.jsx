@@ -1565,7 +1565,7 @@ export default function ActivityDetail() {
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.hrZones.title')} <InfoTip text={t('activityDetail.hrZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
-            {t('activityDetail.hrZones.basedOnMaxHr', { bpm: Math.round(activity.max_heart_rate_bpm) })}
+            {t('activityDetail.hrZones.basedOnMaxHr', { bpm: Math.round(profileMaxHr || activity.max_heart_rate_bpm) })}
           </p>
           <div className="hr-zones">
             {hrZones.map(z => (
