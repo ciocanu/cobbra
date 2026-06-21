@@ -260,8 +260,9 @@ function parseAnalysis(raw) {
   if (!raw) return []
   const lines = raw.split('\n').filter(l => !/^#{1,6}\s/.test(l))
   const paras = lines.join('\n').split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean)
+  const last = paras.length - 1
   return paras.map((text, i) => {
-    const isTip = /\bcoaching tip\b|here.?s my (coaching )?tip\b/i.test(text)
+    const isTip = i === last && /\btip\b|\bnext time\b|\brecommend\b|\btry\b.{0,60}(next|ride|week)/i.test(text)
     return { text, type: i === 0 ? 'lead' : isTip ? 'tip' : 'body' }
   })
 }
