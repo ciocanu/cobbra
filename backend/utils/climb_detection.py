@@ -196,7 +196,9 @@ def detect_climbs(
             continue
 
         avg_grad = elev_gain / dist_m * 100 if dist_m > 0 else 0
-        max_grad = max((g for g in seg_grads if g is not None), default=0)
+        # Use 95th percentile to exclude GPS noise spikes (e.g. 98% gradients from jitter)
+        grads_sorted = sorted(g for g in seg_grads if g is not None)
+        max_grad = grads_sorted[max(0, int(len(grads_sorted) * 0.95) - 1)] if grads_sorted else 0
 
         speeds = [p.get("speed_kmh") for p in seg_pts if p.get("speed_kmh") is not None]
         avg_speed = sum(speeds) / len(speeds) if speeds else None
