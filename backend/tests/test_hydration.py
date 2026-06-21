@@ -250,36 +250,35 @@ class TestGenerateRecommendations:
 
     def test_first_rec_is_intake_target(self):
         recs = self._call()
-        assert "ml/h" in recs[0].lower() or "target" in recs[0].lower()
+        assert recs[0]["key"] == "target_intake"
 
     def test_critical_risk_includes_warning(self):
         recs = self._call(risk_level="critical", deficit_body_pct=4.5)
-        assert any("critical" in r.lower() for r in recs)
+        assert any(r["key"] == "risk_critical" for r in recs)
 
     def test_sweat_test_nudge_when_not_calibrated(self):
         recs = self._call(has_calibrated_rate=False)
-        assert any("sweat test" in r.lower() for r in recs)
+        assert any(r["key"] == "no_calibration" for r in recs)
 
     def test_no_sweat_test_nudge_when_calibrated(self):
         recs = self._call(has_calibrated_rate=True)
-        assert not any("sweat test" in r.lower() for r in recs)
+        assert not any(r["key"] == "no_calibration" for r in recs)
 
     def test_electrolyte_advice_for_long_hot_ride(self):
         recs = self._call(duration_h=2.5, temp_c=30.0)
-        assert any("electrolyte" in r.lower() or "sodium" in r.lower() for r in recs)
+        assert any(r["key"] == "electrolytes" for r in recs)
 
     def test_heat_adaptation_advice_when_low(self):
         recs = self._call(temp_c=28.0, heat_adaptation="low")
-        assert any("heat" in r.lower() and "adapt" in r.lower() for r in recs)
+        assert any(r["key"] == "heat_adaptation_low" for r in recs)
 
     def test_no_heat_adapt_advice_when_already_high(self):
         recs = self._call(heat_adaptation="high")
-        # shouldn't push adaptation advice when already adapted
-        assert not any("heat tolerance" in r.lower() and "build" in r.lower() for r in recs)
+        assert not any(r["key"] == "heat_adaptation_low" for r in recs)
 
     def test_recovery_drink_included_when_deficit_known(self):
         recs = self._call(intake_ml=500, deficit_ml=1200.0)
-        assert any("post" in r.lower() or "recover" in r.lower() for r in recs)
+        assert any(r["key"] in ("post_ride_deficit", "post_ride_generic") for r in recs)
 
 
 # ── Heat adaptation ────────────────────────────────────────────────────────────
