@@ -585,6 +585,7 @@ export default function ActivityDetail() {
   const [climbs,    setClimbs]    = useState([])
   const [expandedClimb, setExpandedClimb] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [tab, setTab] = useState('overview')
   const [showHydrationSources, setShowHydrationSources] = useState(false)
   const notesTimer     = useRef(null)
   const intakeMsgTimer = useRef(null)
@@ -772,6 +773,21 @@ export default function ActivityDetail() {
     ),
   ]
 
+  // Group the ride's sections into tabs; a tab only appears when it has data.
+  const TABS = [
+    { id: 'overview', label: 'Overview',          show: true },
+    { id: 'power',    label: 'Power',             show: hasPwr },
+    { id: 'hr',       label: 'Heart Rate',        show: hasHR },
+    { id: 'cadence',  label: 'Cadence',           show: hasCad },
+    { id: 'hydration',label: 'Hydration',         show: !!hydration },
+    { id: 'segments', label: 'Segments & Climbs', show: segmentEfforts.length > 0 || climbs.length > 0 || !weightKg },
+    { id: 'coach',    label: 'Coach',             show: true },
+  ]
+  const visibleTabs = TABS.filter(t => t.show)
+  // Fall back to Overview if the active tab isn't available (e.g. data still
+  // loading, or this ride lacks that metric).
+  const activeTab = visibleTabs.some(t => t.id === tab) ? tab : 'overview'
+
   return (
     <div>
       <Link to="/activities" className="back-link">
@@ -915,8 +931,23 @@ export default function ActivityDetail() {
         </div>
       )}
 
+      {/* Tab navigation */}
+      <div className="detail-tabs" role="tablist" aria-label="Activity sections">
+        {visibleTabs.map(t => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={activeTab === t.id}
+            className={`detail-tab${activeTab === t.id ? ' active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Map */}
-      {mapPoints.length > 0 && (
+      {activeTab === 'overview' && mapPoints.length > 0 && (
         <div className="map-container">
           <MapContainer
             center={center}
@@ -936,10 +967,9 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      {/* Charts */}
-      {chartData.length > 0 && (
-        <>
-          <div className="chart-section">
+      {/* Charts — split across tabs (Speed & Elevation → Overview, others by metric) */}
+      {activeTab === 'overview' && chartData.length > 0 && (
+        <div className="chart-section">
             <div className="chart-title">Speed <InfoTip text="Your speed over the ride in km/h. Consistent lines = steady pacing. Sharp dips = climbs or braking. A gradual drop in the second half may indicate fatigue." /></div>
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={chartData}>
@@ -950,9 +980,10 @@ export default function ActivityDetail() {
                 <Line type="monotone" dataKey="speed" stroke="var(--speed)" dot={false} strokeWidth={2} name="km/h" />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+        </div>
+      )}
 
-          {hasHR && (
+      {activeTab === 'hr' && chartData.length > 0 && hasHR && (
             <div className="chart-section">
               <div className="chart-title">Heart Rate <InfoTip text="Heart rate in BPM throughout the ride. A gradual rise is normal (cardiac drift). Spikes without speed change may indicate heat or fatigue. Aerobic base rides should stay in Z2: 60–70% of your max HR." /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -967,7 +998,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasCad && (
+          {activeTab === 'cadence' && chartData.length > 0 && hasCad && (
             <div className="chart-section">
               <div className="chart-title">Cadence <InfoTip text="Pedal revolutions per minute (rpm). Optimal range is 75–90 rpm. High cadence (>90) means more cardiovascular load with less muscle fatigue. Low cadence (<70) stresses the muscles more and raises lactate." /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -982,7 +1013,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasPwr && (
+          {activeTab === 'power' && chartData.length > 0 && hasPwr && (
             <div className="chart-section">
               <div className="chart-title">Power <InfoTip text="Raw power output in watts. Spikes are normal for sprints and climbs. Sustained output above your FTP means threshold or harder effort. Compare with Normalized Power (NP) for the physiological cost of the whole ride." /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -997,7 +1028,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasEle && (
+          {activeTab === 'overview' && chartData.length > 0 && hasEle && (
             <div className="chart-section">
               <div className="chart-title">Elevation <InfoTip text="Altitude profile showing your terrain. Sharp spikes = steep climbs (or GPS noise). Total elevation gain is shown in the metrics above. Big climbs later in the ride are harder — check if your speed drops on them." /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -1011,11 +1042,9 @@ export default function ActivityDetail() {
               </ResponsiveContainer>
             </div>
           )}
-        </>
-      )}
 
       {/* Splits table */}
-      {splits.length > 0 && (
+      {activeTab === 'overview' && splits.length > 0 && (
         <div className="chart-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div className="chart-title" style={{ marginBottom: 0 }}>
@@ -1084,7 +1113,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Best Efforts */}
-      {efforts.length > 0 && (
+      {activeTab === 'overview' && efforts.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">Best Efforts <InfoTip text="Fastest time for each target distance using a sliding window across the whole ride. These are your personal bests for this session — compare across rides to track fitness gains." /></div>
           <div className="efforts-grid">
@@ -1100,7 +1129,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Laps */}
-      {laps && laps.length > 0 && (
+      {activeTab === 'overview' && laps && laps.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">Laps</div>
           <div className="table-wrapper" style={{ border: 'none' }}>
@@ -1147,7 +1176,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Power Analysis — only shown when power data exists */}
-      {hasPwr && (np || pwrZones || mmp.length > 0) && (
+      {activeTab === 'power' && hasPwr && (np || pwrZones || mmp.length > 0) && (
         <div className="chart-section">
           <div className="chart-title">Power Analysis <InfoTip text="Advanced metrics from your power meter. NP (Normalized Power) is the physiological cost of the ride. IF (Intensity Factor) shows effort vs FTP. TSS is training load: <150 = overnight recovery, >300 = needs multiple easy days." /></div>
 
@@ -1324,7 +1353,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Adjusted Decoupling + VAM */}
-      {(activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
+      {activeTab === 'hr' && (activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
         const S_GOOD  = 'var(--status-good)'
         const S_WARN  = 'var(--status-warn)'
         const S_ALERT = 'var(--status-alert)'
@@ -1433,7 +1462,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* HR Zones */}
-      {hrZones && (
+      {activeTab === 'hr' && hrZones && (
         <div className="chart-section">
           <div className="chart-title">Heart Rate Zones <InfoTip text="Time in each HR zone based on your max HR. Z1–Z2 (60–70%) = aerobic base. Z3 (70–80%) = tempo. Z4–Z5 (80–100%) = high intensity. For endurance improvement, aim for 80%+ of your training time in Z1–Z2." /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
@@ -1454,7 +1483,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Cadence Zones */}
-      {cadZones && (
+      {activeTab === 'cadence' && cadZones && (
         <div className="chart-section">
           <div className="chart-title">Cadence Zones <InfoTip text="Distribution of cadence across the ride. Optimal zone (75–90 rpm) = efficient pedaling with balanced cardiovascular and muscular load. Most time here = good technique. More time in Very Low (<60 rpm) suggests you may be grinding gears." /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
@@ -1475,7 +1504,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Hydration & Heat Analysis */}
-      {hydration && (() => {
+      {activeTab === 'hydration' && hydration && (() => {
         const S_GOOD     = 'var(--status-good)'
         const S_WARN     = 'var(--status-warn)'
         const S_ALERT    = 'var(--status-alert)'
@@ -1666,7 +1695,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* Durability Analysis */}
-      {(() => {
+      {activeTab === 'power' && (() => {
         const DUR_COLORS = { excellent: 'var(--status-good)', good: 'oklch(65% 0.10 235)', moderate: 'var(--status-warn)', poor: 'var(--status-alert)', very_poor: 'var(--status-critical)' }
         const catColor = durabilityData?.durability_category ? (DUR_COLORS[durabilityData.durability_category] ?? 'var(--text-primary)') : 'var(--text-muted)'
         const methodLabel = { power: 'Power meter', hr_speed: 'HR + Speed proxy', climbing_power: 'Estimated climbing power' }
@@ -1778,7 +1807,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* Segments */}
-      {segmentEfforts.length > 0 && (
+      {activeTab === 'segments' && segmentEfforts.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">Segments</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
@@ -1803,7 +1832,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Climbs */}
-      {(climbs.length > 0 || !weightKg) && (
+      {activeTab === 'segments' && (climbs.length > 0 || !weightKg) && (
         <div className="chart-section">
           <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
@@ -1929,7 +1958,8 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      {/* AI Analysis */}
+      {/* AI Analysis + Notes (Coach tab) */}
+      {activeTab === 'coach' && (<>
       <div className="chart-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div className="chart-title" style={{ marginBottom: 0 }}>
@@ -1986,6 +2016,7 @@ export default function ActivityDetail() {
           Auto-saved · Notes are scanned by AI for prohibited content (hate speech, harassment). See our <a href="/privacy" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>Privacy Policy</a>.
         </div>
       </div>
+      </>)}
     </div>
   )
 }
