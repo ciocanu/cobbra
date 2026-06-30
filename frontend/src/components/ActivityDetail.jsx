@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -632,7 +632,7 @@ export default function ActivityDetail() {
     setAnalysisLoading(true)
     setAnalysisError('')
     try {
-      const res = await getAnalysis(id)
+      const res = await generateAnalysis(id)
       setAnalysis(res.data.analysis)
     } catch (e) {
       setAnalysisError(e.response?.data?.detail || 'Failed to generate analysis')

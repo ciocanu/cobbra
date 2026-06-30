@@ -165,6 +165,24 @@ def get_analysis(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """Read-only: return the cached analysis if one exists, else null.
+
+    Never calls the LLM — this is fetched automatically on page load, so it
+    must be side-effect free. Generation happens via POST below.
+    """
+    activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return {"analysis": activity.ai_analysis, "cached": activity.ai_analysis is not None}
+
+
+@router.post("/{activity_id}/analysis")
+def generate_analysis(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Generate (or return cached) AI analysis. Pro-gated; calls the LLM."""
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
