@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getActivities } from '../services/api'
+import { useActivities } from '../services/queries'
 import { format } from 'date-fns'
 import { Route, Search, X } from 'lucide-react'
 
@@ -11,8 +11,6 @@ function fmtDuration(s) {
 }
 
 export default function ActivityList() {
-  const [activities, setActivities] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -20,24 +18,17 @@ export default function ActivityList() {
   const [maxDist, setMaxDist] = useState('')
   const navigate = useNavigate()
 
-  const fetchActivities = useCallback(() => {
-    const params = {}
-    if (search) params.search = search
-    if (dateFrom) params.date_from = dateFrom
-    if (dateTo) params.date_to = dateTo
-    if (minDist) params.min_distance_km = minDist
-    if (maxDist) params.max_distance_km = maxDist
+  // Each distinct filter combination is cached under its own key, so toggling
+  // filters back and forth serves prior results instantly. Empty filters share
+  // one cache entry across the whole app.
+  const params = {}
+  if (search) params.search = search
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  if (minDist) params.min_distance_km = minDist
+  if (maxDist) params.max_distance_km = maxDist
 
-    setLoading(true)
-    getActivities(params)
-      .then(r => setActivities(r.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [search, dateFrom, dateTo, minDist, maxDist])
-
-  useEffect(() => {
-    fetchActivities()
-  }, [fetchActivities])
+  const { data: activities = [], isPending: loading } = useActivities(params)
 
   const hasFilters = search || dateFrom || dateTo || minDist || maxDist
   const clearFilters = () => {

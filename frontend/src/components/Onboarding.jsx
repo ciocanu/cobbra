@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getSettings, updateSettings } from '../services/api'
+import { useInvalidate } from '../services/queries'
 import { Bike, HeartPulse } from 'lucide-react'
 import Alert from './Alert'
 
@@ -24,6 +25,7 @@ function estimateMaxHrTanaka(age) {
 
 export default function Onboarding() {
   const navigate = useNavigate()
+  const invalidate = useInvalidate()
   const [age, setAge] = useState('')
   const [weightKg, setWeightKg] = useState('')
   const [restingHr, setRestingHr] = useState('')
@@ -79,6 +81,9 @@ export default function Onboarding() {
       if (ftp) payload.ftp = parseFloat(ftp)
       if (knowsMaxHr) payload.max_hr = parseFloat(maxHr)
       await updateSettings(payload)
+      // Refresh the shared settings cache so Layout's onboarding gate sees the
+      // now-complete profile instead of redirecting straight back here.
+      invalidate.settings()
       navigate('/dashboard', { replace: true })
     } catch (e) {
       setError(e.response?.data?.detail || 'Could not save your profile. Please try again.')

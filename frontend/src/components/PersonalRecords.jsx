@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getRecords } from '../services/api'
+import { useRecords } from '../services/queries'
 import { format, formatDistanceToNow } from 'date-fns'
 import { Trophy, ArrowRight, TrendingUp } from 'lucide-react'
 
@@ -33,16 +32,8 @@ function avgSpeed(distKm, seconds) {
 }
 
 export default function PersonalRecords() {
-  const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    getRecords()
-      .then(r => setRecords(r.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: records = [], isPending: loading } = useRecords()
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 

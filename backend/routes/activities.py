@@ -1,9 +1,10 @@
 import csv
 import io
 import os
+import hashlib
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body, Query, BackgroundTasks, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
@@ -681,11 +682,47 @@ def export_gpx(activity_id: int, db: Session = Depends(get_db), current_user=Dep
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+def _activity_etag(activity: models.Activity) -> str:
+    """Weak ETag over the activity's mutable fields.
+
+    Track points and laps are immutable once parsed, so the payload only
+    changes when the user renames, edits notes, (re)generates AI analysis, or
+    overrides the indoor/outdoor classification. Hashing just those fields lets
+    the browser revalidate cheaply and get a 304 (no body) when nothing changed
+    — a big win since the detail payload carries the full track-point series.
+    """
+    parts = (
+        activity.id, activity.name, activity.notes, activity.ai_analysis,
+        activity.ride_environment, activity.ride_environment_source,
+        activity.indoor_platform, activity.corrected_tss,
+        activity.decoupling_adjusted,
+    )
+    raw = "|".join("" if p is None else str(p) for p in parts)
+    return 'W/"' + hashlib.sha1(raw.encode()).hexdigest() + '"'
+
+
 @router.get("/{activity_id}", response_model=schemas.ActivityDetail)
-def get_activity(activity_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def get_activity(
+    activity_id: int,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
+
+    etag = _activity_etag(activity)
+    # private: per-user data, never store in shared/CDN caches.
+    # no-cache: browser may store the body but must revalidate via the ETag,
+    # so an unchanged ride returns a fast bodyless 304.
+    cache_headers = {"Cache-Control": "private, no-cache", "ETag": etag}
+
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=cache_headers)
+
+    response.headers.update(cache_headers)
     return activity
 
 

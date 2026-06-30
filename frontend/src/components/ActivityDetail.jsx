@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { useSettings, useInvalidate } from '../services/queries'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -568,9 +569,13 @@ export default function ActivityDetail() {
   const [analysis, setAnalysis] = useState(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
-  const [ftp,       setFtp]       = useState(null)
-  const [weightKg,  setWeightKg]  = useState(null)
-  const [profileMaxHr, setProfileMaxHr] = useState(null)
+  // Profile metrics come from the shared, cached settings query — no separate
+  // fetch here (Layout already loaded it).
+  const { data: settings } = useSettings()
+  const ftp = settings?.ftp || null
+  const weightKg = settings?.weight_kg || null
+  const profileMaxHr = settings?.max_hr || null
+  const invalidate = useInvalidate()
   const [hydration, setHydration] = useState(null)
   const [intakeInput,  setIntakeInput]  = useState('')
   const [intakeSaving, setIntakeSaving] = useState(false)
@@ -596,11 +601,6 @@ export default function ActivityDetail() {
     getActivitySegments(id).then(r => setSegmentEfforts(r.data)).catch(() => {})
     getAnalysis(id).then(r => setAnalysis(r.data.analysis)).catch(() => {})
     getActivityClimbs(id).then(r => setClimbs(r.data)).catch(() => {})
-    getSettings().then(r => {
-      setFtp(r.data.ftp || null)
-      setWeightKg(r.data.weight_kg || null)
-      setProfileMaxHr(r.data.max_hr || null)
-    }).catch(() => {})
     getHydrationAnalysis(id).then(r => {
       setHydration(r.data)
       setIntakeInput(r.data.reported_intake_ml != null ? String(r.data.reported_intake_ml) : '')
@@ -610,6 +610,8 @@ export default function ActivityDetail() {
 
   const handleDelete = async () => {
     await deleteActivity(id)
+    // Drop the deleted ride from the cached list/records/stats before leaving.
+    invalidate.activities()
     navigate('/activities')
   }
 

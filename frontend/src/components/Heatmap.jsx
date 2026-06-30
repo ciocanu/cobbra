@@ -1,20 +1,12 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { MapContainer, TileLayer, Polyline, Tooltip } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { getHeatmap } from '../services/api'
+import { useHeatmap } from '../services/queries'
 import { Map } from 'lucide-react'
 import { colors } from '../tokens'
 
 export default function Heatmap() {
-  const [routes, setRoutes] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getHeatmap()
-      .then(r => setRoutes(r.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: routes = [], isPending: loading } = useHeatmap()
 
   const center = useMemo(() => {
     const allPts = routes.flatMap(r => r.points)

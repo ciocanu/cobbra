@@ -2,7 +2,8 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { LayoutDashboard, List, Upload, Bike, Trophy, Map, Target, LogOut, Flag, GitCompare, Settings, Brain, User, Shield, Menu, X } from 'lucide-react'
 import { markLoggedOut } from '../services/auth'
-import { getMe, logout, adminCheck, getSettings } from '../services/api'
+import { logout } from '../services/api'
+import { useMe, useSettings, useAdminCheck } from '../services/queries'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -20,25 +21,23 @@ const navItems = [
 export default function Layout() {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const [username,   setUsername]   = useState('')
-  const [isAdmin,    setIsAdmin]    = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  useEffect(() => {
-    getMe().then(r => setUsername(r.data.username)).catch(() => {})
-    adminCheck().then(() => setIsAdmin(true)).catch(() => {})
-  }, [])
+  // Shared, cached resources — fetched once and reused across the app instead
+  // of re-requested on every navigation.
+  const { data: me } = useMe()
+  const { data: isAdmin = false } = useAdminCheck()
+  const { data: settings } = useSettings()
+  const username = me?.username ?? ''
 
-  // Gate access until the essential fitness profile is filled in — reappears
-  // on every load while data is missing, so users can't dodge it by skipping
-  // once and never coming back.
+  // Gate access until the essential fitness profile is filled in. The settings
+  // query is cached, so this no longer hits the backend on every route change —
+  // it reads the shared cache and only refetches when stale.
   useEffect(() => {
-    getSettings().then(r => {
-      const s = r.data
-      const incomplete = s.age == null || s.weight_kg == null || !s.experience_level || !s.bike_type
-      if (incomplete) navigate('/onboarding', { replace: true })
-    }).catch(() => {})
-  }, [location.pathname])
+    if (!settings) return
+    const incomplete = settings.age == null || settings.weight_kg == null || !settings.experience_level || !settings.bike_type
+    if (incomplete) navigate('/onboarding', { replace: true })
+  }, [settings, location.pathname, navigate])
 
   // Close drawer on route change
   useEffect(() => { setMobileOpen(false) }, [location.pathname])

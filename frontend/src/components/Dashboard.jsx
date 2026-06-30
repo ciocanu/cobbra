@@ -1,10 +1,10 @@
 import { useEffect, useState, useId } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { getDashboardFitnessInsight } from '../services/api'
 import {
-  getActivities, getFitnessStats, getWeeklyStats,
-  getDashboardFitnessInsight, getHeatProfile, getDurabilityTrend,
-  getTrainingLoadComparison,
-} from '../services/api'
+  useActivities, useFitnessStats, useWeeklyStats,
+  useHeatProfile, useDurabilityTrend, useTrainingLoadComparison,
+} from '../services/queries'
 import {
   ComposedChart, Bar, Cell, LineChart, Line, ReferenceLine,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -91,24 +91,26 @@ const WeeklyTooltip = ({ active, payload, label }) => {
 
 
 export default function Dashboard() {
-  const [recentRides, setRecentRides]       = useState(null)
-  const [weeklyData, setWeeklyData]         = useState(null)
-  const [fitnessData, setFitnessData]       = useState(null)
+  // Preserve the old null-vs-loaded sentinels the render logic depends on:
+  // queries that fell back to [] on error map undefined→null while pending and
+  // []→on-error; optional panels (heat/durability/load) stay null until loaded.
+  const recentRidesQuery = useActivities({ limit: 7 })
+  const weeklyQuery      = useWeeklyStats(16)
+  const fitnessQuery     = useFitnessStats(60)
+  const heatProfileQuery = useHeatProfile()
+  const durabilityQuery  = useDurabilityTrend(12)
+  const loadComparisonQuery = useTrainingLoadComparison(60)
+
+  const recentRides    = recentRidesQuery.isError ? [] : (recentRidesQuery.data ?? null)
+  const weeklyData     = weeklyQuery.isError ? [] : (weeklyQuery.data ?? null)
+  const fitnessData    = fitnessQuery.isError ? [] : (fitnessQuery.data ?? null)
+  const heatProfile    = heatProfileQuery.data ?? null
+  const durabilityTrend = durabilityQuery.data ?? null
+  const loadComparison = loadComparisonQuery.data ?? null
+
   const [fitnessInsight, setFitnessInsight] = useState(null) // null=loading, false=failed
-  const [heatProfile, setHeatProfile]       = useState(null)
-  const [durabilityTrend, setDurabilityTrend] = useState(null)
-  const [loadComparison, setLoadComparison]   = useState(null)
   const [showCorrected,  setShowCorrected]    = useState(false)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    getActivities({ limit: 7 }).then(r => setRecentRides(r.data)).catch(() => setRecentRides([]))
-    getWeeklyStats(16).then(r => setWeeklyData(r.data)).catch(() => setWeeklyData([]))
-    getFitnessStats(60).then(r => setFitnessData(r.data)).catch(() => setFitnessData([]))
-    getHeatProfile().then(r => setHeatProfile(r.data)).catch(() => {})
-    getDurabilityTrend(12).then(r => setDurabilityTrend(r.data)).catch(() => {})
-    getTrainingLoadComparison(60).then(r => setLoadComparison(r.data)).catch(() => {})
-  }, [])
 
   // Fitness insight: fires once fitnessData is loaded and has actual training data
   useEffect(() => {
@@ -127,7 +129,10 @@ export default function Dashboard() {
     })
       .then(r => setFitnessInsight(r.data.insight))
       .catch(() => setFitnessInsight(false))
-  }, [fitnessData])
+    // fitnessQuery.data is referentially stable on success; isError covers the
+    // error path (data stays undefined → derived []), matching the old behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitnessQuery.data, fitnessQuery.isError])
 
   // Derived values
   const lastRide       = recentRides?.[0] ?? null
