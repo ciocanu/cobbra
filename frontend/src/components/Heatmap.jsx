@@ -1,27 +1,15 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Polyline, Tooltip } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { getHeatmap } from '../services/api'
+import { useHeatmap } from '../services/queries'
 import { Map, RefreshCw } from 'lucide-react'
 import { colors } from '../tokens'
 import Alert from './Alert'
 
 export default function Heatmap() {
   const { t } = useTranslation()
-  const [routes, setRoutes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [retryKey, setRetryKey] = useState(0)
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    getHeatmap()
-      .then(r => setRoutes(r.data))
-      .catch(e => { console.error(e); setError(e) })
-      .finally(() => setLoading(false))
-  }, [retryKey])
+  const { data: routes = [], isPending: loading, isError: error, refetch } = useHeatmap()
 
   const center = useMemo(() => {
     const allPts = routes.flatMap(r => r.points)
@@ -35,7 +23,7 @@ export default function Heatmap() {
   if (error) return (
     <div className="empty-state">
       <Alert variant="error" style={{ marginBottom: 16 }}>{t('common.errorLoad')}</Alert>
-      <button className="btn btn-ghost" onClick={() => setRetryKey(k => k + 1)}>
+      <button className="btn btn-ghost" onClick={() => refetch()}>
         <RefreshCw size={14} /> {t('common.retry')}
       </button>
     </div>

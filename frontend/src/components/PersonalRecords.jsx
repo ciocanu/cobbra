@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getRecords } from '../services/api'
+import { useRecords } from '../services/queries'
 import { format, formatDistanceToNow } from 'date-fns'
 import { Trophy, ArrowRight, TrendingUp, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -30,11 +29,8 @@ function avgSpeed(distKm, seconds) {
 
 export default function PersonalRecords() {
   const { t } = useTranslation()
-  const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [retryKey, setRetryKey] = useState(0)
   const navigate = useNavigate()
+  const { data: records = [], isPending: loading, isError, refetch } = useRecords()
 
   const BEST_PRS = [
     { type: 'longest_ride',   label: t('personalRecords.prLabelLongestRide'),   unit: 'km',   fmt: v => `${v.toFixed(1)} km`,   color: 'var(--speed)'   },
@@ -42,20 +38,11 @@ export default function PersonalRecords() {
     { type: 'most_elevation', label: t('personalRecords.prLabelMostElevation'), unit: 'm',    fmt: v => `${Math.round(v).toLocaleString()} m`, color: 'var(--accent)' },
   ]
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    getRecords()
-      .then(r => setRecords(r.data))
-      .catch(e => { console.error(e); setError(e) })
-      .finally(() => setLoading(false))
-  }, [retryKey])
-
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
-  if (error) return (
+  if (isError) return (
     <div className="empty-state">
       <Alert variant="error" style={{ marginBottom: 16 }}>{t('common.errorLoad')}</Alert>
-      <button className="btn btn-ghost" onClick={() => setRetryKey(k => k + 1)}>
+      <button className="btn btn-ghost" onClick={() => refetch()}>
         <RefreshCw size={14} /> {t('common.retry')}
       </button>
     </div>

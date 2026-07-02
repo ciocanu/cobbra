@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, clearAnalysis, getSettings, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { useSettings, useInvalidate } from '../services/queries'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -654,8 +655,12 @@ export default function ActivityDetail() {
   const [analysis, setAnalysis] = useState(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
-  const [ftp,       setFtp]       = useState(null)
-  const [weightKg,  setWeightKg]  = useState(null)
+  // Profile metrics come from the shared, cached settings query — no separate
+  // fetch here (Layout already loaded it).
+  const { data: settings } = useSettings()
+  const ftp = settings?.ftp || null
+  const weightKg = settings?.weight_kg || null
+  const invalidate = useInvalidate()
   const [hydration, setHydration] = useState(null)
   const [intakeInput,  setIntakeInput]  = useState('')
   const [intakeSaving, setIntakeSaving] = useState(false)
@@ -665,6 +670,7 @@ export default function ActivityDetail() {
   const [climbs,    setClimbs]    = useState([])
   const [expandedClimb, setExpandedClimb] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [tab, setTab] = useState('overview')
   const [showHydrationSources, setShowHydrationSources] = useState(false)
   const notesTimer     = useRef(null)
   const intakeMsgTimer = useRef(null)
@@ -698,10 +704,6 @@ export default function ActivityDetail() {
     fetchActivity()
     getActivitySegments(id).then(r => setSegmentEfforts(r.data)).catch(() => {})
     getActivityClimbs(id).then(r => setClimbs(r.data)).catch(() => {})
-    getSettings().then(r => {
-      setFtp(r.data.ftp || null)
-      setWeightKg(r.data.weight_kg || null)
-    }).catch(() => {})
     getHydrationAnalysis(id).then(r => {
       setHydration(r.data)
       setIntakeInput(r.data.reported_intake_ml != null ? String(r.data.reported_intake_ml) : '')
@@ -711,6 +713,8 @@ export default function ActivityDetail() {
 
   const handleDelete = async () => {
     await deleteActivity(id)
+    // Drop the deleted ride from the cached list/records/stats before leaving.
+    invalidate.activities()
     navigate('/activities')
   }
 
@@ -903,6 +907,21 @@ export default function ActivityDetail() {
     ),
   ]
 
+  // Group the ride's sections into tabs; a tab only appears when it has data.
+  const TABS = [
+    { id: 'overview', label: 'Overview',          show: true },
+    { id: 'power',    label: 'Power',             show: hasPwr },
+    { id: 'hr',       label: 'Heart Rate',        show: hasHR },
+    { id: 'cadence',  label: 'Cadence',           show: hasCad },
+    { id: 'hydration',label: 'Hydration',         show: !!hydration },
+    { id: 'segments', label: 'Segments & Climbs', show: segmentEfforts.length > 0 || climbs.length > 0 || !weightKg },
+    { id: 'coach',    label: 'Coach',             show: true },
+  ]
+  const visibleTabs = TABS.filter(t => t.show)
+  // Fall back to Overview if the active tab isn't available (e.g. data still
+  // loading, or this ride lacks that metric).
+  const activeTab = visibleTabs.some(t => t.id === tab) ? tab : 'overview'
+
   return (
     <div>
       <Link to="/activities" className="back-link">
@@ -1045,8 +1064,23 @@ export default function ActivityDetail() {
         </div>
       )}
 
+      {/* Tab navigation */}
+      <div className="detail-tabs" role="tablist" aria-label="Activity sections">
+        {visibleTabs.map(t => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={activeTab === t.id}
+            className={`detail-tab${activeTab === t.id ? ' active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Map */}
-      {mapPoints.length > 0 && (
+      {activeTab === 'overview' && mapPoints.length > 0 && (
         <div className="map-container">
           <MapContainer
             center={center}
@@ -1066,10 +1100,9 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      {/* Charts */}
-      {chartData.length > 0 && (
-        <>
-          <div className="chart-section">
+      {/* Charts — split across tabs (Speed & Elevation → Overview, others by metric) */}
+      {activeTab === 'overview' && chartData.length > 0 && (
+        <div className="chart-section">
             <div className="chart-title">{t('activityDetail.chart.speed')} <InfoTip text={t('activityDetail.chart.speedTip')} /></div>
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={chartData}>
@@ -1080,9 +1113,10 @@ export default function ActivityDetail() {
                 <Line type="monotone" dataKey="speed" stroke="var(--speed)" dot={false} strokeWidth={2} name="km/h" />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+        </div>
+      )}
 
-          {hasHR && (
+      {activeTab === 'hr' && chartData.length > 0 && hasHR && (
             <div className="chart-section">
               <div className="chart-title">{t('activityDetail.chart.heartRate')} <InfoTip text={t('activityDetail.chart.heartRateTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -1097,7 +1131,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasCad && (
+          {activeTab === 'cadence' && chartData.length > 0 && hasCad && (
             <div className="chart-section">
               <div className="chart-title">{t('activityDetail.chart.cadence')} <InfoTip text={t('activityDetail.chart.cadenceTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -1112,7 +1146,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasPwr && (
+          {activeTab === 'power' && chartData.length > 0 && hasPwr && (
             <div className="chart-section">
               <div className="chart-title">{t('activityDetail.chart.power')} <InfoTip text={t('activityDetail.chart.powerTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -1127,7 +1161,7 @@ export default function ActivityDetail() {
             </div>
           )}
 
-          {hasEle && (
+          {activeTab === 'overview' && chartData.length > 0 && hasEle && (
             <div className="chart-section">
               <div className="chart-title">{t('activityDetail.chart.elevation')} <InfoTip text={t('activityDetail.chart.elevationTip')} /></div>
               <ResponsiveContainer width="100%" height={160}>
@@ -1141,11 +1175,9 @@ export default function ActivityDetail() {
               </ResponsiveContainer>
             </div>
           )}
-        </>
-      )}
 
       {/* Splits table */}
-      {splits.length > 0 && (
+      {activeTab === 'overview' && splits.length > 0 && (
         <div className="chart-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div className="chart-title" style={{ marginBottom: 0 }}>
@@ -1214,7 +1246,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Best Efforts */}
-      {efforts.length > 0 && (
+      {activeTab === 'overview' && efforts.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.bestEfforts.title')} <InfoTip text={t('activityDetail.bestEfforts.tip')} /></div>
           <div className="efforts-grid">
@@ -1230,7 +1262,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Laps */}
-      {laps && laps.length > 0 && (
+      {activeTab === 'overview' && laps && laps.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.laps.title')}</div>
           <div className="table-wrapper" style={{ border: 'none' }}>
@@ -1277,7 +1309,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Power Analysis — only shown when power data exists */}
-      {hasPwr && (np || pwrZones || mmp.length > 0) && (
+      {activeTab === 'power' && hasPwr && (np || pwrZones || mmp.length > 0) && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.powerAnalysis.title')} <InfoTip text={t('activityDetail.powerAnalysis.tip')} /></div>
 
@@ -1454,7 +1486,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Adjusted Decoupling + VAM */}
-      {(activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
+      {activeTab === 'hr' && (activity.decoupling_adjusted != null || hrDecoupling || vam) && (() => {
         const S_GOOD  = 'var(--status-good)'
         const S_WARN  = 'var(--status-warn)'
         const S_ALERT = 'var(--status-alert)'
@@ -1563,7 +1595,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* HR Zones */}
-      {hrZones && (
+      {activeTab === 'hr' && hrZones && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.hrZones.title')} <InfoTip text={t('activityDetail.hrZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
@@ -1587,7 +1619,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Cadence Zones */}
-      {cadZones && (
+      {activeTab === 'cadence' && cadZones && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.cadenceZones.title')} <InfoTip text={t('activityDetail.cadenceZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
@@ -1608,7 +1640,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Hydration & Heat Analysis */}
-      {hydration && (() => {
+      {activeTab === 'hydration' && hydration && (() => {
         const S_GOOD     = 'var(--status-good)'
         const S_WARN     = 'var(--status-warn)'
         const S_ALERT    = 'var(--status-alert)'
@@ -1806,7 +1838,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* Durability Analysis */}
-      {(() => {
+      {activeTab === 'power' && (() => {
         const DUR_COLORS = { excellent: 'var(--status-good)', good: 'oklch(65% 0.10 235)', moderate: 'var(--status-warn)', poor: 'var(--status-alert)', very_poor: 'var(--status-critical)' }
         const catColor = durabilityData?.durability_category ? (DUR_COLORS[durabilityData.durability_category] ?? 'var(--text-primary)') : 'var(--text-muted)'
         const methodLabel = {
@@ -1928,7 +1960,7 @@ export default function ActivityDetail() {
       })()}
 
       {/* Segments */}
-      {segmentEfforts.length > 0 && (
+      {activeTab === 'segments' && segmentEfforts.length > 0 && (
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.segments.title')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
@@ -1953,7 +1985,7 @@ export default function ActivityDetail() {
       )}
 
       {/* Climbs */}
-      {(climbs.length > 0 || !weightKg) && (
+      {activeTab === 'segments' && (climbs.length > 0 || !weightKg) && (
         <div className="chart-section">
           <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <TrendingUp size={14} style={{ color: 'var(--accent)' }} />
@@ -2079,7 +2111,8 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      {/* AI Analysis */}
+      {/* AI Analysis + Notes (Coach tab) */}
+      {activeTab === 'coach' && (<>
       <div className="chart-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div className="chart-title" style={{ marginBottom: 0 }}>
@@ -2151,6 +2184,7 @@ export default function ActivityDetail() {
           {t('activityDetail.notes.autoSaved')} <a href="/privacy" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>{t('activityDetail.notes.privacyPolicy')}</a>.
         </div>
       </div>
+      </>)}
     </div>
   )
 }

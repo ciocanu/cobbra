@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { getSegments, createSegment, deleteSegment, getSegmentEfforts, getSegmentTrend, getHeatmap, getMe } from '../services/api'
+import { createSegment, deleteSegment, getSegmentEfforts, getSegmentTrend } from '../services/api'
+import { useSegments, useHeatmap, useMe, useInvalidate } from '../services/queries'
 import { format } from 'date-fns'
 import { Flag, Trash2, ChevronDown, ChevronUp, Plus, X, MapPin, Trophy, User, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -38,10 +39,13 @@ const MEDAL = ['🥇', '🥈', '🥉']
 
 export default function Segments() {
   const { t } = useTranslation()
-  const [segments, setSegments] = useState([])
-  const [routes, setRoutes] = useState([])
-  const [me, setMe] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const segmentsQuery = useSegments()
+  const heatmapQuery = useHeatmap()
+  useMe()
+  const invalidate = useInvalidate()
+  const segments = segmentsQuery.data ?? []
+  const routes = heatmapQuery.data ?? []
+  const loading = segmentsQuery.isPending || heatmapQuery.isPending
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [waypoints, setWaypoints] = useState([])
@@ -51,17 +55,6 @@ export default function Segments() {
   const [leaderboard, setLeaderboard] = useState({})
   const [trend, setTrend] = useState({})
   const navigate = useNavigate()
-
-  useEffect(() => {
-    Promise.all([getSegments(), getHeatmap(), getMe()])
-      .then(([s, h, m]) => {
-        setSegments(s.data)
-        setRoutes(h.data)
-        setMe(m.data)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
 
   const handleMapPoint = useCallback((pt) => {
     setWaypoints(prev => [...prev, pt])
@@ -82,8 +75,8 @@ export default function Segments() {
     setSaving(true)
     setSaveError('')
     try {
-      const res = await createSegment({ name: newName.trim(), waypoints })
-      setSegments(prev => [res.data, ...prev])
+      await createSegment({ name: newName.trim(), waypoints })
+      invalidate.segments()
       cancelCreating()
     } catch (e) {
       setSaveError(e.response?.data?.detail || t('segments.failedToSave'))
@@ -96,7 +89,7 @@ export default function Segments() {
     e.stopPropagation()
     if (!confirm(t('segments.deleteConfirm'))) return
     await deleteSegment(id)
-    setSegments(prev => prev.filter(s => s.id !== id))
+    invalidate.segments()
     if (expanded === id) setExpanded(null)
   }
 

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { uploadActivity } from '../services/api'
+import { useInvalidate } from '../services/queries'
 import { Upload as UploadIcon, CheckCircle, AlertCircle } from 'lucide-react'
 import Alert from './Alert'
 
@@ -13,6 +14,7 @@ export default function Upload() {
   const [error, setError] = useState('')
   const inputRef = useRef()
   const navigate = useNavigate()
+  const invalidate = useInvalidate()
 
   const handleFile = async (file) => {
     if (!file) return
@@ -29,6 +31,9 @@ export default function Upload() {
     try {
       const res = await uploadActivity(file)
       setSuccess(res.data)
+      // New ride invalidates everything derived from the activity set so the
+      // list, records, heatmap and dashboard refetch on next view.
+      invalidate.activities()
     } catch (e) {
       setError(e.response?.data?.detail || t('upload.errorUploadFailed'))
     } finally {

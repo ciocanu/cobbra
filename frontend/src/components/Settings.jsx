@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, resetSweatRate, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor, calibratePower, resetPowerCalibration } from '../services/api'
 import { markLoggedOut } from '../services/auth'
+import { useInvalidate } from '../services/queries'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
   Lock, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Mail, Send, Bike,
@@ -111,6 +112,7 @@ export default function Settings() {
   const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const justUpgraded   = searchParams.get('upgraded') === '1'
+  const invalidate     = useInvalidate()
 
   const [user,      setUser]      = useState(null)
   const [loading,   setLoading]   = useState(true)
@@ -346,6 +348,7 @@ export default function Settings() {
     setSaving(true); setHrError('')
     try {
       await updateSettings({ max_hr: maxHr === '' ? null : val })
+      invalidate.settings()
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch { setHrError(t('settings.errors.hrSaveFailed')) }
     finally { setSaving(false) }
@@ -384,6 +387,7 @@ export default function Settings() {
     setFitnessSaving(true)
     try {
       await updateSettings(payload)
+      invalidate.settings()
       setFitnessSaved(true); setTimeout(() => setFitnessSaved(false), 2500)
     } catch (e) {
       setFitnessError(e.response?.data?.detail || t('settings.errors.fitnessSaveFailed'))
