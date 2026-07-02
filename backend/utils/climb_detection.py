@@ -120,11 +120,18 @@ def detect_climbs(
             return t.timestamp()
         return None
 
+    # Epsilon absorbs float error in the gradient computation so a slope of
+    # exactly min_gradient counts as a climb (inclusive boundary): elevation
+    # deltas divided by distance deltas land a few ULPs either side of the
+    # true value, and without tolerance half the points on an exact-threshold
+    # climb fall just below it.
+    eps = 1e-9
+
     raw_segments = []
     i = 0
     while i < len(pts):
         g = gradients[i]
-        if g is not None and g >= min_gradient:
+        if g is not None and g >= min_gradient - eps:
             seg_start = i
             last_above = i
             j = i + 1
@@ -133,7 +140,7 @@ def detect_climbs(
                 ts_last = get_ts(pts[last_above])
                 ts_j = get_ts(pts[j])
                 gap_s = (ts_j - ts_last) if (ts_last and ts_j) else 0
-                if gj is not None and gj >= min_gradient:
+                if gj is not None and gj >= min_gradient - eps:
                     last_above = j
                 elif gj is not None and gj < 0:
                     break
