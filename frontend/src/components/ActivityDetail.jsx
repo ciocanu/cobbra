@@ -163,13 +163,17 @@ const HR_ZONES = [
   { key: 'z5',   min: 0.90, max: 1.00, color: '#ff4d6d' },
 ]
 
-function computeHrZones(trackPoints, maxHr) {
+function computeHrZones(trackPoints, maxHr, restingHr) {
   if (!maxHr) return null
   const pts = trackPoints.filter(p => p.heart_rate_bpm != null)
   if (pts.length === 0) return null
   const counts = HR_ZONES.map(() => 0)
+  const hrr = restingHr ? maxHr - restingHr : null
   pts.forEach(p => {
-    const pct = p.heart_rate_bpm / maxHr
+    // Karvonen when resting HR known, Coggan otherwise — matches backend suffer score
+    const pct = hrr
+      ? (p.heart_rate_bpm - restingHr) / hrr
+      : p.heart_rate_bpm / maxHr
     const idx = HR_ZONES.findIndex(z => pct >= z.min && pct < z.max)
     if (idx >= 0) counts[idx]++
     else if (pct >= 1.0) counts[4]++
@@ -652,7 +656,6 @@ export default function ActivityDetail() {
   const [analysisError, setAnalysisError] = useState('')
   const [ftp,       setFtp]       = useState(null)
   const [weightKg,  setWeightKg]  = useState(null)
-  const [profileMaxHr, setProfileMaxHr] = useState(null)
   const [hydration, setHydration] = useState(null)
   const [intakeInput,  setIntakeInput]  = useState('')
   const [intakeSaving, setIntakeSaving] = useState(false)
@@ -671,7 +674,6 @@ export default function ActivityDetail() {
       getActivity(id)
         .then(r => {
           setActivity(r.data)
-          setProfileMaxHr(r.data.profile_max_hr || null)
           setNewName(r.data.name)
           setNotes(r.data.notes ?? '')
           if (r.data.has_ai_analysis) {
@@ -699,7 +701,6 @@ export default function ActivityDetail() {
     getSettings().then(r => {
       setFtp(r.data.ftp || null)
       setWeightKg(r.data.weight_kg || null)
-      if (r.data.max_hr) setProfileMaxHr(r.data.max_hr)
     }).catch(() => {})
     getHydrationAnalysis(id).then(r => {
       setHydration(r.data)
@@ -846,7 +847,7 @@ export default function ActivityDetail() {
   // not this ride's peak — using the ride's own peak as the denominator
   // shrinks it on any ride that wasn't an all-out effort, inflating every
   // point's %max and skewing the whole distribution into higher zones.
-  const hrZones      = useMemo(() => hasHR  ? computeHrZones(pts, profileMaxHr || activity?.max_heart_rate_bpm) : null, [pts, hasHR, profileMaxHr, activity?.max_heart_rate_bpm])
+  const hrZones      = useMemo(() => hasHR  ? computeHrZones(pts, activity?.profile_max_hr || activity?.max_heart_rate_bpm, activity?.profile_resting_hr) : null, [pts, hasHR, activity?.profile_max_hr, activity?.max_heart_rate_bpm, activity?.profile_resting_hr])
   const cadZones     = useMemo(() => hasCad ? computeCadenceZones(pts) : null, [pts, hasCad])
   const efforts      = useMemo(() => computeBestEfforts(pts), [pts])
   const np           = useMemo(() => hasPwr ? computeNP(pts) : null, [pts, hasPwr])
@@ -1566,7 +1567,10 @@ export default function ActivityDetail() {
         <div className="chart-section">
           <div className="chart-title">{t('activityDetail.hrZones.title')} <InfoTip text={t('activityDetail.hrZones.tip')} /></div>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
-            {t('activityDetail.hrZones.basedOnMaxHr', { bpm: Math.round(profileMaxHr || activity.max_heart_rate_bpm) })}
+            {t('activityDetail.hrZones.basedOnMaxHr', { bpm: Math.round(activity.profile_max_hr || activity.max_heart_rate_bpm) })}
+            {activity.profile_resting_hr && (
+              <span style={{ marginLeft: 8, opacity: 0.6 }}>· Karvonen (FC repouso {activity.profile_resting_hr} bpm)</span>
+            )}
           </p>
           <div className="hr-zones">
             {hrZones.map(z => (
