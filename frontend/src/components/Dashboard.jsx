@@ -384,112 +384,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── 3. Rides: what have I done? ───────────────────────────────────── */}
-      {lastRide && (() => {
-        const metrics = [
-          { key: 'distance',  label: t('common.distance'),  value: lastRide.distance_km.toFixed(1),                   unit: 'km'   },
-          { key: 'time',      label: t('common.time'),       value: fmtDuration(lastRide.duration_seconds),            unit: null   },
-          ...(lastRide.elevation_gain_m != null
-            ? [{ key: 'elevation', label: t('common.elevation'), value: Math.round(lastRide.elevation_gain_m).toLocaleString(), unit: 'm' }]
-            : []),
-          { key: 'speed',     label: t('common.avgSpeed'),  value: lastRide.avg_speed_kmh?.toFixed(1),               unit: 'km/h' },
-          ...(lastRide.avg_heart_rate_bpm
-            ? [{ key: 'heart_rate', label: t('common.avgHr'), value: `${Math.round(lastRide.avg_heart_rate_bpm)}`,  unit: 'bpm'  }]
-            : []),
-        ]
-
-        return (
-          <div
-            className="last-ride-strip"
-            style={{ marginBottom: 16 }}
-            onClick={() => navigate(`/activities/${lastRide.id}`)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${lastRide.id}`) } }}
-            tabIndex={0}
-            role="button"
-            aria-label={t('dashboard.lastRideAria', { name: lastRide.name })}
-          >
-            {/* Identity */}
-            <div className="lrs-identity">
-              <div className="lrs-section-label">{t('dashboard.lastRide')}</div>
-              <div className="lrs-name">{lastRide.name}</div>
-              <div className="lrs-date">{format(new Date(lastRide.date.slice(0, 10) + 'T12:00:00'), 'EEE d MMM yyyy')}</div>
-            </div>
-
-            <div className="lrs-divider" aria-hidden="true" />
-
-            {/* Metrics */}
-            <div className="lrs-metrics">
-              {metrics.map(({ key, label, value, unit }) => (
-                <div key={key} className="lrs-metric">
-                  <div className="lrs-metric-label">{label}</div>
-                  <div className={`lrs-metric-value${key === 'distance' ? ' lrs-accent' : ''}`}>
-                    {value}
-                    {unit && <span className="lrs-metric-unit">{unit}</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* TSS · IF */}
-            {(lastRide.tss != null || lastRide.intensity_factor != null) && (
-              <>
-                <div className="lrs-divider" aria-hidden="true" />
-                <div className="lrs-delta">
-                  {lastRide.tss != null && (
-                    <div className="lrs-metric">
-                      <div className="lrs-metric-label">{t('dashboard.stress')}</div>
-                      <div className="lrs-metric-value">{Math.round(lastRide.tss)}</div>
-                    </div>
-                  )}
-                  {lastRide.intensity_factor != null && (
-                    <div className="lrs-metric">
-                      <div className="lrs-metric-label">{t('dashboard.intensity')}</div>
-                      <div className="lrs-metric-value">{lastRide.intensity_factor.toFixed(2)}</div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Earlier rides — last ride lives in the strip above, so skip it here */}
-      {earlierRides.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="panel-title" style={{ marginBottom: 10 }}>
-            {t('dashboard.earlierRides')}
-          </div>
-          <div className="recent-rides-list" role="list">
-            <div className="rrl-head" aria-hidden="true">
-              <span className="rrl-name">{t('common.ride')}</span>
-              <span className="rrl-date">{t('common.date')}</span>
-              <span className="rrl-stat">{t('common.distance')}</span>
-              <span className="rrl-stat">{t('common.time')}</span>
-              <span className="rrl-stat">{t('common.avgSpeed')}</span>
-            </div>
-            {earlierRides.map(a => (
-              <div
-                key={a.id}
-                className="rrl-row"
-                role="button"
-                tabIndex={0}
-                aria-label={t('dashboard.earlierRideAria', { name: a.name, date: format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM'), distance: a.distance_km.toFixed(1) })}
-                onClick={() => navigate(`/activities/${a.id}`)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${a.id}`) } }}
-              >
-                <span className="rrl-name">{a.name}</span>
-                <span className="rrl-date">{format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM')}</span>
-                <span className="rrl-stat">{a.distance_km.toFixed(1)} km</span>
-                <span className="rrl-stat">{fmtDuration(a.duration_seconds)}</span>
-                <span className="rrl-stat">{a.avg_speed_kmh?.toFixed(1)} km/h</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── 4. Long-term signals ──────────────────────────────────────────── */}
+      {/* ── 3. Long-term signals ──────────────────────────────────────────── */}
       {(durabilityTrend?.current_avg != null || heatProfile) && (
         <div className={durabilityTrend?.current_avg != null && heatProfile ? 'dash-row dash-row-trends' : 'dash-row'}>
 
@@ -638,6 +533,111 @@ export default function Dashboard() {
           )}
         </div>
       )}
+      {/* ── 4. Rides: what have I done? ───────────────────────────────────── */}
+      {lastRide && (() => {
+        const metrics = [
+          { key: 'distance',  label: t('common.distance'),  value: lastRide.distance_km.toFixed(1),                   unit: 'km'   },
+          { key: 'time',      label: t('common.time'),       value: fmtDuration(lastRide.duration_seconds),            unit: null   },
+          ...(lastRide.elevation_gain_m != null
+            ? [{ key: 'elevation', label: t('common.elevation'), value: Math.round(lastRide.elevation_gain_m).toLocaleString(), unit: 'm' }]
+            : []),
+          { key: 'speed',     label: t('common.avgSpeed'),  value: lastRide.avg_speed_kmh?.toFixed(1),               unit: 'km/h' },
+          ...(lastRide.avg_heart_rate_bpm
+            ? [{ key: 'heart_rate', label: t('common.avgHr'), value: `${Math.round(lastRide.avg_heart_rate_bpm)}`,  unit: 'bpm'  }]
+            : []),
+        ]
+
+        return (
+          <div
+            className="last-ride-strip"
+            style={{ marginBottom: 16 }}
+            onClick={() => navigate(`/activities/${lastRide.id}`)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${lastRide.id}`) } }}
+            tabIndex={0}
+            role="button"
+            aria-label={t('dashboard.lastRideAria', { name: lastRide.name })}
+          >
+            {/* Identity */}
+            <div className="lrs-identity">
+              <div className="lrs-section-label">{t('dashboard.lastRide')}</div>
+              <div className="lrs-name">{lastRide.name}</div>
+              <div className="lrs-date">{format(new Date(lastRide.date.slice(0, 10) + 'T12:00:00'), 'EEE d MMM yyyy')}</div>
+            </div>
+
+            <div className="lrs-divider" aria-hidden="true" />
+
+            {/* Metrics */}
+            <div className="lrs-metrics">
+              {metrics.map(({ key, label, value, unit }) => (
+                <div key={key} className="lrs-metric">
+                  <div className="lrs-metric-label">{label}</div>
+                  <div className={`lrs-metric-value${key === 'distance' ? ' lrs-accent' : ''}`}>
+                    {value}
+                    {unit && <span className="lrs-metric-unit">{unit}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* TSS · IF */}
+            {(lastRide.tss != null || lastRide.intensity_factor != null) && (
+              <>
+                <div className="lrs-divider" aria-hidden="true" />
+                <div className="lrs-delta">
+                  {lastRide.tss != null && (
+                    <div className="lrs-metric">
+                      <div className="lrs-metric-label">{t('dashboard.stress')}</div>
+                      <div className="lrs-metric-value">{Math.round(lastRide.tss)}</div>
+                    </div>
+                  )}
+                  {lastRide.intensity_factor != null && (
+                    <div className="lrs-metric">
+                      <div className="lrs-metric-label">{t('dashboard.intensity')}</div>
+                      <div className="lrs-metric-value">{lastRide.intensity_factor.toFixed(2)}</div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Earlier rides — last ride lives in the strip above, so skip it here */}
+      {earlierRides.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div className="panel-title" style={{ marginBottom: 10 }}>
+            {t('dashboard.earlierRides')}
+          </div>
+          <div className="recent-rides-list" role="list">
+            <div className="rrl-head" aria-hidden="true">
+              <span className="rrl-name">{t('common.ride')}</span>
+              <span className="rrl-date">{t('common.date')}</span>
+              <span className="rrl-stat">{t('common.distance')}</span>
+              <span className="rrl-stat">{t('common.time')}</span>
+              <span className="rrl-stat">{t('common.avgSpeed')}</span>
+            </div>
+            {earlierRides.map(a => (
+              <div
+                key={a.id}
+                className="rrl-row"
+                role="button"
+                tabIndex={0}
+                aria-label={t('dashboard.earlierRideAria', { name: a.name, date: format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM'), distance: a.distance_km.toFixed(1) })}
+                onClick={() => navigate(`/activities/${a.id}`)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/activities/${a.id}`) } }}
+              >
+                <span className="rrl-name">{a.name}</span>
+                <span className="rrl-date">{format(new Date(a.date.slice(0, 10) + 'T12:00:00'), 'd MMM')}</span>
+                <span className="rrl-stat">{a.distance_km.toFixed(1)} km</span>
+                <span className="rrl-stat">{fmtDuration(a.duration_seconds)}</span>
+                <span className="rrl-stat">{a.avg_speed_kmh?.toFixed(1)} km/h</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
