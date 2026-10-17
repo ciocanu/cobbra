@@ -41,6 +41,7 @@ Thumbs.db
 
 # ── Logs ──────────────────────────────────────────────────
 *.log
+.deploy/
 logs/
 
 # ── Claude Code (ferramentas locais, não são código do projeto) ───

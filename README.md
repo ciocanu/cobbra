@@ -170,74 +170,45 @@ App at **http://localhost:5173**.
 
 ## Production deploy (cobbra.app)
 
-The live instance runs on a Hetzner VPS at **cobbra.app**. Docker is only on the server — not locally. All deploys go via SSH + SCP.
+The live instance runs on a Hetzner VPS at **cobbra.app**. Docker is only on the server — not locally.
+The server pulls `main` from GitHub with a read-only deploy key (one-time setup: DEPLOY.md §8).
 
 ### SSH access
 
 ```bash
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app        # PowerShell: -i $HOME\.ssh\cobbra_hetzner
 ```
 
 Project lives at `/home/cobbra/cobbra/` on the server.
 
-> The server has no GitHub SSH key, so `git pull` does not work there. Always SCP files from the local machine after committing.
->
-> **Never run `git pull` / `checkout` / `stash` / `reset` on the server.** Its git `HEAD` is stale and every deployed file shows as modified, so those commands would throw away the code that is actually running.
+### Deploy
 
-### Deploy workflow
-
-**0. Update your local clone and back up what you'll overwrite:**
+Push to `main`, then:
 
 ```bash
-git pull origin main          # locally — never SCP from a stale checkout
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
 ```
 
-Then, logged in on the server:
+`scripts/deploy.sh` fetches `origin/main`, rebuilds only the services whose files changed
+(`backend/`, `frontend/`, `nginx/`, `docker-compose.prod.yml`), tests the nginx config before
+swapping it, and checks that `https://cobbra.app` answers afterwards. Postgres is never touched.
+If a build fails, nothing running is changed.
 
-```bash
-cd /home/cobbra/cobbra && tar czf /root/backup-pre-deploy-$(date +%F-%H%M).tgz <files you will replace>
-```
+| | |
+|---|---|
+| `deploy.sh --dry-run` | show the commits and services that would be deployed |
+| `deploy.sh --rollback` | return to the commit that was live before the last deploy |
 
-**1. SCP each changed file** (always specify the full destination path — never a directory):
+> **Don't edit code on the server.** The script refuses to deploy while tracked files have
+> local changes, so a hotfix there blocks deploys until it is committed to the repo.
 
-```bash
-scp -i ~/.ssh/cobbra_hetzner backend/routes/activities.py \
-  root@cobbra.app:/home/cobbra/cobbra/backend/routes/activities.py
+> **`.env.prod` is not in git**, so changing it doesn't trigger anything. After editing it,
+> rebuild what reads it — `VITE_*` values are baked into the frontend at build time:
+> `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build frontend`
 
-scp -i ~/.ssh/cobbra_hetzner frontend/src/components/ActivityDetail.jsx \
-  root@cobbra.app:/home/cobbra/cobbra/frontend/src/components/ActivityDetail.jsx
-```
-
-**2. Rebuild containers:**
-
-```bash
-# Both backend and frontend changed:
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
-  "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build backend frontend"
-
-# Backend only:
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
-  "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build backend"
-
-# Frontend only:
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
-  "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build frontend"
-```
-
-**nginx config changed** (`nginx/nginx.conf`, or the `nginx` service in `docker-compose.prod.yml`) — run on the server, it tests the config before swapping the container:
-
-```bash
-cd /home/cobbra/cobbra && C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
-$C run --rm --no-deps --entrypoint /bin/sh nginx \
-  -c 'envsubst "\$DOMAIN" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -t' \
-  && $C up -d --no-deps nginx
-```
-
-> **Never use `docker compose restart`** — it reuses the old image and won't pick up code changes. Always `--build`.
-
-> **Line endings:** a Windows checkout may give files CRLF endings. That's harmless for JS/CSS/Python, but shell scripts (`*.sh`, e.g. `backend/entrypoint.sh`) must stay LF or the container won't start.
-
-> **Always pass `--env-file .env.prod`** — without it Docker recreates postgres with empty env vars and the backend fails to start.
+> **Always pass `--env-file .env.prod`** to manual `docker compose` commands — without it Docker
+> recreates postgres with empty env vars and the backend fails to start. **Never use
+> `docker compose restart`** to pick up code changes; it reuses the old image.
 
 ### Useful server commands
 

@@ -9,7 +9,7 @@ Estimated time: 30–45 minutes.
 > |---|---|
 > | Access | `ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app` |
 > | Project directory | `/home/cobbra/cobbra` (Compose project `cobbra`, containers `cobbra-<service>-1`) |
-> | Code delivery | **SCP from a local clone** — the server has no GitHub credentials, so `git pull` does not work there. See [§8](#8-updating-the-application). |
+> | Code delivery | `scripts/deploy.sh` on the server pulls `main` with a read-only GitHub deploy key. See [§8](#8-updating-the-application). |
 > | Database | PostgreSQL in `cobbra-postgres-1` (volume `cobbra_postgres_data`) — not SQLite |
 > | TLS | `cobbra-certbot-1` renews every 12 h; `cobbra-nginx-1` reloads every 12 h ([§5.3](#53-automatic-renewal)) |
 >
@@ -135,14 +135,12 @@ su - deploy
 # Clone to /home/cobbra/cobbra (the directory name sets the Docker Compose project name)
 sudo mkdir -p /home/cobbra/cobbra
 sudo chown deploy:deploy /home/cobbra/cobbra
-git clone https://github.com/ciocanu/cobbra.git /home/cobbra/cobbra
+git clone git@github.com:ciocanu/cobbra.git /home/cobbra/cobbra
 cd /home/cobbra/cobbra
 ```
 
-> If the repository is private the server cannot clone it (it has no GitHub
-> credentials). Copy the project from your local clone instead, e.g.
-> `scp -r -i ~/.ssh/cobbra_hetzner ./cobbra root@cobbra.app:/home/cobbra/`, and
-> deliver later changes as described in §8.
+> The repository is private: set up the server's read-only deploy key first
+> ([§8, One-time setup](#one-time-setup-read-only-deploy-key)), then clone with the SSH URL above.
 
 ### 3.4 Create the environment file
 
@@ -462,64 +460,93 @@ Backups on the same disk do not survive losing the server. Keep at least one cop
 
 ## 8. Updating the application
 
-The server has no GitHub credentials, so code is delivered by **SCP from an
-up-to-date local clone of `main`** (step-by-step commands are in the README,
-"Production deploy"). Rebuild only what changed; PostgreSQL is never restarted.
+### Deploying
 
-> **Do not run git commands that touch the working tree on the server**
-> (`pull`, `checkout`, `stash`, `reset`). Its git `HEAD` is stale and every
-> deployed file shows as modified — those commands would discard the code that
-> is actually running.
-
-**1. Back up the files you are about to overwrite** (on the server):
+Push to `main`, then from your machine:
 
 ```bash
-cd /home/cobbra/cobbra
-tar czf /root/backup-pre-deploy-$(date +%F-%H%M).tgz <files you will replace>
+ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
 ```
 
-**2. SCP the changed files** from your local clone (full destination path each time).
+`scripts/deploy.sh`:
 
-**3. Rebuild and replace only the affected services:**
+1. refuses to run if tracked files on the server have local changes (they would be lost);
+2. fetches `origin/main` and lists the commits about to go live;
+3. works out the affected services from the changed paths — `backend/`, `frontend/`,
+   `nginx/`; a change to `docker-compose.prod.yml` recreates all app services
+   (never postgres);
+4. tests the nginx config and builds the images **before** touching running containers —
+   if either fails it restores the previous checkout and stops;
+5. replaces only those containers (`up -d --no-deps`), records the deploy in
+   `.deploy/history.log`, and checks that `https://$DOMAIN/` and `/api/auth/setup` answer.
+
+`--dry-run` shows what would happen without changing anything. The backend runs
+`alembic upgrade head` on startup, so migrations apply as part of the deploy.
+
+`.env.prod` is not in git, so editing it triggers nothing — rebuild what reads it yourself
+(`VITE_*` values are baked into the frontend image):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --no-deps frontend
+```
+
+### Rolling back
+
+```bash
+/home/cobbra/cobbra/scripts/deploy.sh --rollback
+```
+
+Returns to the commit that was live before the last deploy (running it again flips back).
+It does **not** undo database migrations. If the rolled-back code can't run on the newer
+schema, revert the migration first:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend alembic downgrade -1
+```
+
+### One-time setup: read-only deploy key
+
+The repository is private, so the server needs its own key to read it. A deploy key only
+grants access to this one repository, and without write access a compromised server can't
+change the code.
+
+On the server:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "cobbra-prod (read-only deploy key)" -f /root/.ssh/cobbra_github_deploy
+cat >> /root/.ssh/config <<'EOF'
+Host github.com
+  IdentityFile /root/.ssh/cobbra_github_deploy
+  IdentitiesOnly yes
+EOF
+chmod 600 /root/.ssh/config
+cat /root/.ssh/cobbra_github_deploy.pub
+```
+
+On GitHub: repository → **Settings → Deploy keys → Add deploy key**, paste the public key,
+title it `cobbra-prod`, and leave **Allow write access unchecked**. Then check it works:
+
+```bash
+cd /home/cobbra/cobbra && git fetch origin && git log -1 --oneline origin/main
+```
+
+### Manual service commands (reference)
+
+What the script runs, for when you need one piece by hand:
 
 ```bash
 cd /home/cobbra/cobbra
 C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
-$C up -d --build --no-deps backend     # backend code changed
-$C up -d --build --no-deps frontend    # frontend code changed (or VITE_* vars)
+$C up -d --build --no-deps backend           # rebuild + replace the backend
+$C up -d --build --no-deps frontend          # rebuild + replace the frontend
 
-# nginx/nginx.conf or the nginx service in docker-compose.prod.yml changed:
-# test the config in a throwaway container first, then recreate nginx
+# test the nginx config in a throwaway container, then recreate nginx
 $C run --rm --no-deps --entrypoint /bin/sh nginx \
   -c 'envsubst "\$DOMAIN" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -t' \
   && $C up -d --no-deps nginx
-```
 
-**4. Watch the backend start** — it runs `alembic upgrade head` on every startup:
-
-```bash
-$C logs -f --tail=50 backend
-```
-
-### Rolling back
-
-Restore the backup from step 1 and rebuild the same services:
-
-```bash
-cd /home/cobbra/cobbra
-tar xzf /root/backup-pre-deploy-YYYY-MM-DD-HHMM.tgz
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --no-deps backend frontend
-```
-
-Or check out the previous version **locally** (`git checkout <commit> -- <files>`)
-and SCP those files again.
-
-If a migration needs to be reversed:
-
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  exec backend alembic downgrade -1
+$C logs -f --tail=50 backend                 # watch startup / migrations
 ```
 
 ---
