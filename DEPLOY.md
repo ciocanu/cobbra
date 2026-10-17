@@ -11,6 +11,7 @@ Estimated time: 30–45 minutes.
 > | Project directory | `/home/cobbra/cobbra` (Compose project `cobbra`, containers `cobbra-<service>-1`) |
 > | Code delivery | `scripts/deploy.sh` on the server pulls `main` with a read-only GitHub deploy key. See [§8](#8-updating-the-application). |
 > | GitHub access | **Already set up — don't create another key.** Deploy key `cobbra-prod` (`SHA256:7EuOhgXpZDvZZkRB8yf4hLDVLtl3sZpFQMsECQ+6Ews`), private key `/home/cobbra/.ssh/deploy_key`, used by root via `/root/.ssh/config`. Check: `ssh -T git@github.com`. |
+> | Deploy from GitHub | **Already set up.** Actions → *Deploy* workflow, secret `DEPLOY_SSH_KEY`, server key line `github-actions-deploy` in `/root/.ssh/authorized_keys` (gate-restricted). Claude sessions deploy through it. |
 > | Database | PostgreSQL in `cobbra-postgres-1` (volume `cobbra_postgres_data`) — not SQLite |
 > | TLS | `cobbra-certbot-1` renews every 12 h; `cobbra-nginx-1` reloads every 12 h ([§5.3](#53-automatic-renewal)) |
 >
@@ -516,7 +517,11 @@ How it reaches the server, and why that's safe:
 - The workflow pins the server's SSH host key (`SHA256:4WVVk1/XYLNv/Fbwk6Lt4qCNCvVqf6acU5bBrZD8EY8`)
   and refuses to connect to anything else.
 
-Setup (once): on the server, create the key, authorize it for the gate only, and print
+**Status: set up and verified on 2026-10-17** (secret `DEPLOY_SSH_KEY` exists; the server
+line ends in `github-actions-deploy`). Don't repeat this unless the key is revoked or the
+server is reinstalled.
+
+Setup: on the server, create the key, authorize it for the gate only, and print
 the private half:
 
 ```bash
