@@ -3,6 +3,19 @@
 Target: Hetzner VPS, Ubuntu 24.04, fresh install.  
 Estimated time: 30–45 minutes.
 
+> **Current production layout (cobbra.app)**
+>
+> | | |
+> |---|---|
+> | Access | `ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app` |
+> | Project directory | `/home/cobbra/cobbra` (Compose project `cobbra`, containers `cobbra-<service>-1`) |
+> | Code delivery | **SCP from a local clone** — the server has no GitHub credentials, so `git pull` does not work there. See [§8](#8-updating-the-application). |
+> | Database | PostgreSQL in `cobbra-postgres-1` (volume `cobbra_postgres_data`) — not SQLite |
+> | TLS | `cobbra-certbot-1` renews every 12 h; `cobbra-nginx-1` reloads every 12 h ([§5.3](#53-automatic-renewal)) |
+>
+> The rest of this guide describes a fresh install. Where it differs from the box above
+> (e.g. the non-root `deploy` user in §3.1), the box reflects what is actually running.
+
 ---
 
 ## Table of contents
@@ -119,12 +132,17 @@ ufw status
 # Switch to deploy user
 su - deploy
 
-# Clone to /opt/cobbra (the directory name sets the Docker Compose project name)
-sudo mkdir -p /opt/cobbra
-sudo chown deploy:deploy /opt/cobbra
-git clone https://github.com/ciocanu/cobbra.git /opt/cobbra
-cd /opt/cobbra
+# Clone to /home/cobbra/cobbra (the directory name sets the Docker Compose project name)
+sudo mkdir -p /home/cobbra/cobbra
+sudo chown deploy:deploy /home/cobbra/cobbra
+git clone https://github.com/ciocanu/cobbra.git /home/cobbra/cobbra
+cd /home/cobbra/cobbra
 ```
+
+> If the repository is private the server cannot clone it (it has no GitHub
+> credentials). Copy the project from your local clone instead, e.g.
+> `scp -r -i ~/.ssh/cobbra_hetzner ./cobbra root@cobbra.app:/home/cobbra/`, and
+> deliver later changes as described in §8.
 
 ### 3.4 Create the environment file
 
@@ -188,7 +206,7 @@ chmod 600 .env.prod
 ### 4.1 Build images and create volumes
 
 ```bash
-cd /opt/cobbra
+cd /home/cobbra/cobbra
 
 docker compose -f docker-compose.prod.yml --env-file .env.prod build
 docker compose -f docker-compose.prod.yml --env-file .env.prod create --no-start
@@ -345,38 +363,38 @@ Expected container states:
 ### Manual backup
 
 ```bash
-# Creates a timestamped compressed dump in /opt/cobbra/backups/
-mkdir -p /opt/cobbra/backups
+# Creates a timestamped compressed dump in /home/cobbra/cobbra/backups/
+mkdir -p /home/cobbra/cobbra/backups
 
-docker compose -f /opt/cobbra/docker-compose.prod.yml --env-file /opt/cobbra/.env.prod \
-  exec -T postgres pg_dump -U cobbra cobbra \
-  | gzip > /opt/cobbra/backups/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz
+docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml --env-file /home/cobbra/cobbra/.env.prod \
+  exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+  | gzip > /home/cobbra/cobbra/backups/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz
 
-echo "Backup size: $(du -sh /opt/cobbra/backups/*.sql.gz | tail -1)"
+echo "Backup size: $(du -sh /home/cobbra/cobbra/backups/*.sql.gz | tail -1)"
 ```
 
 ### Automated daily backups
 
 ```bash
 # Create the backup script
-cat > /opt/cobbra/backup.sh << 'EOF'
+cat > /home/cobbra/cobbra/backup.sh << 'EOF'
 #!/bin/bash
 set -e
-BACKUP_DIR=/opt/cobbra/backups
+BACKUP_DIR=/home/cobbra/cobbra/backups
 mkdir -p "${BACKUP_DIR}"
 
-docker compose -f /opt/cobbra/docker-compose.prod.yml --env-file /opt/cobbra/.env.prod \
-  exec -T postgres pg_dump -U cobbra cobbra \
+docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml --env-file /home/cobbra/cobbra/.env.prod \
+  exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
   | gzip > "${BACKUP_DIR}/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz"
 
 # Keep only the last 30 daily backups
 find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +30 -delete
 EOF
 
-chmod +x /opt/cobbra/backup.sh
+chmod +x /home/cobbra/cobbra/backup.sh
 
 # Schedule daily at 02:00
-(crontab -l 2>/dev/null; echo "0 2 * * * /opt/cobbra/backup.sh >> /opt/cobbra/backups/backup.log 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * /home/cobbra/cobbra/backup.sh >> /home/cobbra/cobbra/backups/backup.log 2>&1") | crontab -
 ```
 
 ### Restore from backup
@@ -386,9 +404,9 @@ chmod +x /opt/cobbra/backup.sh
 docker compose -f docker-compose.prod.yml --env-file .env.prod stop backend
 
 # Restore
-gunzip -c /opt/cobbra/backups/cobbra_YYYYMMDD_HHMMSS.sql.gz \
+gunzip -c /home/cobbra/cobbra/backups/cobbra_YYYYMMDD_HHMMSS.sql.gz \
   | docker compose -f docker-compose.prod.yml --env-file .env.prod \
-    exec -T postgres psql -U cobbra cobbra
+    exec -T postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
 
 # Restart backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod start backend
@@ -400,39 +418,58 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod start backend
 
 ## 8. Updating the application
 
-Updates follow a zero-downtime pattern: rebuild only the changed images, then replace containers one by one. PostgreSQL and nginx are not restarted unless their configuration changed.
+The server has no GitHub credentials, so code is delivered by **SCP from an
+up-to-date local clone of `main`** (step-by-step commands are in the README,
+"Production deploy"). Rebuild only what changed; PostgreSQL is never restarted.
+
+> **Do not run git commands that touch the working tree on the server**
+> (`pull`, `checkout`, `stash`, `reset`). Its git `HEAD` is stale and every
+> deployed file shows as modified — those commands would discard the code that
+> is actually running.
+
+**1. Back up the files you are about to overwrite** (on the server):
 
 ```bash
-cd /opt/cobbra
-
-# 1. Pull latest code
-git pull origin main
-
-# 2. Rebuild application images (postgres and nginx are not rebuilt)
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  build backend frontend
-
-# 3. Replace containers (--no-deps avoids restarting unchanged services)
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  up -d --no-deps backend frontend
-
-# 4. Watch the backend start up — migrations run automatically
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  logs -f --tail=50 backend
+cd /home/cobbra/cobbra
+tar czf /root/backup-pre-deploy-$(date +%F-%H%M).tgz <files you will replace>
 ```
 
-The backend runs `alembic upgrade head` on every startup, so schema migrations are applied automatically as part of step 3.
+**2. SCP the changed files** from your local clone (full destination path each time).
+
+**3. Rebuild and replace only the affected services:**
+
+```bash
+cd /home/cobbra/cobbra
+C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+
+$C up -d --build --no-deps backend     # backend code changed
+$C up -d --build --no-deps frontend    # frontend code changed (or VITE_* vars)
+
+# nginx/nginx.conf or the nginx service in docker-compose.prod.yml changed:
+# test the config in a throwaway container first, then recreate nginx
+$C run --rm --no-deps --entrypoint /bin/sh nginx \
+  -c 'envsubst "\$DOMAIN" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -t' \
+  && $C up -d --no-deps nginx
+```
+
+**4. Watch the backend start** — it runs `alembic upgrade head` on every startup:
+
+```bash
+$C logs -f --tail=50 backend
+```
 
 ### Rolling back
 
+Restore the backup from step 1 and rebuild the same services:
+
 ```bash
-# Roll back to a specific git commit
-git checkout <commit-hash>
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  build backend frontend
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  up -d --no-deps backend frontend
+cd /home/cobbra/cobbra
+tar xzf /root/backup-pre-deploy-YYYY-MM-DD-HHMM.tgz
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --no-deps backend frontend
 ```
+
+Or check out the previous version **locally** (`git checkout <commit> -- <files>`)
+and SCP those files again.
 
 If a migration needs to be reversed:
 
@@ -512,7 +549,7 @@ Common causes:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  exec postgres psql -U cobbra cobbra
+  exec postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
 ```
 
 ### Run a one-off backend command
@@ -540,7 +577,7 @@ docker volume inspect cobbra_postgres_data --format '{{.Mountpoint}}' \
   | xargs sudo du -sh
 
 # Application backups
-du -sh /opt/cobbra/backups/
+du -sh /home/cobbra/cobbra/backups/
 ```
 
 ### Nginx configuration test

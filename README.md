@@ -156,8 +156,22 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app
 Project lives at `/home/cobbra/cobbra/` on the server.
 
 > The server has no GitHub SSH key, so `git pull` does not work there. Always SCP files from the local machine after committing.
+>
+> **Never run `git pull` / `checkout` / `stash` / `reset` on the server.** Its git `HEAD` is stale and every deployed file shows as modified, so those commands would throw away the code that is actually running.
 
 ### Deploy workflow
+
+**0. Update your local clone and back up what you'll overwrite:**
+
+```bash
+git pull origin main          # locally — never SCP from a stale checkout
+```
+
+Then, logged in on the server:
+
+```bash
+cd /home/cobbra/cobbra && tar czf /root/backup-pre-deploy-$(date +%F-%H%M).tgz <files you will replace>
+```
 
 **1. SCP each changed file** (always specify the full destination path — never a directory):
 
@@ -185,7 +199,18 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
   "cd /home/cobbra/cobbra && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build frontend"
 ```
 
+**nginx config changed** (`nginx/nginx.conf`, or the `nginx` service in `docker-compose.prod.yml`) — run on the server, it tests the config before swapping the container:
+
+```bash
+cd /home/cobbra/cobbra && C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+$C run --rm --no-deps --entrypoint /bin/sh nginx \
+  -c 'envsubst "\$DOMAIN" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -t' \
+  && $C up -d --no-deps nginx
+```
+
 > **Never use `docker compose restart`** — it reuses the old image and won't pick up code changes. Always `--build`.
+
+> **Line endings:** a Windows checkout may give files CRLF endings. That's harmless for JS/CSS/Python, but shell scripts (`*.sh`, e.g. `backend/entrypoint.sh`) must stay LF or the container won't start.
 
 > **Always pass `--env-file .env.prod`** — without it Docker recreates postgres with empty env vars and the backend fails to start.
 
@@ -199,9 +224,12 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
 # Backend logs
 ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app "docker logs cobbra-backend-1 --tail 50"
 
-# Backup DB locally
-scp -i ~/.ssh/cobbra_hetzner \
-  root@cobbra.app:/home/cobbra/cobbra/data/cycling.db ./backup-cycling.db
+# Backup DB (production is PostgreSQL — data/cycling.db is NOT the live database)
+# 1. on the server:
+docker exec cobbra-postgres-1 sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+  | gzip > /root/cobbra-$(date +%F).sql.gz
+# 2. locally:
+scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/root/cobbra-YYYY-MM-DD.sql.gz .
 ```
 
 ---
