@@ -499,6 +499,43 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --no-deps frontend
 ```
 
+### Deploying from GitHub (Actions tab, API, or Claude)
+
+The **Deploy** workflow (`.github/workflows/deploy.yml`) runs the same script from GitHub:
+repository → **Actions → Deploy → Run workflow**, pick `deploy`, `dry-run` or `rollback`.
+Anything with access to the GitHub API for this repo — including Claude Code sessions,
+which can't SSH out — can start it the same way and read the run's log.
+
+How it reaches the server, and why that's safe:
+
+- The runner logs in as root with a key stored in the repository secret **`DEPLOY_SSH_KEY`**.
+- On the server that key is restricted in `/root/.ssh/authorized_keys` with
+  `restrict,command="/home/cobbra/cobbra/scripts/deploy-ssh-gate.sh"`: no shell, no
+  forwarding, and the gate only accepts `deploy`, `dry-run` or `rollback`. A leaked key can
+  at most redeploy `main` or roll back.
+- The workflow pins the server's SSH host key (`SHA256:4WVVk1/XYLNv/Fbwk6Lt4qCNCvVqf6acU5bBrZD8EY8`)
+  and refuses to connect to anything else.
+
+Setup (once): on the server, create the key, authorize it for the gate only, and print
+the private half:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "github-actions-deploy" -f /root/.ssh/gha_deploy
+cp /root/.ssh/authorized_keys /root/.ssh/authorized_keys.bak
+# make sure the file ends with a newline, or the new key would be glued onto your login key
+[ -n "$(tail -c1 /root/.ssh/authorized_keys)" ] && echo >> /root/.ssh/authorized_keys
+echo "restrict,command=\"/home/cobbra/cobbra/scripts/deploy-ssh-gate.sh\" $(cat /root/.ssh/gha_deploy.pub)" >> /root/.ssh/authorized_keys
+cat /root/.ssh/gha_deploy
+```
+
+Paste the whole private key (including the `BEGIN`/`END` lines) into GitHub →
+**Settings → Secrets and variables → Actions → New repository secret**, name
+`DEPLOY_SSH_KEY`. Then delete it from the server — only the public half is needed there:
+`rm /root/.ssh/gha_deploy`.
+
+To revoke: delete the `github-actions-deploy` line from `/root/.ssh/authorized_keys` and
+the `DEPLOY_SSH_KEY` secret.
+
 ### Rolling back
 
 ```bash

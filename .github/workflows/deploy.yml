@@ -1,0 +1,56 @@
+# Run scripts/deploy.sh on the production server (DEPLOY.md §8).
+# Start it from the Actions tab ("Run workflow") or through the GitHub API.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to run on the server
+        type: choice
+        options: [deploy, dry-run, rollback]
+        default: deploy
+
+# One deploy at a time; never cancel one halfway.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Pin the server's SSH host key
+        # Refuse to connect if the server's identity isn't the one we know.
+        env:
+          HOST: cobbra.app
+          FINGERPRINT: SHA256:4WVVk1/XYLNv/Fbwk6Lt4qCNCvVqf6acU5bBrZD8EY8
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -t ed25519 "$HOST" > ~/.ssh/known_hosts 2>/dev/null
+          seen="$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')"
+          if [ "$seen" != "$FINGERPRINT" ]; then
+            echo "::error::Host key for $HOST is '$seen', expected '$FINGERPRINT'. Not connecting."
+            exit 1
+          fi
+
+      - name: Run on the server
+        # The key is restricted server-side to scripts/deploy-ssh-gate.sh, which only
+        # accepts deploy / dry-run / rollback.
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::Repository secret DEPLOY_SSH_KEY is not set (DEPLOY.md §8)."
+            exit 1
+          fi
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o ServerAliveInterval=30 root@cobbra.app "$ACTION"

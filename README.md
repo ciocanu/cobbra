@@ -190,6 +190,9 @@ Push to `main`, then:
 ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
 ```
 
+Or without SSH: GitHub → **Actions → Deploy → Run workflow** (this is also how Claude Code
+sessions deploy). Both run the same script — see DEPLOY.md §8.
+
 `scripts/deploy.sh` fetches `origin/main`, rebuilds only the services whose files changed
 (`backend/`, `frontend/`, `nginx/`, `docker-compose.prod.yml`), tests the nginx config before
 swapping it, and checks that `https://cobbra.app` answers afterwards. Postgres is never touched.
