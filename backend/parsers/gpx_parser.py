@@ -26,6 +26,57 @@ def smooth_elevations(elevations: list, window: int = 5) -> list:
     return result
 
 
+SPEED_TAGS = ("Speed", "speed")
+CADENCE_TAGS = ("cad", "cadence", "Cadence")
+HR_TAGS = ("hr", "HeartRateBpm")
+POWER_TAGS = ("power", "PowerInWatts", "watts")
+TEMP_TAGS = ("atemp", "AirTemperature", "airTemp")
+
+
+def _local_tag(element) -> str:
+    tag = element.tag if isinstance(element.tag, str) else ""
+    return tag.split("}")[-1] if "}" in tag else tag
+
+
+def _to_float(text):
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def read_extensions(extensions) -> Dict[str, Any]:
+    """Pull sensor values out of a trackpoint's <extensions>.
+
+    Walks every element, so values are found both nested in a container
+    (<gpxtpx:TrackPointExtension><gpxtpx:cad>, <gpxpx:PowerExtension><gpxpx:PowerInWatts>)
+    and directly under <extensions> (Strava's <power>, a flat <hr>).
+    """
+    values = {"speed_ms": None, "cadence_rpm": None, "heart_rate_bpm": None, "power_w": None, "temperature_c": None}
+    for ext in extensions or []:
+        for el in ext.iter():
+            tag = _local_tag(el)
+            if tag == "HeartRateBpm":
+                # TCX-style <HeartRateBpm><Value>142</Value></HeartRateBpm>
+                value_el = next((c for c in el if _local_tag(c) == "Value"), None)
+                val = _to_float(value_el.text if value_el is not None else el.text)
+            else:
+                val = _to_float(el.text)
+            if val is None:
+                continue
+            if tag in SPEED_TAGS:
+                values["speed_ms"] = val
+            elif tag in CADENCE_TAGS:
+                values["cadence_rpm"] = val
+            elif tag in HR_TAGS:
+                values["heart_rate_bpm"] = val
+            elif tag in POWER_TAGS:
+                values["power_w"] = val
+            elif tag in TEMP_TAGS:
+                values["temperature_c"] = val
+    return values
+
+
 def parse_gpx(file_content: bytes) -> Dict[str, Any]:
     gpx = gpxpy.parse(file_content.decode("utf-8"))
 
@@ -34,7 +85,7 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
     prev_point = None
     min_time = None
     max_time = None
-    speeds, cadences, heart_rates, temperatures = [], [], [], []
+    speeds, cadences, heart_rates, powers, temperatures = [], [], [], [], []
 
     for track in gpx.tracks:
         for segment in track.segments:
@@ -44,26 +95,13 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
                     dist_m = haversine(prev_point["lat"], prev_point["lon"], point.latitude, point.longitude)
                     total_distance += dist_m
 
-                speed_kmh = None
-                cadence_rpm = None
-                heart_rate_bpm = None
-
-                if point.extensions:
-                    for ext in point.extensions:
-                        for child in ext:
-                            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-                            if tag in ("Speed", "speed") and child.text:
-                                speed_kmh = float(child.text) * 3.6
-                            elif tag in ("cadence", "Cadence") and child.text:
-                                cadence_rpm = float(child.text)
-                            elif tag in ("hr", "HeartRateBpm") and child.text:
-                                heart_rate_bpm = float(child.text)
-                            elif tag in ("atemp", "AirTemperature", "airTemp") and child.text:
-                                temperatures.append(float(child.text))
-                            for subchild in child:
-                                subtag = subchild.tag.split("}")[-1] if "}" in subchild.tag else subchild.tag
-                                if subtag == "Value" and child.tag.endswith("HeartRateBpm") and subchild.text:
-                                    heart_rate_bpm = float(subchild.text)
+                ext = read_extensions(point.extensions)
+                speed_kmh = ext["speed_ms"] * 3.6 if ext["speed_ms"] is not None else None
+                cadence_rpm = ext["cadence_rpm"]
+                heart_rate_bpm = ext["heart_rate_bpm"]
+                power_w = ext["power_w"]
+                if ext["temperature_c"] is not None:
+                    temperatures.append(ext["temperature_c"])
 
                 if speed_kmh is None and prev_point and prev_point.get("timestamp") and point.time:
                     dt = (point.time.replace(tzinfo=None) - prev_point["timestamp"]).total_seconds()
@@ -83,7 +121,9 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
                     cadences.append(cadence_rpm)
                 if heart_rate_bpm is not None:
                     heart_rates.append(heart_rate_bpm)
-                # temperatures collected directly inside extensions loop above
+                # Same rule as the FIT parser: zeros (coasting) are kept per point but excluded from avg/max
+                if power_w is not None and power_w > 0:
+                    powers.append(power_w)
 
                 raw_points.append({
                     "timestamp": point.time.replace(tzinfo=None) if point.time else None,
@@ -93,7 +133,7 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
                     "speed_kmh": round(speed_kmh, 2) if speed_kmh is not None else None,
                     "cadence_rpm": cadence_rpm,
                     "heart_rate_bpm": heart_rate_bpm,
-                    "power_w": None,
+                    "power_w": power_w,
                     "distance_m": round(total_distance, 1),
                 })
 
@@ -139,8 +179,8 @@ def parse_gpx(file_content: bytes) -> Dict[str, Any]:
         "max_cadence_rpm": round(max(cadences), 1) if cadences else None,
         "avg_heart_rate_bpm": round(sum(heart_rates) / len(heart_rates), 1) if heart_rates else None,
         "max_heart_rate_bpm": round(max(heart_rates), 1) if heart_rates else None,
-        "avg_power_w": None,
-        "max_power_w": None,
+        "avg_power_w": round(sum(powers) / len(powers), 1) if powers else None,
+        "max_power_w": round(max(powers), 1) if powers else None,
         "elevation_gain_m": round(elevation_gain, 1),
         "elevation_loss_m": round(elevation_loss, 1),
         "calories": None,

@@ -152,10 +152,10 @@ def seed_user(py, env):
 # ── Sample data ──────────────────────────────────────────────────────────────
 
 def synthetic_gpx():
-    """A deterministic ~32 km loop west of Lisbon with elevation, HR, cadence and temperature.
+    """A deterministic ~32 km loop west of Lisbon with elevation, HR, cadence, power and temperature.
 
-    Note: cadence uses the <cadence> tag because that is what parsers/gpx_parser.py
-    reads today; Garmin's standard <gpxtpx:cad> is not parsed yet.
+    Sensor tags follow real exports: HR/cadence/temperature in Garmin's TrackPointExtension
+    (<gpxtpx:hr>, <gpxtpx:cad>, <gpxtpx:atemp>) and power as Strava's flat <power>.
     """
     rnd = random.Random(42)
     clat, clon = 38.715, -9.255
@@ -188,6 +188,9 @@ def synthetic_gpx():
         v = max(3.5, min(13.5, 8.6 - 55 * grade + rnd.uniform(-0.4, 0.4)))     # m/s
         hr += ((max(105, min(178, 138 + 650 * grade + t / 300))) - hr) * 0.06 + rnd.uniform(-1, 1)
         cad = 0 if grade < -0.035 else max(62, min(102, 88 - 160 * grade + rnd.uniform(-3, 3)))
+        # 80 kg rider+bike, Crr 0.005, CdA 0.32 m², 97 % drivetrain; no pedalling when coasting
+        watts = 0 if cad == 0 else max(0, (80 * 9.81 * v * (grade + 0.005) + 0.5 * 1.2 * 0.32 * v ** 3) / 0.97
+                                         + rnd.uniform(-15, 15))
         while j < len(cum) - 2 and cum[j + 1] < s:
             j += 1
         f = (s - cum[j]) / max(cum[j + 1] - cum[j], 1e-9)
@@ -196,8 +199,8 @@ def synthetic_gpx():
         ts = (start + timedelta(seconds=t)).strftime("%Y-%m-%dT%H:%M:%SZ")
         pts.append(
             f'<trkpt lat="{lat:.6f}" lon="{lon:.6f}"><ele>{ele(s):.1f}</ele><time>{ts}</time>'
-            f"<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>{round(hr)}</gpxtpx:hr>"
-            f"<gpxtpx:cadence>{round(cad)}</gpxtpx:cadence><gpxtpx:atemp>{19 + 4 * t / 4000:.1f}</gpxtpx:atemp>"
+            f"<extensions><power>{round(watts)}</power><gpxtpx:TrackPointExtension><gpxtpx:hr>{round(hr)}</gpxtpx:hr>"
+            f"<gpxtpx:cad>{round(cad)}</gpxtpx:cad><gpxtpx:atemp>{19 + 4 * t / 4000:.1f}</gpxtpx:atemp>"
             f"</gpxtpx:TrackPointExtension></extensions></trkpt>"
         )
         s += v * 5
