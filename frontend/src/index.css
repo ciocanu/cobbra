@@ -799,6 +799,12 @@ html, body, #root {
   margin-bottom: 20px;
 }
 
+/* Keyless OpenStreetMap tiles are light; invert them so they match the dark UI.
+   Only applied when no CARTO key is configured (see services/mapTiles.js). */
+.tiles-dark {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
 /* Chart wrapper */
 .chart-section {
   background: var(--surface-grad);

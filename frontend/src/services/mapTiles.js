@@ -1,21 +1,22 @@
-// Shared basemap tile configuration.
+// Shared basemap tile configuration — spread onto every <TileLayer {...TILE_PROPS} />.
 //
 // CARTO now requires an API key for its Dark Matter raster basemap: a keyless
-// request returns HTTP 200 with a PNG that has "API KEY REQUIRED" burned into
-// it, which is why the map backgrounds broke. The key is a public, domain-
-// restricted basemap key (like a Google Maps JS key), so it is safe to ship in
-// the client bundle. Get one free (no account needed) at
-// https://carto.com/basemaps/apikey and provide it at build time as
-// VITE_CARTO_KEY.
+// request returns a PNG with "API KEY REQUIRED" burned into it. If a key is
+// provided at build time (VITE_CARTO_KEY, free at https://carto.com/basemaps/apikey)
+// we use Dark Matter. Otherwise we fall back to keyless OpenStreetMap tiles,
+// darkened with a CSS filter (.tiles-dark in index.css) to match the UI.
 //
-// If the key is missing we fall back to keyless OpenStreetMap tiles so the map
-// still renders something usable instead of the watermark.
+// Note: tile.openstreetmap.org is volunteer-run and forbids heavy use — fine at
+// our current scale; switch to a keyed provider if traffic grows.
 const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || ''
 
-export const TILE_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`
-  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-
-export const TILE_ATTRIBUTION = CARTO_KEY
-  ? '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+export const TILE_PROPS = CARTO_KEY
+  ? {
+      url: `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`,
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }
+  : {
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      className: 'tiles-dark',
+    }

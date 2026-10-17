@@ -9,7 +9,7 @@ import {
   ResponsiveContainer, CartesianGrid
 } from 'recharts'
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet'
-import { TILE_URL, TILE_ATTRIBUTION } from '../services/mapTiles'
+import { TILE_PROPS } from '../services/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { ArrowLeft, Trash2, Pencil, Download, FileText, Cloud, Wind, Thermometer, Sparkles, RefreshCw, Droplets, Home, Trees, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import InfoTip from './InfoTip'
@@ -1089,7 +1089,7 @@ export default function ActivityDetail() {
             style={{ height: '100%', width: '100%', background: '#0d0d1a' }}
             zoomControl={true}
           >
-            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+            <TileLayer {...TILE_PROPS} />
             <Polyline
               positions={mapPoints}
               pathOptions={{ color: colors.accent, weight: 3, opacity: 0.9 }}

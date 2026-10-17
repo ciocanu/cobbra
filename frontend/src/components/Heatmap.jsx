@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Polyline, Tooltip } from 'react-leaflet'
-import { TILE_URL, TILE_ATTRIBUTION } from '../services/mapTiles'
+import { TILE_PROPS } from '../services/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { useHeatmap } from '../services/queries'
 import { Map, RefreshCw } from 'lucide-react'
@@ -50,7 +50,7 @@ export default function Heatmap() {
             zoom={11}
             style={{ height: '100%', width: '100%', background: '#0d0d1a' }}
           >
-            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+            <TileLayer {...TILE_PROPS} />
             {routes.map(route => (
               <Polyline
                 key={route.id}

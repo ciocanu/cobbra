@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMapEvents } from 'react-leaflet'
-import { TILE_URL, TILE_ATTRIBUTION } from '../services/mapTiles'
+import { TILE_PROPS } from '../services/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { createSegment, deleteSegment, getSegmentEfforts, getSegmentTrend } from '../services/api'
 import { useSegments, useHeatmap, useMe, useInvalidate } from '../services/queries'
@@ -212,7 +212,7 @@ export default function Segments() {
       {/* Map */}
       <div className="map-container" style={{ height: 420, marginBottom: 24, cursor: creating ? 'crosshair' : 'default' }}>
         <MapContainer center={mapCenter} zoom={11} style={{ height: '100%', width: '100%', background: '#0d0d1a' }}>
-          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+          <TileLayer {...TILE_PROPS} />
           <MapClickHandler active={creating} onPoint={handleMapPoint} />
 
           {routes.map(r => (

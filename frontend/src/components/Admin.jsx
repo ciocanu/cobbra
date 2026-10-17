@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { MapContainer, TileLayer, Polyline, CircleMarker } from 'react-leaflet'
-import { TILE_URL, TILE_ATTRIBUTION } from '../services/mapTiles'
+import { TILE_PROPS } from '../services/mapTiles'
 import { Shield, Users, Activity, Zap, Mountain, Database, Clock, Trash2, Pencil, Check, X, ArrowRightLeft, Eye, Star, Mail } from 'lucide-react'
 import {
   adminGetStats, adminGetSystem,
@@ -549,7 +549,7 @@ export default function Admin() {
                 zoomControl={true}
                 scrollWheelZoom={true}
               >
-                <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+                <TileLayer {...TILE_PROPS} />
                 <Polyline positions={positions} color="var(--accent)" weight={3} />
                 <CircleMarker center={start} radius={6} pathOptions={{ color: '#4dff91', fillColor: '#4dff91', fillOpacity: 1 }} />
                 <CircleMarker center={end}   radius={6} pathOptions={{ color: '#ff4d4d', fillColor: '#ff4d4d', fillOpacity: 1 }} />
