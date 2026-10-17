@@ -169,7 +169,11 @@ POSTGRES_DB=cobbra
 # SMTP_USER=you@gmail.com
 # SMTP_PASSWORD=xxxx xxxx xxxx xxxx
 # SMTP_FROM=Cobbra <you@gmail.com>
+# VITE_CARTO_KEY=...   # map tiles; without it maps use darkened OpenStreetMap
 ```
+
+> `VITE_CARTO_KEY` is baked into the frontend at **build** time — after changing it,
+> rebuild the frontend (`up -d --build frontend`), a restart is not enough.
 
 Lock down the file permissions:
 
@@ -261,32 +265,45 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 ### 5.3 Automatic renewal
 
-The `certbot` service in `docker-compose.prod.yml` runs `certbot renew` every 12 hours. Certbot only acts when the certificate is within 30 days of expiry, so this is safe to leave running permanently.
+Renewal has two halves, and **both** must run:
 
-Verify the certbot service is running:
+1. **Renew** — the `certbot` service runs `certbot renew` every 12 hours. Certbot
+   only acts when the certificate is within 30 days of expiry.
+2. **Reload** — the `nginx` service runs a background loop that does
+   `nginx -s reload` every 12 hours. nginx loads the certificate into memory at
+   startup and keeps serving that copy until it is reloaded, so without this step a
+   successful renewal never reaches visitors.
+
+> In October 2026 the site went down with `ERR_CERT_DATE_INVALID` even though
+> certbot had renewed the certificate a month earlier: nginx had been up for three
+> months without a reload and was still serving the expired copy. The reload loop
+> was added to `docker-compose.prod.yml` to prevent this.
+
+Verify both are in place:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod ps certbot
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps certbot nginx
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec nginx ps | grep -E 'sleep|nginx'
+# expect a "sleep 12h" process next to the nginx master/workers
 ```
 
-Test renewal manually (dry run, no changes):
+Test renewal (dry run against the staging CA, no changes). The certbot service has
+a custom entrypoint (the 12 h loop), so call certbot directly in the running container:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
-  certbot renew --dry-run
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec certbot certbot renew --dry-run
 ```
 
-After a successful renewal, reload nginx to pick up the new certificate:
+Compare the certificate on disk with the one nginx is actually serving:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec nginx nginx -s reload
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec certbot certbot certificates   # on disk
+echo | openssl s_client -connect 127.0.0.1:443 -servername cobbra.app 2>/dev/null \
+  | openssl x509 -noout -dates                                                                       # served
 ```
 
-> **Tip:** Add this reload to a weekly cron job so renewals are picked up automatically:
-> ```bash
-> # crontab -e (as deploy user)
-> 0 3 * * 1 docker compose -f /opt/cobbra/docker-compose.prod.yml --env-file /opt/cobbra/.env.prod exec -T nginx nginx -s reload
-> ```
+If the two expiry dates differ, nginx has not reloaded — run
+`docker compose -f docker-compose.prod.yml --env-file .env.prod exec nginx nginx -s reload`.
 
 ---
 
@@ -427,6 +444,31 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod \
 ---
 
 ## 9. Troubleshooting
+
+### Browser shows `ERR_CERT_DATE_INVALID`
+
+Usually certbot already renewed and nginx is serving a stale in-memory copy.
+Check before renewing anything:
+
+```bash
+docker exec cobbra-certbot-1 certbot certificates            # expiry on disk
+echo | openssl s_client -connect 127.0.0.1:443 -servername cobbra.app 2>/dev/null \
+  | openssl x509 -noout -dates                                # expiry nginx serves
+```
+
+- **Disk is valid, served is expired** → `docker exec cobbra-nginx-1 nginx -s reload`
+  (zero downtime). Then confirm the reload loop from §5.3 is running.
+- **Disk is expired too** → renewal is failing. Run
+  `docker exec cobbra-certbot-1 certbot renew` and read the error before changing
+  anything; the usual cause is the HTTP-01 challenge on port 80 being unreachable
+  (Hetzner firewall, or nginx not serving `/.well-known/acme-challenge/`).
+
+### Maps show an "API KEY REQUIRED" watermark
+
+CARTO's basemap tiles now require a key. Either set `VITE_CARTO_KEY` in `.env.prod`
+and rebuild the frontend, or leave it unset to use darkened OpenStreetMap tiles.
+If the map is blank instead, check the browser console for a CSP `img-src`
+violation — the tile host must be allowed in `nginx/nginx.conf`.
 
 ### View logs
 

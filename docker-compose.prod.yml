@@ -74,6 +74,9 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: /api
+        # Optional. Without it the maps use keyless OpenStreetMap tiles (darkened
+        # via CSS). With it they use CARTO Dark Matter. See services/mapTiles.js.
+        VITE_CARTO_KEY: ${VITE_CARTO_KEY:-}
     restart: unless-stopped
     networks:
       - internal
@@ -93,8 +96,12 @@ services:
       - certbot_www:/var/www/certbot:ro
     # Substitute ${DOMAIN} in the template; all other $variables are nginx-native
     # and must not be touched — envsubst '$DOMAIN' limits substitution to that one var.
+    # A background loop reloads nginx every 12 h so certificates renewed by the
+    # certbot service are picked up. Without it nginx keeps serving the cert it
+    # loaded at startup until it expires (this took the site down in Oct 2026).
     command: >
       /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+      && (while :; do sleep 12h; nginx -s reload; done &)
       && nginx -g 'daemon off;'"
     depends_on:
       - backend
