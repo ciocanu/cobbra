@@ -224,12 +224,12 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
 # Backend logs
 ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app "docker logs cobbra-backend-1 --tail 50"
 
-# Backup DB (production is PostgreSQL — data/cycling.db is NOT the live database)
-# 1. on the server:
-docker exec cobbra-postgres-1 sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-  | gzip > /root/cobbra-$(date +%F).sql.gz
-# 2. locally:
-scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/root/cobbra-YYYY-MM-DD.sql.gz .
+# Backup DB (production is PostgreSQL — data/cycling.db is NOT the live database).
+# A cron job already runs this daily at 03:17 UTC (see DEPLOY.md §7).
+# 1. on the server, take one now:
+/home/cobbra/cobbra/backup.sh
+# 2. locally, copy it off the server:
+scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/backups/cobbra_YYYYMMDD_HHMMSS.sql.gz .
 ```
 
 ---

@@ -360,59 +360,103 @@ Expected container states:
 
 ## 7. Database backups
 
-### Manual backup
+Production data lives only in the `cobbra-postgres-1` container's volume. Backups
+are `pg_dump` files written by `/home/cobbra/cobbra/backup.sh` (cron, daily 03:17 UTC)
+to `/home/cobbra/cobbra/backups/`, kept for 30 days. The directory is `chmod 700`:
+dumps contain user emails and password hashes.
+
+### Backup script (installed)
 
 ```bash
-# Creates a timestamped compressed dump in /home/cobbra/cobbra/backups/
-mkdir -p /home/cobbra/cobbra/backups
-
-docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml --env-file /home/cobbra/cobbra/.env.prod \
-  exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-  | gzip > /home/cobbra/cobbra/backups/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz
-
-echo "Backup size: $(du -sh /home/cobbra/cobbra/backups/*.sql.gz | tail -1)"
-```
-
-### Automated daily backups
-
-```bash
-# Create the backup script
-cat > /home/cobbra/cobbra/backup.sh << 'EOF'
+cat > /home/cobbra/cobbra/backup.sh <<'EOF'
 #!/bin/bash
-set -e
-BACKUP_DIR=/home/cobbra/cobbra/backups
-mkdir -p "${BACKUP_DIR}"
+# Daily PostgreSQL backup for cobbra.app. Keeps 30 days. See DEPLOY.md §7.
+set -euo pipefail
+umask 077
+DIR=/home/cobbra/cobbra/backups
+FILE="$DIR/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz"
+mkdir -p "$DIR"
 
-docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml --env-file /home/cobbra/cobbra/.env.prod \
-  exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-  | gzip > "${BACKUP_DIR}/cobbra_$(date +%Y%m%d_%H%M%S).sql.gz"
+docker exec cobbra-postgres-1 sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$FILE"
 
-# Keep only the last 30 daily backups
-find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +30 -delete
+# A dump that stopped half-way has no completion marker: don't keep it as if it were good.
+# (Recent pg_dump versions append a "\unrestrict" line after the marker, so look at the last lines, not just the final one.)
+if ! zcat "$FILE" | tail -n 10 | grep -q 'PostgreSQL database dump complete'; then
+  echo "$(date -Is) backup INCOMPLETE, removed: $FILE"
+  rm -f "$FILE"
+  exit 1
+fi
+
+find "$DIR" -name 'cobbra_*.sql.gz' -mtime +30 -delete
+echo "$(date -Is) backup OK: $FILE ($(du -h "$FILE" | cut -f1))"
 EOF
+chmod 700 /home/cobbra/cobbra/backup.sh
 
-chmod +x /home/cobbra/cobbra/backup.sh
-
-# Schedule daily at 02:00
-(crontab -l 2>/dev/null; echo "0 2 * * * /home/cobbra/cobbra/backup.sh >> /home/cobbra/cobbra/backups/backup.log 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "17 3 * * * /home/cobbra/cobbra/backup.sh >> /home/cobbra/cobbra/backups/backup.log 2>&1") | crontab -
 ```
 
-### Restore from backup
+`set -o pipefail` plus the completion-marker check mean a failed `pg_dump` exits
+non-zero and leaves no file, instead of a small gzip that looks like a backup.
+Check it is working:
 
 ```bash
-# Stop the backend first to avoid writes during restore
-docker compose -f docker-compose.prod.yml --env-file .env.prod stop backend
-
-# Restore
-gunzip -c /home/cobbra/cobbra/backups/cobbra_YYYYMMDD_HHMMSS.sql.gz \
-  | docker compose -f docker-compose.prod.yml --env-file .env.prod \
-    exec -T postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
-
-# Restart backend
-docker compose -f docker-compose.prod.yml --env-file .env.prod start backend
+crontab -l
+tail -n 5 /home/cobbra/cobbra/backups/backup.log
+ls -lh /home/cobbra/cobbra/backups/
 ```
 
-> **Off-site backups:** Copy backups to a remote location (S3, Hetzner Object Storage, another server) using `rclone` or `rsync`. Never keep your only backup on the same machine as the database.
+Run a backup by hand at any time with `/home/cobbra/cobbra/backup.sh`.
+
+### Verify a backup restores (safe — throwaway container)
+
+Restores the newest dump into a temporary Postgres, compares row counts with
+production, then removes it. Production is not touched.
+
+```bash
+U=$(docker exec cobbra-postgres-1 printenv POSTGRES_USER); D=$(docker exec cobbra-postgres-1 printenv POSTGRES_DB)
+docker run -d --rm --name pgtest -e POSTGRES_USER="$U" -e POSTGRES_DB="$D" -e POSTGRES_PASSWORD=test postgres:16-alpine >/dev/null
+until docker exec pgtest pg_isready -U "$U" -d "$D" -q; do sleep 1; done; sleep 2
+zcat "$(ls -t /home/cobbra/cobbra/backups/cobbra_*.sql.gz | head -1)" | docker exec -i pgtest psql -q -U "$U" -d "$D" -v ON_ERROR_STOP=1 >/dev/null && echo "RESTORE OK"
+for t in users activities track_points; do
+  echo "$t  backup=$(docker exec pgtest psql -tA -U "$U" -d "$D" -c "select count(*) from $t")  prod=$(docker exec cobbra-postgres-1 psql -tA -U "$U" -d "$D" -c "select count(*) from $t")"
+done
+docker rm -f pgtest >/dev/null
+```
+
+### Restore into production (destructive)
+
+A dump recreates every table, so it must go into an **empty** database —
+piping it over the live one fails on existing tables and leaves a mix.
+This replaces all current data with the backup's contents.
+
+```bash
+cd /home/cobbra/cobbra
+C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+
+./backup.sh                                   # 1. snapshot the current state first
+$C stop backend                               # 2. stop writes
+
+# 3. recreate an empty database
+docker exec cobbra-postgres-1 sh -c 'dropdb -U "$POSTGRES_USER" --force "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
+
+# 4. load the chosen dump (stops on the first error)
+zcat backups/cobbra_YYYYMMDD_HHMMSS.sql.gz \
+  | docker exec -i cobbra-postgres-1 sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$POSTGRES_DB"'
+
+$C start backend                              # 5. migrations run on startup
+```
+
+### Off-site copies
+
+Backups on the same disk do not survive losing the server. Keep at least one copy elsewhere:
+
+- **Hetzner Cloud Backups** — Cloud Console → server → *Backups* → *Enable*
+  (+20 % of the server price). Seven daily whole-server images stored outside the
+  server's disk, including `/home/cobbra/cobbra/backups/`.
+- **Pull a dump to your machine** now and then:
+  `scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/backups/<file>.sql.gz .`
+- For automated off-site dumps, `rclone`/`rsync` the backups directory to a
+  Hetzner Storage Box or object storage.
 
 ---
 
