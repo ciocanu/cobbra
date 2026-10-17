@@ -42,7 +42,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Explicit driver: SQLAlchemy 2.1 made psycopg (v3) the default for postgresql://,
+      # but requirements.txt installs psycopg2 — a bare URL crash-loops the backend.
+      DATABASE_URL:          postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SECRET_KEY:            ${SECRET_KEY}
       COOKIE_SECURE:         "true"
       CORS_ORIGINS:          ${CORS_ORIGINS}
