@@ -111,6 +111,12 @@ if [ "${#BUILD[@]}" -gt 0 ]; then
   "${COMPOSE[@]}" build "${BUILD[@]}" || { restore; die "image build failed"; }
 fi
 
+# The backend runs `alembic upgrade head` on startup: snapshot the database first.
+if printf '%s\n' "${SERVICES[@]}" | grep -qx backend && [ -x ./backup.sh ]; then
+  say "Backing up the database before the backend restarts ..."
+  ./backup.sh || { restore; die "database backup failed — deploy aborted"; }
+fi
+
 if [ "${#SERVICES[@]}" -gt 0 ]; then
   say "Replacing ${SERVICES[*]} ..."
   "${COMPOSE[@]}" up -d --no-deps "${SERVICES[@]}"

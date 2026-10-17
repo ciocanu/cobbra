@@ -10,6 +10,7 @@ Estimated time: 30–45 minutes.
 > | Access | `ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app` |
 > | Project directory | `/home/cobbra/cobbra` (Compose project `cobbra`, containers `cobbra-<service>-1`) |
 > | Code delivery | `scripts/deploy.sh` on the server pulls `main` with a read-only GitHub deploy key. See [§8](#8-updating-the-application). |
+> | GitHub access | **Already set up — don't create another key.** Deploy key `cobbra-prod` (`SHA256:7EuOhgXpZDvZZkRB8yf4hLDVLtl3sZpFQMsECQ+6Ews`), private key `/home/cobbra/.ssh/deploy_key`, used by root via `/root/.ssh/config`. Check: `ssh -T git@github.com`. |
 > | Database | PostgreSQL in `cobbra-postgres-1` (volume `cobbra_postgres_data`) — not SQLite |
 > | TLS | `cobbra-certbot-1` renews every 12 h; `cobbra-nginx-1` reloads every 12 h ([§5.3](#53-automatic-renewal)) |
 >
@@ -140,7 +141,7 @@ cd /home/cobbra/cobbra
 ```
 
 > The repository is private: set up the server's read-only deploy key first
-> ([§8, One-time setup](#one-time-setup-read-only-deploy-key)), then clone with the SSH URL above.
+> ([§8, GitHub deploy key](#github-deploy-key-already-set-up)), then clone with the SSH URL above.
 
 ### 3.4 Create the environment file
 
@@ -477,7 +478,9 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.
    (never postgres);
 4. tests the nginx config and builds the images **before** touching running containers —
    if either fails it restores the previous checkout and stops;
-5. replaces only those containers (`up -d --no-deps`), records the deploy in
+5. when the backend is redeployed (migrations run on its startup), takes a database
+   backup with `backup.sh` (§7) first — if the backup fails, it stops;
+6. replaces only those containers (`up -d --no-deps`), records the deploy in
    `.deploy/history.log`, and checks that `https://$DOMAIN/` and `/api/auth/setup` answer.
 
 `--dry-run` shows what would happen without changing anything. The backend runs
@@ -504,30 +507,36 @@ schema, revert the migration first:
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend alembic downgrade -1
 ```
 
-### One-time setup: read-only deploy key
+### GitHub deploy key (already set up)
 
-The repository is private, so the server needs its own key to read it. A deploy key only
-grants access to this one repository, and without write access a compromised server can't
-change the code.
+The repository is private, so the server reads it with its own deploy key. **This is
+already in place — don't create another one:**
 
-On the server:
+| | |
+|---|---|
+| GitHub | repository → Settings → Deploy keys → **`cobbra-prod`** |
+| Fingerprint | `SHA256:7EuOhgXpZDvZZkRB8yf4hLDVLtl3sZpFQMsECQ+6Ews` |
+| Private key | `/home/cobbra/.ssh/deploy_key` (in the `cobbra` user's home) |
+| Used by root via | `/root/.ssh/config` → `Host github.com` / `IdentityFile /home/cobbra/.ssh/deploy_key` / `IdentitiesOnly yes` |
+
+Check it works:
+
+```bash
+ssh -T git@github.com     # "Hi ciocanu/cobbra! You've successfully authenticated ..."
+```
+
+To match a key file to the one on GitHub, compare fingerprints:
+`ssh-keygen -lf /home/cobbra/.ssh/deploy_key`.
+
+**Only if the server is reinstalled** (or the key is lost), create a new one and add its
+public half on GitHub with *Allow write access* unchecked — a deploy key grants access to
+this repository only, and read-only means a compromised server can't change the code:
 
 ```bash
 ssh-keygen -t ed25519 -N "" -C "cobbra-prod (read-only deploy key)" -f /root/.ssh/cobbra_github_deploy
-cat >> /root/.ssh/config <<'EOF'
-Host github.com
-  IdentityFile /root/.ssh/cobbra_github_deploy
-  IdentitiesOnly yes
-EOF
+printf 'Host github.com\n  IdentityFile /root/.ssh/cobbra_github_deploy\n  IdentitiesOnly yes\n' >> /root/.ssh/config
 chmod 600 /root/.ssh/config
-cat /root/.ssh/cobbra_github_deploy.pub
-```
-
-On GitHub: repository → **Settings → Deploy keys → Add deploy key**, paste the public key,
-title it `cobbra-prod`, and leave **Allow write access unchecked**. Then check it works:
-
-```bash
-cd /home/cobbra/cobbra && git fetch origin && git log -1 --oneline origin/main
+cat /root/.ssh/cobbra_github_deploy.pub     # paste into Settings → Deploy keys → Add deploy key
 ```
 
 ### Manual service commands (reference)

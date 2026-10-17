@@ -171,7 +171,8 @@ App at **http://localhost:5173**.
 ## Production deploy (cobbra.app)
 
 The live instance runs on a Hetzner VPS at **cobbra.app**. Docker is only on the server — not locally.
-The server pulls `main` from GitHub with a read-only deploy key (one-time setup: DEPLOY.md §8).
+The server pulls `main` from GitHub with a deploy key that is **already set up**
+(`cobbra-prod`, `/home/cobbra/.ssh/deploy_key` — details in DEPLOY.md §8; don't create another).
 
 ### SSH access
 
