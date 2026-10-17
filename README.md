@@ -71,6 +71,31 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 
 ## Quick start (local development)
 
+### One command
+
+```bash
+python scripts/dev.py          # Windows: python or py
+```
+
+Needs Python 3.10+ and Node 18+. On the first run it creates the backend venv and installs
+the npm packages (later runs skip this unless `requirements.txt` / `package-lock.json` change). Then it:
+
+- uses a local SQLite database at `backend/data/dev.db` (git-ignored — never production)
+- creates an admin test account **`dev` / `devpassword`** with a complete profile, so onboarding is skipped
+- uploads a synthetic sample ride if the account has none
+- starts the backend on `:8000` and the frontend on **http://localhost:5173** — Ctrl+C stops both
+
+| Option | |
+|---|---|
+| `--reset` | wipe the local database first |
+| `--import DIR` | upload your own `.gpx`/`.fit` files (`.gz` from a Strava export works), e.g. `--import strava_Data/activities --limit 30`. Only FIT files carry power, so the Power tab needs FIT rides. |
+
+Keys in `backend/.env` (e.g. `ANTHROPIC_API_KEY`) are still used; the database, secret and
+cookie settings are always overridden with local-only values. With the app running, browser
+tooling such as Playwright can log in as `dev` / `devpassword` to check UI changes.
+
+Prefer to run each piece yourself? Follow the manual steps below.
+
 ### 1. Clone
 
 ```bash

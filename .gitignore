@@ -20,6 +20,8 @@ build/
 *.sqlite
 *.sqlite3
 data/
+# Personal Strava export (used with scripts/dev.py --import)
+strava_Data/
 
 # ── Node / Frontend ───────────────────────────────────────
 node_modules/
