@@ -910,14 +910,14 @@ export default function ActivityDetail() {
 
   // Group the ride's sections into tabs; a tab only appears when it has data.
   const TABS = [
-    { id: 'overview', label: 'Overview',          show: true },
-    { id: 'power',    label: 'Power',             show: hasPwr },
-    { id: 'hr',       label: 'Heart Rate',        show: hasHR },
-    { id: 'cadence',  label: 'Cadence',           show: hasCad },
-    { id: 'hydration',label: 'Hydration',         show: !!hydration },
-    { id: 'segments', label: 'Segments & Climbs', show: segmentEfforts.length > 0 || climbs.length > 0 || !weightKg },
-    { id: 'coach',    label: 'Coach',             show: true },
-  ]
+    { id: 'overview',  show: true },
+    { id: 'power',     show: hasPwr },
+    { id: 'hr',        show: hasHR },
+    { id: 'cadence',   show: hasCad },
+    { id: 'hydration', show: !!hydration },
+    { id: 'segments',  show: segmentEfforts.length > 0 || climbs.length > 0 || !weightKg },
+    { id: 'coach',     show: true },
+  ].map(tab => ({ ...tab, label: t(`activityDetail.tabs.${tab.id}`) }))
   const visibleTabs = TABS.filter(t => t.show)
   // Fall back to Overview if the active tab isn't available (e.g. data still
   // loading, or this ride lacks that metric).

@@ -349,6 +349,15 @@
       "placeholder": "Add notes about this ride…",
       "autoSaved": "Auto-saved · Notes are scanned by AI for prohibited content (hate speech, harassment). See our",
       "privacyPolicy": "Privacy Policy"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "power": "Power",
+      "hr": "Heart Rate",
+      "cadence": "Cadence",
+      "hydration": "Hydration",
+      "segments": "Segments & Climbs",
+      "coach": "Coach"
     }
   },
   "dashboard": {

@@ -349,6 +349,15 @@
       "placeholder": "Adiciona notas sobre esta atividade…",
       "autoSaved": "Guardado automaticamente · As notas são verificadas pela AI em busca de conteúdo proibido (discurso de ódio, assédio). Consulta a nossa",
       "privacyPolicy": "Política de Privacidade"
+    },
+    "tabs": {
+      "overview": "Visão geral",
+      "power": "Potência",
+      "hr": "Frequência cardíaca",
+      "cadence": "Cadência",
+      "hydration": "Hidratação",
+      "segments": "Segmentos e subidas",
+      "coach": "Treinador"
     }
   },
   "dashboard": {
