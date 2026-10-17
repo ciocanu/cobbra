@@ -477,11 +477,17 @@ ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.
    `nginx/`; a change to `docker-compose.prod.yml` recreates all app services
    (never postgres);
 4. tests the nginx config and builds the images **before** touching running containers —
-   if either fails it restores the previous checkout and stops;
+   if either fails it restores the previous checkout and stops. Every image is also tagged
+   with its commit (`cobbra-backend:<sha>`); an image that already exists for the target
+   commit is reused instead of rebuilt;
 5. when the backend is redeployed (migrations run on its startup), takes a database
    backup with `backup.sh` (§7) first — if the backup fails, it stops;
-6. replaces only those containers (`up -d --no-deps`), records the deploy in
-   `.deploy/history.log`, and checks that `https://$DOMAIN/` and `/api/auth/setup` answer.
+6. replaces only those containers (`up -d --no-deps`) and records the deploy in
+   `.deploy/history.log`;
+7. waits for the backend's own `/health` (up to 90 s) and, if it never answers, prints its
+   logs and stops with the rollback command;
+8. reloads nginx so it picks up the new container IPs, then checks that `https://$DOMAIN/`
+   and `/api/auth/setup` answer.
 
 `--dry-run` shows what would happen without changing anything. The backend runs
 `alembic upgrade head` on startup, so migrations apply as part of the deploy.
@@ -500,6 +506,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --n
 ```
 
 Returns to the commit that was live before the last deploy (running it again flips back).
+It reuses the images tagged with that commit, so it takes seconds and doesn't rebuild — a rebuild
+could pull different dependency versions. The 5 most recent tagged images per service are kept.
 It does **not** undo database migrations. If the rolled-back code can't run on the newer
 schema, revert the migration first:
 
