@@ -12,6 +12,11 @@ COPY . .
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 
+# CARTO basemap API key (public, domain-restricted). Keyless tiles now render an
+# "API KEY REQUIRED" watermark. Get one free at https://carto.com/basemaps/apikey
+ARG VITE_CARTO_KEY=
+ENV VITE_CARTO_KEY=$VITE_CARTO_KEY
+
 RUN npm run build
 
 # ── Stage 2: serve static files with nginx (non-root) ────────────────────────
