@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { getDashboardFitnessInsight } from '../services/api'
 import {
   useActivities, useFitnessStats, useWeeklyStats,
-  useHeatProfile, useDurabilityTrend, useTrainingLoadComparison,
+  useHeatProfile, useDurabilityTrend, useTrainingLoadComparison, useConfig,
 } from '../services/queries'
 import {
   ComposedChart, Bar, Cell, LineChart, Line, ReferenceLine,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { format } from 'date-fns'
-import { Route, Droplets, TrendingUp } from 'lucide-react'
+import { Route, Droplets, TrendingUp, Sparkles } from 'lucide-react'
 import InfoTip from './InfoTip'
 
 function fmtDuration(seconds) {
@@ -91,20 +91,20 @@ export default function Dashboard() {
   const durabilityTrend = durabilityQuery.data ?? null
   const loadComparison = loadComparisonQuery.data ?? null
 
-  const [fitnessInsight, setFitnessInsight] = useState(null) // null=loading, false=failed
+  // AI only on request (privacy policy: consent by click). null=not asked, 'loading', false=failed
+  const [fitnessInsight, setFitnessInsight] = useState(null)
+  const { data: config } = useConfig()
   const [showCorrected,  setShowCorrected]    = useState(false)
   const navigate = useNavigate()
 
-  // Fitness insight: re-fetches when data loads or language changes
-  useEffect(() => {
-    if (fitnessData === null) return
-    if (!fitnessData.some(d => d.load > 0)) { setFitnessInsight(false); return }
+  // A new fitness series or language makes an earlier AI explanation stale
+  useEffect(() => { setFitnessInsight(null) }, [fitnessQuery.data, i18n.resolvedLanguage])
 
-    setFitnessInsight(null) // show "a analisar…" while re-fetching
-
+  const explainFitness = () => {
+    if (!fitnessData?.some(d => d.load > 0)) return
+    setFitnessInsight('loading')
     const current  = fitnessData[fitnessData.length - 1]
     const sevenAgo = fitnessData.length >= 8 ? fitnessData[fitnessData.length - 8] : null
-
     const lang = localStorage.getItem('cobbra_lang') || i18n.resolvedLanguage || i18n.language || 'en'
     getDashboardFitnessInsight({
       ctl: current.ctl,
@@ -113,13 +113,11 @@ export default function Dashboard() {
       ctl_7d_ago: sevenAgo?.ctl ?? null,
       atl_7d_ago: sevenAgo?.atl ?? null,
       lang,
+      use_ai: true,
     })
       .then(r => setFitnessInsight(r.data.insight))
       .catch(() => setFitnessInsight(false))
-    // fitnessQuery.data is referentially stable on success; isError covers the
-    // error path (data stays undefined → derived []), matching the old behavior.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitnessQuery.data, fitnessQuery.isError, i18n.resolvedLanguage])
+  }
 
   // Derived values
   const lastRide       = recentRides?.[0] ?? null
@@ -238,10 +236,15 @@ export default function Dashboard() {
                 </span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, maxWidth: '42ch' }}>
-                {fitnessInsight === null
+                {fitnessInsight === 'loading'
                   ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('dashboard.analyzing')}</span>
                   : (fitnessInsight || statusDesc)}
               </div>
+              {config?.ai_available && (fitnessInsight === null || fitnessInsight === false) && (
+                <button type="button" className="btn btn-ghost" style={{ marginTop: 10, padding: '4px 10px', fontSize: 12 }} onClick={explainFitness}>
+                  <Sparkles size={12} /> {t('dashboard.explainWithAi')}
+                </button>
+              )}
             </div>
 
             {/* The three numbers behind the verdict */}

@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
         <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
           <Li><strong style={{ color: 'var(--text-primary)' }}>Contract performance (Art. 6(1)(b)):</strong> Processing necessary to deliver the service you signed up for — storing rides, computing stats, managing your account.</Li>
           <Li><strong style={{ color: 'var(--text-primary)' }}>Legitimate interests (Art. 6(1)(f)):</strong> Rate-limiting IP tracking to protect the service from abuse. Our interest in securing the platform does not override your rights given the minimal nature of this processing (IPs deleted within 2 hours).</Li>
-          <Li><strong style={{ color: 'var(--text-primary)' }}>Consent (Art. 6(1)(a)):</strong> AI analysis of your ride data — you trigger this explicitly by clicking "Analyse Ride". You may withdraw this consent at any time by not using this feature; past analyses can be cleared from the activity page.</Li>
+          <Li><strong style={{ color: 'var(--text-primary)' }}>Consent (Art. 6(1)(a)):</strong> AI analysis of your ride data — you trigger this explicitly by clicking "Analyse Ride", generating a training plan, or clicking "Explain with AI" on the dashboard. Nothing is sent to the AI provider until you do. You may withdraw this consent at any time by not using these features.</Li>
         </ul>
       </SECTION>
 
@@ -62,7 +62,7 @@ export default function PrivacyPolicy() {
         <P>We share data with the following processors, each bound by their own data processing agreements and privacy policies. Where a processor is located outside the European Economic Area (EEA), transfers are made on the basis of Standard Contractual Clauses (SCCs) adopted by the European Commission, or an EU adequacy decision.</P>
         <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
           <Li>
-            <strong style={{ color: 'var(--text-primary)' }}>Anthropic (Claude AI) — United States:</strong> When you click "Analyse Ride" or generate a training plan, your activity's summary metrics (speed, heart rate, elevation, cadence, power, weather, VAM, HR decoupling) are sent to Anthropic's API to generate a coach-style analysis or plan. Each time you open the dashboard, aggregate numbers (fitness, fatigue and form, and your latest ride's distance, duration, speed, elevation, heart rate and temperature) are also sent to generate one-line insights. No raw GPS coordinates are sent. Your ride notes are also sent to Claude for automated content moderation (to detect prohibited content) each time you save a note. No data is retained by Anthropic beyond the API call. Transfer basis: Standard Contractual Clauses.
+            <strong style={{ color: 'var(--text-primary)' }}>Anthropic (Claude AI) — United States:</strong> When you click "Analyse Ride" or generate a training plan, your activity's summary metrics (speed, heart rate, elevation, cadence, power, weather, VAM, HR decoupling) are sent to Anthropic's API to generate a coach-style analysis or plan. When you click "Explain with AI" on the dashboard, your current fitness, fatigue and form numbers (CTL, ATL, TSB) are sent to generate a one-line explanation. No raw GPS coordinates are sent. Your ride notes are also sent to Claude for automated content moderation (to detect prohibited content) each time you save a note. No data is retained by Anthropic beyond the API call. Transfer basis: Standard Contractual Clauses.
           </Li>
           {paymentsOn && (
             <Li>
@@ -92,7 +92,7 @@ export default function PrivacyPolicy() {
           <Li><strong style={{ color: 'var(--text-primary)' }}>Rectification (Art. 16):</strong> Update your email, fitness profile, and other data at any time in Settings.</Li>
           <Li><strong style={{ color: 'var(--text-primary)' }}>Restriction of processing (Art. 18):</strong> Request that we restrict how we use your data (e.g. while a dispute is being resolved). Contact us to exercise this right.</Li>
           <Li><strong style={{ color: 'var(--text-primary)' }}>Objection (Art. 21):</strong> Object to processing based on legitimate interests. Contact us and we will cease that processing unless we can demonstrate compelling legitimate grounds.</Li>
-          <Li><strong style={{ color: 'var(--text-primary)' }}>Withdraw consent (Art. 7(3)):</strong> Where processing is based on your consent (AI ride analysis), you may withdraw it at any time without affecting the lawfulness of prior processing. Simply stop using the "Analyse Ride" feature.</Li>
+          <Li><strong style={{ color: 'var(--text-primary)' }}>Withdraw consent (Art. 7(3)):</strong> Where processing is based on your consent (AI analysis, training plans and dashboard explanations), you may withdraw it at any time without affecting the lawfulness of prior processing. Simply stop using those features.</Li>
           <Li><strong style={{ color: 'var(--text-primary)' }}>Lodge a complaint (Art. 77):</strong> You have the right to lodge a complaint with the data protection supervisory authority in your EU member state. In Portugal: <strong>Comissão Nacional de Proteção de Dados (CNPD)</strong> — cnpd.pt. In other EU countries, contact your national DPA.</Li>
         </ul>
       </SECTION>

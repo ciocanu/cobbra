@@ -421,7 +421,8 @@
       "buildingDesc": "A acumular fadiga — sobrecarga produtiva, mas mantém atenção à recuperação.",
       "overreaching": "Em Sobrecarga",
       "overreachingDesc": "Fadiga intensa. Uma pedalada leve ou dia de descanso vai ajudar mais do que outra sessão difícil."
-    }
+    },
+    "explainWithAi": "Explicar com AI"
   },
   "admin": {
     "title": "Painel de Administração",

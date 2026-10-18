@@ -326,3 +326,18 @@ class TestStreamingAnalysis:
         monkeypatch.setattr(anthropic, "AsyncAnthropic", _FakeAsyncAnthropic)
         activity_id = _rider_activity(db, "Ride")
         assert rider_client.get(f"/api/activities/{activity_id}/analysis/stream").status_code == 429
+
+
+class TestDashboardInsights:
+    BODY = {"ctl": 50, "atl": 60, "tsb": -10}
+
+    def test_no_ai_unless_asked(self, rider_client, db, fake_ai):
+        resp = rider_client.post("/api/dashboard/fitness-insight", json=self.BODY)
+        assert resp.status_code == 200
+        assert "Fake" not in resp.json()["insight"]
+        assert db.query(models.AIUsage).count() == 0
+
+    def test_ai_when_asked(self, rider_client, db, fake_ai):
+        resp = rider_client.post("/api/dashboard/fitness-insight", json={**self.BODY, "use_ai": True})
+        assert resp.json()["insight"].startswith("Fake")
+        assert db.query(models.AIUsage).one().feature == "fitness_insight"

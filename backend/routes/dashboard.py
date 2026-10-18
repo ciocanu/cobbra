@@ -9,7 +9,7 @@ from utils.ai_budget import HAIKU, allow_light_call, api_key, record_usage
 
 router = APIRouter()
 
-# The dashboard asks for both insights on every visit, so identical prompts are
+# Insights only call the API when the user asks (use_ai); identical prompts are
 # answered from memory instead of calling the API again.
 _CACHE_TTL_S = 12 * 3600
 _CACHE_MAX = 2000
@@ -68,6 +68,7 @@ class RideInsightRequest(BaseModel):
     avg_elevation_m: float | None = None
     avg_hr_bpm: float | None = None        # avg HR over last 4 weeks (if available)
     lang: str = "en"
+    use_ai: bool = False                   # only when the user asks (privacy policy: consent by click)
 
 
 class FitnessInsightRequest(BaseModel):
@@ -77,6 +78,7 @@ class FitnessInsightRequest(BaseModel):
     ctl_7d_ago: float | None = None
     atl_7d_ago: float | None = None
     lang: str = "en"
+    use_ai: bool = False                   # only when the user asks (privacy policy: consent by click)
 
 
 def _fallback_ride_insight(req: RideInsightRequest) -> dict:
@@ -105,6 +107,8 @@ def _fallback_fitness_insight(tsb: float, lang: str = "en") -> str:
 
 @router.post("/ride-insight")
 def get_ride_insight(req: RideInsightRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not req.use_ai:
+        return _fallback_ride_insight(req)
     lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     h = req.ride_duration_seconds // 3600
@@ -156,6 +160,8 @@ Respond with ONLY the sentence. No quotes, no period at the end unless natural."
 
 @router.post("/fitness-insight")
 def get_fitness_insight(req: FitnessInsightRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not req.use_ai:
+        return {"insight": _fallback_fitness_insight(req.tsb, req.lang)}
     lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     ctl_trend = ""

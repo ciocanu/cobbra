@@ -421,7 +421,8 @@
       "buildingDesc": "Carrying fatigue — productive overload, but keep an eye on recovery.",
       "overreaching": "Overreaching",
       "overreachingDesc": "Heavy fatigue. An easy spin or rest day will help more than another hard ride."
-    }
+    },
+    "explainWithAi": "Explain with AI"
   },
   "admin": {
     "title": "Admin Dashboard",
