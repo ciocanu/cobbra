@@ -13,9 +13,6 @@ env/
 # Tests — not needed at runtime
 tests/
 
-# One-off scripts — not needed at runtime
-scripts/
-
 # Secrets & environment
 .env
 .env.*

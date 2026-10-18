@@ -96,7 +96,8 @@ def main() -> None:
     os.environ["AI_PLANS_PER_MONTH"] = "1000"
 
     db = SessionLocal()
-    client = TestClient(app)
+    # https: production sets Secure cookies, which a client on http:// never sends back
+    client = TestClient(app, base_url="https://testserver")
     if args.reset:
         _reset(db, client)
     if db.query(models.User).filter(models.User.username == DEMO_USERNAME).first():

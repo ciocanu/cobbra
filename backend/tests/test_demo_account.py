@@ -209,6 +209,22 @@ class TestAnalysisQuota:
 
 
 class TestSeedDemo:
+    def test_works_with_production_secure_cookies(self, db, monkeypatch):
+        # Production sets COOKIE_SECURE=true; a client on http:// would never send the cookie back
+        from scripts import seed_demo
+        import routes.activities
+        import routes.auth
+
+        async def no_weather(*_args):
+            return {}
+        monkeypatch.setattr(routes.activities, "_fetch_weather", no_weather)
+        monkeypatch.setattr(routes.auth, "COOKIE_SECURE", True)
+        monkeypatch.setattr(sys, "argv", ["seed_demo.py", "--no-ai"])
+        seed_demo.main()
+
+        demo = db.query(models.User).filter_by(username="demo").one()
+        assert db.query(models.Activity).filter_by(user_id=demo.id).count() == len(seed_demo.RIDES)
+
     def test_builds_demo_with_saved_ai_results(self, db, fake_ai, monkeypatch):
         from scripts import seed_demo
         import routes.activities

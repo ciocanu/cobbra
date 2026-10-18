@@ -31,6 +31,8 @@ COPY --chown=appuser:appgroup alembic/         ./alembic/
 COPY --chown=appuser:appgroup alembic.ini      .
 COPY --chown=appuser:appgroup parsers/         ./parsers/
 COPY --chown=appuser:appgroup routes/          ./routes/
+# One-off maintenance scripts (seed_demo.py, recalculate_*), run with `exec backend python scripts/...`
+COPY --chown=appuser:appgroup scripts/         ./scripts/
 COPY --chown=appuser:appgroup utils/           ./utils/
 COPY --chown=appuser:appgroup auth.py          .
 COPY --chown=appuser:appgroup database.py      .
