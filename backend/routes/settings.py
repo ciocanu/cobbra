@@ -1,4 +1,3 @@
-import json
 import secrets
 from datetime import datetime, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -325,7 +324,6 @@ def export_my_data(db: Session = Depends(get_db), current_user=Depends(get_curre
         "note": "Raw GPS track data (latitude, longitude, heart rate per second) can be exported per-activity via the CSV or GPX export buttons on each activity page.",
     }
 
-    content = json.dumps(payload, indent=2, default=str)
     return JSONResponse(
         content=payload,
         headers={"Content-Disposition": f'attachment; filename="velostats-data-{user.username}.json"'},

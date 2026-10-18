@@ -169,7 +169,9 @@ fi
 
 # nginx resolves the backend/frontend container IPs when it (re)loads, and a recreated
 # container can come back with a different IP — reload so it doesn't proxy to the old one.
-if { in_services backend || in_services frontend; } && ! in_services nginx; then
+# Reload even when nginx was in SERVICES: `up -d` leaves an unchanged nginx container
+# running as it was (e.g. when only docker-compose.prod.yml changed), stale IPs included.
+if in_services backend || in_services frontend; then
   "${COMPOSE[@]}" exec -T nginx nginx -s reload >/dev/null 2>&1 || say "warning: nginx reload failed"
 fi
 
