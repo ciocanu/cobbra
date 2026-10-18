@@ -5,6 +5,7 @@
     python scripts/dev.py --reset                 # wipe the local dev database first
     python scripts/dev.py --import strava_Data/activities --limit 30
                                                   # also load your own .gpx/.fit(.gz) rides
+    python scripts/dev.py --demo                  # also (re)build the read-only demo account
 
 Opens http://localhost:5173 — log in as  dev / devpassword
 Ctrl+C stops everything.
@@ -251,6 +252,8 @@ def main():
     ap.add_argument("--import", dest="import_dir", metavar="DIR",
                     help="upload .gpx/.fit(.gz) files from DIR, e.g. a Strava export's activities/ folder")
     ap.add_argument("--limit", type=int, default=20, help="max files to import with --import (default 20)")
+    ap.add_argument("--demo", action="store_true",
+                    help="(re)build the read-only demo account behind 'Try the live demo' (backend/scripts/seed_demo.py)")
     args = ap.parse_args()
 
     if sys.version_info < (3, 10):
@@ -269,6 +272,10 @@ def main():
     npm = npm_cmd()
     env = backend_env()
     seed_user(py, env)
+    if args.demo:
+        log("Building the demo account (backend/scripts/seed_demo.py --reset) ...")
+        if subprocess.run([str(py), "scripts/seed_demo.py", "--reset"], cwd=BACKEND, env=env).returncode != 0:
+            die("Could not build the demo account (see error above).")
 
     # Children run in their own process group/session (so Ctrl+C reaches only us
     # and we shut them down in order). Treat termination signals like Ctrl+C so

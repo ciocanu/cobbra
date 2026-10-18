@@ -1,22 +1,11 @@
 # Cobbra — Production Deployment Guide
 
-Target: Hetzner VPS, Ubuntu 24.04, fresh install.  
+Target: any VPS with a public IP (tested on Ubuntu 24.04), fresh install.  
 Estimated time: 30–45 minutes.
 
-> **Current production layout (cobbra.app)**
->
-> | | |
-> |---|---|
-> | Access | `ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app` |
-> | Project directory | `/home/cobbra/cobbra` (Compose project `cobbra`, containers `cobbra-<service>-1`) |
-> | Code delivery | `scripts/deploy.sh` on the server pulls `main` with a read-only GitHub deploy key. See [§8](#8-updating-the-application). |
-> | GitHub access | **Already set up — don't create another key.** Deploy key `cobbra-prod` (`SHA256:7EuOhgXpZDvZZkRB8yf4hLDVLtl3sZpFQMsECQ+6Ews`), private key `/home/cobbra/.ssh/deploy_key`, used by root via `/root/.ssh/config`. Check: `ssh -T git@github.com`. |
-> | Deploy from GitHub | **Already set up.** Actions → *Deploy* workflow, secret `DEPLOY_SSH_KEY`, server key line `github-actions-deploy` in `/root/.ssh/authorized_keys` (gate-restricted). Claude sessions deploy through it. |
-> | Database | PostgreSQL in `cobbra-postgres-1` (volume `cobbra_postgres_data`) — not SQLite |
-> | TLS | `cobbra-certbot-1` renews every 12 h; `cobbra-nginx-1` reloads every 12 h ([§5.3](#53-automatic-renewal)) |
->
-> The rest of this guide describes a fresh install. Where it differs from the box above
-> (e.g. the non-root `deploy` user in §3.1), the box reflects what is actually running.
+This guide self-hosts Cobbra on one Linux server with Docker Compose: PostgreSQL, the
+FastAPI backend, the frontend, nginx with TLS, and certbot. Replace `yourdomain.com`
+and `your-server` with your own values throughout.
 
 ---
 
@@ -62,13 +51,13 @@ Point your domain's A record to the server's public IP **before** starting the d
 Let's Encrypt needs to reach the server via that domain to issue the certificate.
 
 ```
-A    cobbra.app    →    YOUR_SERVER_IP
+A    yourdomain.com    →    YOUR_SERVER_IP
 ```
 
 Verify propagation before continuing:
 
 ```bash
-dig +short cobbra.app
+dig +short yourdomain.com
 # Must return YOUR_SERVER_IP
 ```
 
@@ -80,10 +69,10 @@ All configuration is loaded from `.env.prod` at deploy time. The file is **never
 
 | Variable | Required | Description |
 |---|---|---|
-| `DOMAIN` | Yes | Public domain (`cobbra.app`). Used in nginx `server_name` and SSL cert path. |
+| `DOMAIN` | Yes | Public domain (`yourdomain.com`). Used in nginx `server_name` and SSL cert path. |
 | `SECRET_KEY` | Yes | 64-char hex string for JWT signing. Generate below. |
 | `COOKIE_SECURE` | Yes | Always `true` in production. |
-| `CORS_ORIGINS` | Yes | Comma-separated list of allowed origins, e.g. `https://cobbra.app`. |
+| `CORS_ORIGINS` | Yes | Comma-separated list of allowed origins, e.g. `https://yourdomain.com`. |
 | `ADMIN_USERNAME` | Yes | The first registered account with this username gets admin access. |
 | `APP_URL` | Yes | Base URL used in email links. No trailing slash. |
 | `POSTGRES_USER` | Yes | PostgreSQL username (internal to Docker network). |
@@ -140,12 +129,13 @@ su - deploy
 # Clone to /home/cobbra/cobbra (the directory name sets the Docker Compose project name)
 sudo mkdir -p /home/cobbra/cobbra
 sudo chown deploy:deploy /home/cobbra/cobbra
-git clone git@github.com:ciocanu/cobbra.git /home/cobbra/cobbra
+git clone https://github.com/ciocanu/cobbra.git /home/cobbra/cobbra
 cd /home/cobbra/cobbra
 ```
 
-> The repository is private: set up the server's read-only deploy key first
-> ([§8, GitHub deploy key](#github-deploy-key-already-set-up)), then clone with the SSH URL above.
+> Deploying your own private fork? Set up a read-only deploy key first
+> ([§8, GitHub deploy key](#github-deploy-key-private-repositories-only)) and clone with the SSH URL
+> (`git@github.com:<owner>/<repo>.git`) instead.
 
 ### 3.4 Create the environment file
 
@@ -167,12 +157,12 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 Minimum `.env.prod` for a functional deploy (AI and payments optional):
 
 ```env
-DOMAIN=cobbra.app
+DOMAIN=yourdomain.com
 SECRET_KEY=<generated above>
 COOKIE_SECURE=true
-CORS_ORIGINS=https://cobbra.app
+CORS_ORIGINS=https://yourdomain.com
 ADMIN_USERNAME=your_username
-APP_URL=https://cobbra.app
+APP_URL=https://yourdomain.com
 
 POSTGRES_USER=cobbra
 POSTGRES_PASSWORD=<generated above>
@@ -236,7 +226,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 
 ### 4.4 Create your admin account
 
-Open `https://cobbra.app` in a browser and register with the username you set in `ADMIN_USERNAME`. This account automatically gets admin access at `/admin`.
+Open `https://yourdomain.com` in a browser and register with the username you set in `ADMIN_USERNAME`. This account automatically gets admin access at `/admin`.
 
 ---
 
@@ -273,7 +263,7 @@ docker run --rm \
 On success you will see:
 ```
 Successfully received certificate.
-Certificate is saved at: /etc/letsencrypt/live/cobbra.app/fullchain.pem
+Certificate is saved at: /etc/letsencrypt/live/yourdomain.com/fullchain.pem
 ```
 
 The certificate is stored in the `cobbra_letsencrypt` Docker volume and will be mounted read-only by nginx.
@@ -319,7 +309,7 @@ Compare the certificate on disk with the one nginx is actually serving:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec certbot certbot certificates   # on disk
-echo | openssl s_client -connect 127.0.0.1:443 -servername cobbra.app 2>/dev/null \
+echo | openssl s_client -connect 127.0.0.1:443 -servername yourdomain.com 2>/dev/null \
   | openssl x509 -noout -dates                                                                       # served
 ```
 
@@ -335,10 +325,10 @@ If the two expiry dates differ, nginx has not reloaded — run
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 
 # Health endpoint (should return {"status": "ok"})
-curl -s https://cobbra.app/health
+curl -s https://yourdomain.com/health
 
 # Check security headers
-curl -sI https://cobbra.app | grep -E "Strict-Transport|X-Frame|Content-Security|X-Content"
+curl -sI https://yourdomain.com | grep -E "Strict-Transport|X-Frame|Content-Security|X-Content"
 
 # PostgreSQL is accepting connections
 docker compose -f docker-compose.prod.yml --env-file .env.prod \
@@ -373,7 +363,7 @@ dumps contain user emails and password hashes.
 ```bash
 cat > /home/cobbra/cobbra/backup.sh <<'EOF'
 #!/bin/bash
-# Daily PostgreSQL backup for cobbra.app. Keeps 30 days. See DEPLOY.md §7.
+# Daily PostgreSQL backup for Cobbra. Keeps 30 days. See DEPLOY.md §7.
 set -euo pipefail
 umask 077
 DIR=/home/cobbra/cobbra/backups
@@ -453,13 +443,13 @@ $C start backend                              # 5. migrations run on startup
 
 Backups on the same disk do not survive losing the server. Keep at least one copy elsewhere:
 
-- **Hetzner Cloud Backups** — Cloud Console → server → *Backups* → *Enable*
-  (+20 % of the server price). Seven daily whole-server images stored outside the
-  server's disk, including `/home/cobbra/cobbra/backups/`.
+- **Your provider's server backups** (e.g. Hetzner Cloud Backups, DigitalOcean
+  Backups) — whole-server images stored outside the server's disk, including
+  `/home/cobbra/cobbra/backups/`.
 - **Pull a dump to your machine** now and then:
-  `scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/backups/<file>.sql.gz .`
+  `scp root@your-server:/home/cobbra/cobbra/backups/<file>.sql.gz .`
 - For automated off-site dumps, `rclone`/`rsync` the backups directory to a
-  Hetzner Storage Box or object storage.
+  storage box or object storage.
 
 ---
 
@@ -470,7 +460,7 @@ Backups on the same disk do not survive losing the server. Keep at least one cop
 Push to `main`, then from your machine:
 
 ```bash
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
+ssh root@your-server /home/cobbra/cobbra/scripts/deploy.sh
 ```
 
 `scripts/deploy.sh`:
@@ -517,12 +507,16 @@ How it reaches the server, and why that's safe:
   `restrict,command="/home/cobbra/cobbra/scripts/deploy-ssh-gate.sh"`: no shell, no
   forwarding, and the gate only accepts `deploy`, `dry-run` or `rollback`. A leaked key can
   at most redeploy `main` or roll back.
-- The workflow pins the server's SSH host key (`SHA256:4WVVk1/XYLNv/Fbwk6Lt4qCNCvVqf6acU5bBrZD8EY8`)
+- The workflow pins the server's SSH host key (repository variable `DEPLOY_HOST_KEY`)
   and refuses to connect to anything else.
 
-**Status: set up and verified on 2026-10-17** (secret `DEPLOY_SSH_KEY` exists; the server
-line ends in `github-actions-deploy`). Don't repeat this unless the key is revoked or the
-server is reinstalled.
+The workflow reads three repository settings (**Settings → Secrets and variables → Actions**):
+
+| Name | Kind | Value |
+|---|---|---|
+| `DEPLOY_SSH_KEY` | secret | the private key created below |
+| `DEPLOY_HOST` | variable | your server's hostname, e.g. `yourdomain.com` |
+| `DEPLOY_HOST_KEY` | variable | the server's ed25519 host key fingerprint: run `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server and copy the `SHA256:...` part |
 
 Setup: on the server, create the key, authorize it for the gate only, and print
 the private half:
@@ -560,36 +554,18 @@ schema, revert the migration first:
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend alembic downgrade -1
 ```
 
-### GitHub deploy key (already set up)
+### GitHub deploy key (private repositories only)
 
-The repository is private, so the server reads it with its own deploy key. **This is
-already in place — don't create another one:**
-
-| | |
-|---|---|
-| GitHub | repository → Settings → Deploy keys → **`cobbra-prod`** |
-| Fingerprint | `SHA256:7EuOhgXpZDvZZkRB8yf4hLDVLtl3sZpFQMsECQ+6Ews` |
-| Private key | `/home/cobbra/.ssh/deploy_key` (in the `cobbra` user's home) |
-| Used by root via | `/root/.ssh/config` → `Host github.com` / `IdentityFile /home/cobbra/.ssh/deploy_key` / `IdentitiesOnly yes` |
-
-Check it works:
+A public repository can be cloned and fetched over HTTPS with no key. If your copy is
+private, give the server a read-only deploy key: it grants access to this repository
+only, and read-only means a compromised server can't change the code.
 
 ```bash
-ssh -T git@github.com     # "Hi ciocanu/cobbra! You've successfully authenticated ..."
-```
-
-To match a key file to the one on GitHub, compare fingerprints:
-`ssh-keygen -lf /home/cobbra/.ssh/deploy_key`.
-
-**Only if the server is reinstalled** (or the key is lost), create a new one and add its
-public half on GitHub with *Allow write access* unchecked — a deploy key grants access to
-this repository only, and read-only means a compromised server can't change the code:
-
-```bash
-ssh-keygen -t ed25519 -N "" -C "cobbra-prod (read-only deploy key)" -f /root/.ssh/cobbra_github_deploy
+ssh-keygen -t ed25519 -N "" -C "cobbra read-only deploy key" -f /root/.ssh/cobbra_github_deploy
 printf 'Host github.com\n  IdentityFile /root/.ssh/cobbra_github_deploy\n  IdentitiesOnly yes\n' >> /root/.ssh/config
 chmod 600 /root/.ssh/config
-cat /root/.ssh/cobbra_github_deploy.pub     # paste into Settings → Deploy keys → Add deploy key
+cat /root/.ssh/cobbra_github_deploy.pub     # paste into Settings → Deploy keys → Add deploy key (leave "Allow write access" unchecked)
+ssh -T git@github.com                        # "Hi <owner>/<repo>! You've successfully authenticated ..."
 ```
 
 ### Manual service commands (reference)
@@ -622,7 +598,7 @@ Check before renewing anything:
 
 ```bash
 docker exec cobbra-certbot-1 certbot certificates            # expiry on disk
-echo | openssl s_client -connect 127.0.0.1:443 -servername cobbra.app 2>/dev/null \
+echo | openssl s_client -connect 127.0.0.1:443 -servername yourdomain.com 2>/dev/null \
   | openssl x509 -noout -dates                                # expiry nginx serves
 ```
 
@@ -631,7 +607,7 @@ echo | openssl s_client -connect 127.0.0.1:443 -servername cobbra.app 2>/dev/nul
 - **Disk is expired too** → renewal is failing. Run
   `docker exec cobbra-certbot-1 certbot renew` and read the error before changing
   anything; the usual cause is the HTTP-01 challenge on port 80 being unreachable
-  (Hetzner firewall, or nginx not serving `/.well-known/acme-challenge/`).
+  (cloud firewall, or nginx not serving `/.well-known/acme-challenge/`).
 
 ### Maps show an "API KEY REQUIRED" watermark
 
@@ -749,19 +725,19 @@ Run through this checklist after every fresh deploy and every major update.
 - [ ] `SECRET_KEY` is a random 64-char hex value (not the example placeholder)
 - [ ] `POSTGRES_PASSWORD` is a strong random value
 - [ ] `.env.prod` file permissions are `600` (`ls -la .env.prod`)
-- [ ] `CORS_ORIGINS` contains only `https://cobbra.app` — no `localhost` entries
+- [ ] `CORS_ORIGINS` contains only `https://yourdomain.com` — no `localhost` entries
 - [ ] Stripe keys are `sk_live_...` (not `sk_test_...`) in production
-- [ ] API docs are not accessible: `curl -s https://cobbra.app/api/docs` returns 404
+- [ ] API docs are not accessible: `curl -s https://yourdomain.com/api/docs` returns 404
 
 ### TLS
 
-- [ ] HTTPS redirects correctly: `curl -sI http://cobbra.app` returns `301 → https://`
+- [ ] HTTPS redirects correctly: `curl -sI http://yourdomain.com` returns `301 → https://`
 - [ ] Certificate is valid and not expiring soon:
   ```bash
   docker compose -f docker-compose.prod.yml --env-file .env.prod \
     exec nginx sh -c "openssl x509 -enddate -noout -in /etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
   ```
-- [ ] HSTS header is present: `curl -sI https://cobbra.app | grep Strict-Transport`
+- [ ] HSTS header is present: `curl -sI https://yourdomain.com | grep Strict-Transport`
 - [ ] SSL rating is A or A+ at [ssllabs.com/ssltest](https://www.ssllabs.com/ssltest/)
 
 ### Backups
@@ -772,5 +748,5 @@ Run through this checklist after every fresh deploy and every major update.
 
 ### Monitoring (recommended)
 
-- [ ] Set up uptime monitoring (e.g. [UptimeRobot](https://uptimerobot.com), free tier) on `https://cobbra.app/health`
+- [ ] Set up uptime monitoring (e.g. [UptimeRobot](https://uptimerobot.com), free tier) on `https://yourdomain.com/health`
 - [ ] Configure disk usage alerts — PostgreSQL data grows over time

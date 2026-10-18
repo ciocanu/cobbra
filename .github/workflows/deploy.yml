@@ -27,10 +27,15 @@ jobs:
     steps:
       - name: Pin the server's SSH host key
         # Refuse to connect if the server's identity isn't the one we know.
+        # Repository variables (DEPLOY.md §8): DEPLOY_HOST and its ed25519 key fingerprint.
         env:
-          HOST: cobbra.app
-          FINGERPRINT: SHA256:4WVVk1/XYLNv/Fbwk6Lt4qCNCvVqf6acU5bBrZD8EY8
+          HOST: ${{ vars.DEPLOY_HOST }}
+          FINGERPRINT: ${{ vars.DEPLOY_HOST_KEY }}
         run: |
+          if [ -z "$HOST" ] || [ -z "$FINGERPRINT" ]; then
+            echo "::error::Set the repository variables DEPLOY_HOST and DEPLOY_HOST_KEY (DEPLOY.md §8)."
+            exit 1
+          fi
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           ssh-keyscan -t ed25519 "$HOST" > ~/.ssh/known_hosts 2>/dev/null
           seen="$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')"
@@ -45,6 +50,7 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           ACTION: ${{ inputs.action }}
+          HOST: ${{ vars.DEPLOY_HOST }}
         run: |
           if [ -z "$SSH_KEY" ]; then
             echo "::error::Repository secret DEPLOY_SSH_KEY is not set (DEPLOY.md §8)."
@@ -53,4 +59,4 @@ jobs:
           install -m 600 /dev/null ~/.ssh/deploy_key
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
-              -o ServerAliveInterval=30 root@cobbra.app "$ACTION"
+              -o ServerAliveInterval=30 "root@$HOST" "$ACTION"

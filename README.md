@@ -1,387 +1,279 @@
-# Cobbra — Self-Hosted Cycling Tracker
+# Cobbra
 
-A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track fitness over time, and get AI-generated training plans — all on your own infrastructure.
+**Cycling analytics you can run yourself.** Upload `.gpx` and `.fit` rides and get power,
+heart-rate and training-load analysis, segments, personal records, and an AI coach, with no
+social feed and no ads.
 
----
+[![CI](https://github.com/ciocanu/cobbra/actions/workflows/ci.yml/badge.svg)](https://github.com/ciocanu/cobbra/actions/workflows/ci.yml)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE.md)
 
-## Features
+**Try it first:** a hosted instance runs at **[cobbra.app](https://cobbra.app)**. Click
+**Try the live demo** to explore a read-only account with sample rides and saved AI analyses,
+no sign-up needed. Or create a free account and upload your own rides.
 
-### Core
-- Unlimited `.gpx` / `.fit` activity uploads (Cycplus, Garmin, Wahoo, etc.)
-- Metrics: distance, speed, cadence, heart rate, elevation, calories, suffer score, hrTSS
-- Interactive map per activity (dark CARTO tiles)
-- Speed / HR / cadence / elevation / power charts per ride
-- HR zones (Coggan or Karvonen/HRR when resting HR is set)
-- Cadence zones
-- Best efforts (400 m → 40 km sliding window)
-- 1 km splits table
-- Lap breakdown (FIT files)
-- Monthly distance dashboard with fitness trend (CTL/ATL/TSB)
-- Personal records (400 m, 1 km, 5 km, 10 km, 20 km, 40 km)
-- Activity heatmap
-- Weekly goals (distance + elevation)
-- Custom segments with effort tracking and PRs
-- Side-by-side activity comparison
-- Activity notes (with AI content moderation)
-- Ride environment detection (indoor/outdoor)
-- Climb detection with VAM and estimated power
-- Durability analysis (late-ride power/HR fade)
-- Hydration analysis and sweat rate tracking
-- HR settings: max HR (manual or Tanaka estimate), resting HR, weight
-- Auto-recalculation of suffer score and hrTSS when HR settings change
-- PT-PT / EN language switcher (auto-detects browser language)
-- Contact form with anti-spam protection
-
-### AI (needs `ANTHROPIC_API_KEY`)
-- AI ride analysis (Claude Haiku, streaming, language-aware)
-- One-line ride and fitness insights on the dashboard (Claude Haiku, cached)
-- AI-generated 4-week training plans (Claude Sonnet, language-aware)
-- Spend control: every call's token cost is recorded; monthly quotas per account
-  (`AI_ANALYSES_PER_MONTH`, `AI_PLANS_PER_MONTH`) and a site-wide monthly budget
-  (`AI_MONTHLY_BUDGET_USD`) after which AI switches off until the next month
-
-### Also
-- CSV and GPX export
-- Strava activity import
-- "Try the demo": a shared read-only account with sample rides and saved AI results
-  (see [Demo account](#demo-account))
-
-### Paid plans (optional, off by default)
-Every account gets every feature. Setting `PAYMENTS_ENABLED=true` turns the old
-Free / Pro / Annual / Lifetime plans and the Stripe checkout back on
-(see [Stripe setup](#stripe-setup)).
-
-### Admin panel
-- User management (view, change membership, delete)
-- Send lifetime offer email links (48 h expiry)
-- Segment management (rename, transfer, delete)
-- System stats
+![Cobbra dashboard](docs/screenshots/dashboard.png)
 
 ---
 
-## Stack
+## Why I built this
 
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI + SQLAlchemy + PostgreSQL (prod) / SQLite (dev) |
-| File parsing | gpxpy, fitparse |
-| Auth | httpOnly cookie JWT, SHA-256-crypt passwords |
-| AI | Anthropic Claude (Haiku for analysis/moderation, Sonnet for plans + dashboard) |
-| Payments | Stripe (subscriptions + one-time) |
-| Email | SMTP via Gmail App Password |
-| Frontend | React 18 + Vite + Recharts + React-Leaflet |
-| i18n | i18next + i18next-browser-languagedetector (PT-PT / EN) |
-| Maps | OpenStreetMap / CARTO (no API key) |
-| Deploy | Docker + Docker Compose + Nginx |
+I use Strava, but most of the analysis I wanted sat behind a subscription. I wanted to
+understand my own numbers: what I'm already good at, where I can improve, and what metrics
+like normalized power, training stress or aerobic decoupling actually say about my riding.
 
----
+So I built my own, using AI coding tools to move faster, and put an AI coach inside it:
+Claude reads each ride's metrics and explains in plain language what they mean and what to
+work on next.
 
-## Quick start (local development)
-
-### One command
-
-```bash
-python scripts/dev.py          # Windows: python or py
-```
-
-Needs Python 3.10+ and Node 18+. On the first run it creates the backend venv and installs
-the npm packages (later runs skip this unless `requirements.txt` / `package-lock.json` change). Then it:
-
-- uses a local SQLite database at `backend/data/dev.db` (git-ignored — never production)
-- creates an admin test account **`dev` / `devpassword`** with a complete profile, so onboarding is skipped
-- uploads a synthetic sample ride if the account has none
-- starts the backend on `:8000` and the frontend on **http://localhost:5173** — Ctrl+C stops both
-
-| Option | |
-|---|---|
-| `--reset` | wipe the local database first |
-| `--import DIR` | upload your own `.gpx`/`.fit` files (`.gz` from a Strava export works), e.g. `--import strava_Data/activities --limit 30`. Only FIT files carry power, so the Power tab needs FIT rides. |
-
-Keys in `backend/.env` (e.g. `ANTHROPIC_API_KEY`) are still used; the database, secret and
-cookie settings are always overridden with local-only values. With the app running, browser
-tooling such as Playwright can log in as `dev` / `devpassword` to check UI changes.
-
-Prefer to run each piece yourself? Follow the manual steps below.
-
-### 1. Clone
-
-```bash
-git clone git@github.com:ciocanu/cobbra.git
-cd cobbra
-```
-
-### 2. Backend `.env`
-
-Create `backend/.env`:
-
-```env
-# PostgreSQL for production, SQLite for local dev
-DATABASE_URL=sqlite:///./data/cycling.db
-
-# Generate: python -c "import secrets; print(secrets.token_hex(32))"
-SECRET_KEY=replace-with-secure-random-value
-
-COOKIE_SECURE=false
-CORS_ORIGINS=http://localhost:5173,http://localhost
-ADMIN_USERNAME=your_username_here
-
-# Email (Gmail App Password)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_gmail@gmail.com
-SMTP_PASSWORD=xxxx xxxx xxxx xxxx
-SMTP_FROM=Cobbra <your_gmail@gmail.com>
-APP_URL=http://localhost:5173
-
-# Stripe — only with PAYMENTS_ENABLED=true
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_PRO=price_...
-STRIPE_PRICE_ANNUAL=price_...
-STRIPE_PRICE_LIFETIME=price_...
-
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### 3. Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/Scripts/activate   # Windows bash; or: source venv/bin/activate on Linux/Mac
-pip install -r requirements.txt
-mkdir data
-uvicorn main:app --reload --port 8000
-```
-
-Tables are created automatically on first start. No migration tool needed — schema changes are handled by a startup migration block in `main.py`.
-
-### 4. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-App at **http://localhost:5173**.
-
-### 5. First launch
-
-1. Register with the username set in `ADMIN_USERNAME`
-2. Admin panel at `/admin`
-3. Upload a `.gpx` or `.fit` file
+It started in May 2026 as a hosted product. The code is now public so anyone can run it,
+read it and suggest improvements, and [cobbra.app](https://cobbra.app) stays up for anyone
+who wants to try it.
 
 ---
 
-## Production deploy (cobbra.app)
+## Contents
 
-The live instance runs on a Hetzner VPS at **cobbra.app**. Docker is only on the server — not locally.
-The server pulls `main` from GitHub with a deploy key that is **already set up**
-(`cobbra-prod`, `/home/cobbra/.ssh/deploy_key` — details in DEPLOY.md §8; don't create another).
+- [Why I built this](#why-i-built-this)
+- [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [Run it on your own computer](#run-it-on-your-own-computer)
+- [Self-host it on a server](#self-host-it-on-a-server)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [Tests](#tests)
+- [Suggestions and contributions](#suggestions-and-contributions)
+- [License](#license)
 
-### SSH access
+---
 
-```bash
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app        # PowerShell: -i $HOME\.ssh\cobbra_hetzner
-```
+## What it does
 
-Project lives at `/home/cobbra/cobbra/` on the server.
+**Rides**
+- Upload `.gpx` and `.fit` files from Garmin, Wahoo, Strava exports, Cycplus and others, or
+  import from Strava
+- Per-ride charts for speed, heart rate, cadence, power and elevation, with an interactive map
+- Power: normalized power, intensity factor, TSS, W/kg, estimated FTP, critical power and W′
+- Heart rate: zones (Coggan, or Karvonen when resting HR is set), hrTSS (heat-corrected),
+  aerobic decoupling, VAM
+- Climb detection with estimated climbing power, 1 km splits, laps (FIT)
+- Indoor/outdoor detection, durability (late-ride power or HR fade), hydration and sweat
+  estimates, with on-bike temperature taken from the device when available
+- Weather at ride start from Open-Meteo
 
-### Deploy
+**Progress**
+- Fitness, fatigue and form (CTL / ATL / TSB) with weekly load
+- Personal records from 400 m to 40 km, custom segments with efforts and PRs
+- Weekly and monthly goals, activity heatmap, side-by-side ride comparison
+- CSV and GPX export, full data export and account deletion
 
-Push to `main`, then:
+**AI coach** (optional, needs an Anthropic API key)
+- Coach-style analysis of each ride, streamed as it is written
+- 4-week training plans built from your ride history and available days
+- One-line ride and fitness insights on the dashboard
 
-```bash
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
-```
-
-Or without SSH: GitHub → **Actions → Deploy → Run workflow** (this is also how Claude Code
-sessions deploy). Both run the same script — see DEPLOY.md §8.
-
-`scripts/deploy.sh` fetches `origin/main`, rebuilds only the services whose files changed
-(`backend/`, `frontend/`, `nginx/`, `docker-compose.prod.yml`), tests the nginx config before
-swapping it, and checks that `https://cobbra.app` answers afterwards. Postgres is never touched.
-If a build fails, nothing running is changed.
+**Everything else**
+- English and European Portuguese
+- Self-hostable with Docker Compose, PostgreSQL in production, SQLite locally
 
 | | |
 |---|---|
-| `deploy.sh --dry-run` | show the commits and services that would be deployed |
-| `deploy.sh --rollback` | return to the commit that was live before the last deploy |
+| ![Landing page](docs/screenshots/landing.png) | ![Power analysis](docs/screenshots/power.png) |
+| ![Heart-rate analysis](docs/screenshots/heart-rate.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
-> **Don't edit code on the server.** The script refuses to deploy while tracked files have
-> local changes, so a hotfix there blocks deploys until it is committed to the repo.
+---
 
-> **`.env.prod` is not in git**, so changing it doesn't trigger anything. After editing it,
-> rebuild what reads it — `VITE_*` values are baked into the frontend at build time:
-> `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build frontend`
+## How it works
 
-> **Always pass `--env-file .env.prod`** to manual `docker compose` commands — without it Docker
-> recreates postgres with empty env vars and the backend fails to start. **Never use
-> `docker compose restart`** to pick up code changes; it reuses the old image.
+```
+Browser ── React + Vite SPA ──► nginx ──► FastAPI backend ──► PostgreSQL (SQLite locally)
+                                            │
+                                            ├─ Open-Meteo        weather at ride start
+                                            ├─ Anthropic API     AI analysis, plans, insights (optional)
+                                            └─ Strava API        activity import (optional)
+```
 
-### Useful server commands
+**Upload pipeline.** When a ride is uploaded, the backend:
+
+1. parses it (`backend/parsers/`): `gpxpy` for GPX, reading heart rate, cadence, power and
+   temperature from the Garmin and Strava extension formats, and `fitparse` for FIT;
+2. rejects duplicates by file hash, and by date, duration and distance for the same ride in
+   another format;
+3. computes the ride summary, suffer score, normalized power and TSS (or heat-corrected hrTSS
+   without a power meter), personal records and segment efforts, and fetches the weather;
+4. runs the slower analyses (indoor detection, hydration, durability, decoupling, climbs) in a
+   background task, so the upload returns immediately.
+
+The metrics live in plain Python modules under `backend/utils/`, each with its own tests.
+
+**AI layer.** Each Claude call records its token usage and cost (`backend/utils/ai_budget.py`).
+Ride analyses and training plans have a monthly quota per account; dashboard insights are
+cached and capped per day; and once the instance's monthly AI budget is spent, AI switches off
+for everyone until the next month while the rest of the app keeps working. Without an API
+key the app runs fully, minus the AI features.
+
+**Accounts.** Sessions are an httpOnly cookie with a signed token that can be revoked. Login,
+registration and uploads are rate-limited. The demo account is read-only: every write from it
+is refused centrally, in `get_current_user`.
+
+**Paid plans** are off by default and every account gets every feature. The original Stripe
+integration is still in the code behind `PAYMENTS_ENABLED=true`.
+
+---
+
+## Run it on your own computer
+
+You need **Python 3.10+**, **Node.js 18+** and **git**. One command sets up and starts
+everything:
 
 ```bash
-# Container status
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app \
-  "docker compose -f /home/cobbra/cobbra/docker-compose.prod.yml ps"
-
-# Backend logs
-ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app "docker logs cobbra-backend-1 --tail 50"
-
-# Backup DB (production is PostgreSQL — data/cycling.db is NOT the live database).
-# A cron job already runs this daily at 03:17 UTC (see DEPLOY.md §7).
-# 1. on the server, take one now:
-/home/cobbra/cobbra/backup.sh
-# 2. locally, copy it off the server:
-scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/backups/cobbra_YYYYMMDD_HHMMSS.sql.gz .
+git clone https://github.com/ciocanu/cobbra.git
+cd cobbra
+python scripts/dev.py
 ```
 
----
+Then open **http://localhost:5173** and sign in as **`dev` / `devpassword`**.
 
-## Demo account
+On the first run, `scripts/dev.py`:
+- creates a virtual environment in `backend/.venv` and installs the backend packages;
+- installs the frontend packages;
+- creates a local SQLite database in `backend/data/dev.db`, the `dev` account, and a sample
+  ride with heart rate, cadence, power and temperature;
+- starts the backend on port 8000 and the frontend on port 5173. **Ctrl+C** stops both.
 
-`scripts/seed_demo.py` creates the shared read-only account behind the "Try the live demo"
-button: six synthetic rides uploaded through the real upload path, a weekly goal, and (with
-`ANTHROPIC_API_KEY` set) a saved AI analysis for each ride plus one training plan. Visitors
-only read those saved results, so the demo costs nothing per visit. Writes from the demo
-account are refused in `get_current_user`.
+It uses only the Python standard library, so it runs before any packages are installed, on
+Linux, macOS and Windows. Useful options:
 
 ```bash
-# local (from backend/)
-python scripts/seed_demo.py --reset
-# production
-docker compose -f docker-compose.prod.yml exec backend python scripts/seed_demo.py --reset
+python scripts/dev.py --reset                                   # start over with an empty database
+python scripts/dev.py --import ~/Downloads/strava_export/activities --limit 30
+                                                                # load your own .gpx/.fit(.gz) rides
 ```
 
-Ride dates are relative to the day you run it; re-run with `--reset` every few weeks to keep
-the dashboard current. `--no-ai` skips the API calls.
+To import your Strava history, request your archive in Strava (*Settings → My Account →
+Download or Delete Your Account*) and point `--import` at its `activities/` folder.
 
----
+**AI features locally:** put your key in `backend/.env` and restart:
 
-## Stripe setup
-
-Only needed with `PAYMENTS_ENABLED=true`. In **dashboard.stripe.com/products**, create three products:
-
-| Product | Price | Billing | Env var |
-|---|---|---|---|
-| Cobbra Pro | €7.00 | Monthly | `STRIPE_PRICE_PRO` |
-| Cobbra Annual | €49.00 | Yearly | `STRIPE_PRICE_ANNUAL` |
-| Cobbra Lifetime | €129.00 | One-time | `STRIPE_PRICE_LIFETIME` |
-
-Webhook at `https://cobbra.app/api/payments/webhook`, events: `checkout.session.completed`, `invoice.payment_succeeded`, `customer.subscription.deleted`.
-
-Local testing:
 ```bash
-stripe listen --forward-to localhost:8000/api/payments/webhook
+ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+**The demo account locally:** `python scripts/dev.py --demo` also builds the read-only demo
+behind the **Try the live demo** button. With an API key set, it saves an AI analysis for each
+sample ride and one training plan.
 
 ---
 
-## Project structure
+## Self-host it on a server
 
+Production runs as Docker Compose services: PostgreSQL, the backend, the frontend, nginx with
+HTTPS, and certbot to renew the certificate. All you need is a Linux server with Docker, a
+domain pointing at it, and about half an hour.
+
+```bash
+git clone https://github.com/ciocanu/cobbra.git /home/cobbra/cobbra
+cd /home/cobbra/cobbra
+cp .env.prod.example .env.prod        # fill in your domain, secrets and keys
 ```
-cobbra/
-├── backend/
-│   ├── main.py                  # FastAPI entry + startup DB migrations
-│   ├── models.py                # SQLAlchemy models
-│   ├── schemas.py               # Pydantic response schemas
-│   ├── database.py              # DB session + SessionLocal
-│   ├── auth.py                  # JWT cookie auth
-│   ├── email_service.py         # SMTP (verification + lifetime offer)
-│   ├── utils.py                 # suffer score, TSS, PRs, segment matching
-│   ├── parsers/
-│   │   ├── gpx_parser.py
-│   │   └── fit_parser.py
-│   ├── routes/
-│   │   ├── activities.py        # Upload, list, detail, export
-│   │   ├── analysis.py          # AI ride analysis stream
-│   │   ├── admin.py             # Admin-only endpoints
-│   │   ├── auth.py              # Login, register, me
-│   │   ├── climbs.py            # Climb detection
-│   │   ├── contact.py           # Contact form
-│   │   ├── dashboard.py         # AI fitness + ride insight
-│   │   ├── durability.py        # Late-ride fade analysis
-│   │   ├── goals.py             # Weekly goals
-│   │   ├── heatmap.py           # All-rides heatmap
-│   │   ├── hydration.py         # Sweat rate + hydration recommendations
-│   │   ├── indoor_outdoor.py    # Ride environment detection
-│   │   ├── payments.py          # Stripe checkout + webhook
-│   │   ├── records.py           # Personal records
-│   │   ├── segments.py          # Segment create, match, leaderboard
-│   │   ├── settings.py          # HR settings, password, email, GDPR export
-│   │   ├── stats.py             # CTL/ATL/TSB, weekly load, year summary
-│   │   ├── strava.py            # Strava OAuth import
-│   │   └── training.py          # AI training plan
-│   ├── tests/
-│   │   └── test_hydration.py
-│   ├── requirements.txt
-│   └── .env                     # Secrets (not committed)
-├── frontend/
-│   └── src/
-│       ├── App.jsx
-│       ├── i18n.js              # i18next setup (PT-PT / EN)
-│       ├── components/
-│       │   ├── Layout.jsx
-│       │   ├── Dashboard.jsx
-│       │   ├── ActivityList.jsx
-│       │   ├── ActivityDetail.jsx
-│       │   ├── Upload.jsx
-│       │   ├── PersonalRecords.jsx
-│       │   ├── Heatmap.jsx
-│       │   ├── Goals.jsx
-│       │   ├── Segments.jsx
-│       │   ├── Compare.jsx
-│       │   ├── Training.jsx
-│       │   ├── Settings.jsx
-│       │   ├── Admin.jsx
-│       │   ├── Landing.jsx
-│       │   ├── Login.jsx
-│       │   ├── Contact.jsx
-│       │   ├── Onboarding.jsx
-│       │   ├── LifetimeOffer.jsx
-│       │   ├── VerifyEmail.jsx
-│       │   ├── PrivacyPolicy.jsx
-│       │   ├── TermsOfService.jsx
-│       │   ├── LanguageSwitcher.jsx
-│       │   ├── InfoTip.jsx
-│       │   └── StravaCallback.jsx
-│       ├── locales/
-│       │   ├── en.json          # English translations
-│       │   └── pt.json          # European Portuguese (PT-PT)
-│       └── services/
-│           ├── api.js
-│           └── auth.js
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # Backend tests + frontend build on every push
-├── docker-compose.yml
-├── docker-compose.prod.yml
-└── README.md
-```
+
+**[DEPLOY.md](DEPLOY.md)** walks through the rest: firewall, the TLS certificate, first start,
+creating the admin account, daily database backups, and one-command updates with
+`scripts/deploy.sh`. That script rebuilds only what changed, backs up the database before
+migrations, and can roll back.
+
+For a public demo on your own instance, run
+`docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend python scripts/seed_demo.py`.
+Ride dates are relative to the day it runs, so add `--reset` every few weeks to keep it current.
 
 ---
 
-## Environment variable reference
+## Configuration
 
-| Variable | Required | Description |
+All settings are environment variables: `backend/.env` locally, `.env.prod` on a server. See
+[`.env.prod.example`](.env.prod.example) for a commented template.
+
+| Variable | Required | What it does |
 |---|---|---|
-| `SECRET_KEY` | Yes | JWT signing key |
-| `DATABASE_URL` | Yes | PostgreSQL (prod) or SQLite (dev) |
-| `COOKIE_SECURE` | Yes | `false` locally, `true` on HTTPS |
-| `CORS_ORIGINS` | Yes | Comma-separated allowed origins |
-| `ADMIN_USERNAME` | Yes | Username that gets admin access |
-| `ANTHROPIC_API_KEY` | No | AI analysis, training plans, dashboard insights, note moderation |
-| `AI_MONTHLY_BUDGET_USD` | No | Site-wide monthly AI spend cap, default `10` (`0` = no cap) |
-| `AI_ANALYSES_PER_MONTH` | No | AI ride analyses per account per month, default `5` |
-| `AI_PLANS_PER_MONTH` | No | AI training plans per account per month, default `1` |
-| `PAYMENTS_ENABLED` | No | `true` turns paid plans and Stripe on; default off |
-| `SMTP_HOST/PORT/USER/PASSWORD/FROM` | No | Email (verification, lifetime offer) |
-| `APP_URL` | No | Base URL used in email links |
-| `STRIPE_SECRET_KEY` | No | Stripe checkout (with `PAYMENTS_ENABLED=true`) |
-| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook validation |
-| `STRIPE_PRICE_PRO` | No | Price ID for Pro monthly |
-| `STRIPE_PRICE_ANNUAL` | No | Price ID for Annual |
-| `STRIPE_PRICE_LIFETIME` | No | Price ID for Lifetime one-time |
+| `SECRET_KEY` | yes | Signs session tokens. Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `DATABASE_URL` | yes | `postgresql+psycopg2://…` in production, `sqlite:///…` locally |
+| `COOKIE_SECURE` | yes | `true` behind HTTPS, `false` locally |
+| `CORS_ORIGINS` | yes | Comma-separated allowed origins, e.g. `https://yourdomain.com` |
+| `ADMIN_USERNAME` | recommended | The account with this username gets the admin panel |
+| `APP_URL` | recommended | Base URL used in email links |
+| `ANTHROPIC_API_KEY` | no | Turns on the AI coach, insights and note moderation |
+| `AI_MONTHLY_BUDGET_USD` | no | Monthly AI spend cap for the whole instance (default `10`, `0` = no cap) |
+| `AI_ANALYSES_PER_MONTH` | no | AI ride analyses per account per month (default `5`) |
+| `AI_PLANS_PER_MONTH` | no | AI training plans per account per month (default `1`) |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` / `STRAVA_REDIRECT_URI` | no | Strava import ([create an API app](https://www.strava.com/settings/api)) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | no | Email verification and the contact form |
+| `CONTACT_EMAIL` | no | Where contact-form messages are sent |
+| `VITE_CARTO_KEY` | no | CARTO basemap key for the maps (built into the frontend) |
+| `LOG_LEVEL` | no | Backend log level (default `INFO`) |
+| `PAYMENTS_ENABLED` | no | `true` turns the paid plans and Stripe back on (default off) |
+| `STRIPE_*` | no | Only with `PAYMENTS_ENABLED=true`: secret key, webhook secret and three price IDs |
+
+---
+
+## Project layout
+
+```
+backend/                 FastAPI app
+  main.py                app setup, routers, /api/config
+  models.py, schemas.py  SQLAlchemy models, Pydantic schemas
+  alembic/               database migrations (run automatically on startup)
+  parsers/               GPX and FIT parsing
+  routes/                API endpoints, one module per area
+  utils/                 metrics and analyses (power, HR, durability, hydration, climbs …),
+                         AI budget and quotas, rate limiting
+  scripts/               seed_demo.py, sample ride generator, recalculation scripts
+  tests/                 pytest suite
+frontend/                React 18 + Vite SPA
+  src/components/        pages and UI
+  src/services/          API client, React Query hooks
+  src/locales/           English and Portuguese strings
+nginx/                   reverse proxy and TLS config for production
+scripts/                 dev.py (local run), deploy.sh (server updates)
+docker-compose.prod.yml  production stack
+DEPLOY.md                self-hosting guide
+DESIGN.md                design system
+```
+
+---
+
+## Tests
+
+```bash
+cd backend
+.venv/bin/pip install pytest        # once: dev.py installs only what the app needs
+.venv/bin/python -m pytest          # on Windows: .venv\Scripts\python -m pytest
+```
+
+The backend suite has about 740 tests. They cover the metrics, the GPX parser, AI quotas and
+budget (with a fake Anthropic client, so no API calls), the demo account and account deletion.
+CI runs them plus a frontend build on every push.
+
+---
+
+## Suggestions and contributions
+
+**Suggestions are very welcome.** If something is missing, wrong, or could be better, a
+metric you'd like to see, a file that doesn't parse, an idea for the AI coach, please
+[open an issue](https://github.com/ciocanu/cobbra/issues). Bug reports are most useful with
+the steps to reproduce, and if it's about a ride file, a sample (trimmed, or with the GPS
+removed, if you prefer).
+
+Pull requests are welcome too. For anything larger than a small fix, open an issue first so we
+can agree on the approach. Please run the backend tests and `npm run build` in `frontend/`
+before submitting. Contributions are accepted under the same license as the project.
+
+---
+
+## License
+
+Cobbra is **source-available** under the
+**[PolyForm Noncommercial License 1.0.0](LICENSE.md)**. You may use, run, study and modify it
+for any noncommercial purpose: personal use, research, education, and charitable or public
+organizations. Commercial use, including offering it as a paid service, is not permitted. This
+is not an OSI open-source license, because it restricts commercial use.
+
+The Cobbra name and logo are not covered by the license.

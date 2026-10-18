@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy the latest main to production. Run ON THE SERVER, e.g. from your machine:
 #
-#   ssh -i ~/.ssh/cobbra_hetzner root@cobbra.app /home/cobbra/cobbra/scripts/deploy.sh
+#   ssh root@your-server /home/cobbra/cobbra/scripts/deploy.sh
 #
 #   deploy.sh              fetch origin/main, rebuild only the services whose files changed
 #   deploy.sh --dry-run    show what would be deployed, change nothing

@@ -58,7 +58,7 @@ export default function TermsOfService() {
 
       <SECTION title="5. Intellectual Property">
         <P>Your activity data belongs to you. You grant us a limited licence to process and store it for the purpose of delivering the service.</P>
-        <P>Cobbra's source code is published under an open-source licence; the licence in the project's repository sets what you may do with the code. The Cobbra name and logo are not covered by that licence.</P>
+        <P>Cobbra's source code is published under the PolyForm Noncommercial License 1.0.0: you may use, run and modify it for noncommercial purposes, as set out in the licence in the project's repository. The Cobbra name and logo are not covered by that licence.</P>
       </SECTION>
 
       {paymentsOn ? (
