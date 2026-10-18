@@ -183,6 +183,12 @@ class TestAnalysisQuota:
         assert rider_client.get(f"/api/activities/{ids[2]}/analysis").status_code == 429
         quota = rider_client.get("/api/auth/ai-quota").json()
         assert quota["features"]["analysis"] == {"used": 2, "limit": 2}
+        assert quota["available"] is True and quota["reason"] is None
+
+    def test_quota_reports_why_ai_is_off(self, rider_client, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        quota = rider_client.get("/api/auth/ai-quota").json()
+        assert quota["available"] is False and quota["reason"] == "not_configured"
 
     def test_regenerating_counts_against_quota(self, rider_client, db, fake_ai, monkeypatch):
         monkeypatch.setenv("AI_ANALYSES_PER_MONTH", "1")
@@ -190,6 +196,16 @@ class TestAnalysisQuota:
         assert rider_client.get(f"/api/activities/{activity_id}/analysis").status_code == 200
         assert rider_client.delete(f"/api/activities/{activity_id}/analysis").status_code == 200
         assert rider_client.get(f"/api/activities/{activity_id}/analysis").status_code == 429
+
+    def test_refused_regeneration_keeps_saved_analysis(self, rider_client, db, fake_ai, monkeypatch):
+        monkeypatch.setenv("AI_ANALYSES_PER_MONTH", "2")
+        activity_id = _rider_activity(db, "Ride")
+        first = rider_client.get(f"/api/activities/{activity_id}/analysis").json()["analysis"]
+        assert rider_client.get(f"/api/activities/{activity_id}/analysis",
+                                params={"regenerate": True}).json()["cached"] is False
+        resp = rider_client.get(f"/api/activities/{activity_id}/analysis", params={"regenerate": True})
+        assert resp.status_code == 429
+        assert rider_client.get(f"/api/activities/{activity_id}/analysis").json() == {"analysis": first, "cached": True}
 
 
 class TestSeedDemo:
@@ -213,3 +229,84 @@ class TestSeedDemo:
         assert all(r.avg_power_w and r.avg_cadence_rpm for r in rides)
         assert db.query(models.TrainingPlan).filter_by(user_id=demo.id).count() == 1
         assert db.query(models.AIUsage).count() == len(seed_demo.RIDES) + 1
+
+
+class TestAccountDeletion:
+    def test_deletes_rides_with_personal_records_when_fks_are_enforced(self, client, db):
+        # SQLite skips FK checks unless asked; PostgreSQL (production) always checks them
+        from sqlalchemy import event
+
+        def enforce_fks(dbapi_conn, _record):
+            dbapi_conn.execute("PRAGMA foreign_keys=ON")
+
+        event.listen(engine, "connect", enforce_fks)
+        engine.dispose()
+        try:
+            db.add(models.User(username="leaver", hashed_password=hash_password("pw123456")))
+            db.commit()
+            user = db.query(models.User).filter_by(username="leaver").one()
+            ride = models.Activity(user_id=user.id, name="Ride", date=datetime(2026, 9, 1, 8))
+            db.add(ride)
+            db.commit()
+            db.add(models.PersonalRecord(user_id=user.id, activity_id=ride.id, pr_type="1km",
+                                         value=90, set_at=datetime(2026, 9, 1, 8)))
+            db.commit()
+
+            c = TestClient(app)
+            assert c.post("/api/auth/login", json={"username": "leaver", "password": "pw123456"}).status_code == 200
+            resp = c.request("DELETE", "/api/settings/account", json={"password": "pw123456"})
+            assert resp.status_code == 200
+            db.expire_all()
+            assert db.query(models.User).filter_by(username="leaver").count() == 0
+        finally:
+            event.remove(engine, "connect", enforce_fks)
+            engine.dispose()
+
+
+class _FakeStream:
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    @property
+    def text_stream(self):
+        async def gen():
+            for c in self._chunks:
+                yield c
+        return gen()
+
+    async def get_final_message(self):
+        return SimpleNamespace(usage=SimpleNamespace(input_tokens=1000, output_tokens=300,
+                                                     cache_creation_input_tokens=None, cache_read_input_tokens=None))
+
+
+class _FakeAsyncAnthropic:
+    def __init__(self, api_key=None):
+        self.messages = SimpleNamespace(stream=lambda **kw: _FakeStream(["Strong ", "ride."]))
+
+
+class TestStreamingAnalysis:
+    def test_stream_saves_text_and_records_usage(self, rider_client, db, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setattr(anthropic, "AsyncAnthropic", _FakeAsyncAnthropic)
+        activity_id = _rider_activity(db, "Ride")
+
+        body = rider_client.get(f"/api/activities/{activity_id}/analysis/stream").text
+        assert '"done": true' in body
+
+        db.expire_all()
+        assert db.get(models.Activity, activity_id).ai_analysis == "Strong ride."
+        row = db.query(models.AIUsage).one()
+        assert (row.feature, row.input_tokens, row.output_tokens) == ("analysis", 1000, 300)
+
+    def test_stream_refused_over_quota(self, rider_client, db, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("AI_ANALYSES_PER_MONTH", "0")
+        monkeypatch.setattr(anthropic, "AsyncAnthropic", _FakeAsyncAnthropic)
+        activity_id = _rider_activity(db, "Ride")
+        assert rider_client.get(f"/api/activities/{activity_id}/analysis/stream").status_code == 429

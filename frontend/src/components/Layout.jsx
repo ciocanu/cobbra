@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { LayoutDashboard, List, Upload, Trophy, Map, Target, LogOut, Flag, GitCompare, Settings, Brain, User, Shield, Menu, X } from 'lucide-react'
 import { markLoggedOut } from '../services/auth'
 import { logout } from '../services/api'
@@ -21,6 +22,7 @@ const navItems = [
 ]
 
 export default function Layout() {
+  const { t } = useTranslation()
   const navigate  = useNavigate()
   const location  = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -55,6 +57,12 @@ export default function Layout() {
     try { await logout() } catch (_) {}
     markLoggedOut()
     navigate('/login')
+  }
+
+  const leaveDemoToRegister = async () => {
+    try { await logout() } catch (_) {}
+    markLoggedOut()
+    navigate('/register')
   }
 
   const close = () => setMobileOpen(false)
@@ -128,6 +136,19 @@ export default function Layout() {
         </aside>
 
         <main id="main-content" className="main">
+          {me?.is_demo && (
+            <div role="status" className="alert" style={{
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20,
+              background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
+              color: 'var(--text-secondary)',
+            }}>
+              <span style={{ flex: 1, minWidth: 220 }}>{t('layout.demoBanner')}</span>
+              <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={leaveDemoToRegister}>
+                {t('layout.demoCta')}
+              </button>
+            </div>
+          )}
           <div key={location.pathname} className="page-enter">
             <Outlet />
           </div>

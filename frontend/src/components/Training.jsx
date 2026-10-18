@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTrainingPlan, generateTrainingPlan } from '../services/api'
+import { useMe } from '../services/queries'
 import { Brain, Calendar, RefreshCw, Zap } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
@@ -50,6 +51,7 @@ function PlanText({ text }) {
 
 export default function Training() {
   const { t, i18n } = useTranslation()
+  const { data: me } = useMe()
   const [data, setData] = useState(null)       // { plan, can_generate, next_generation_date }
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -109,7 +111,8 @@ export default function Training() {
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
-  const { plan, can_generate, next_generation_date, plans_used, plans_limit, is_free } = data || { plan: null, can_generate: true, next_generation_date: null, plans_used: 0, plans_limit: 3, is_free: false }
+  const { plan, can_generate, next_generation_date, plans_used, plans_limit, is_free, ai_available = true, ai_unavailable_reason } = data || { plan: null, can_generate: true, next_generation_date: null, plans_used: 0, plans_limit: 1, is_free: false }
+  const aiOff = !is_free && !ai_available
 
   const daysSelectedText = trainingDays.length === 0
     ? t('training.noneSelected')
@@ -146,8 +149,21 @@ export default function Training() {
         </div>
       )}
 
+      {/* AI switched off: demo account, or this instance's monthly budget is spent */}
+      {aiOff && (
+        <div className="alert" style={{
+          background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 15%, transparent)',
+          color: 'var(--text-secondary)', marginBottom: 20
+        }}>
+          <Calendar size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          {ai_unavailable_reason === 'demo' || me?.is_demo
+            ? t('training.demoNotice')
+            : ai_unavailable_reason === 'budget' ? t('training.aiPaused') : t('training.aiNotConfigured')}
+        </div>
+      )}
+
       {/* Monthly quota */}
-      {!is_free && (
+      {!is_free && !aiOff && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 13, color: 'var(--text-muted)' }}>
           <Calendar size={13} />
           <span>{t('training.plansUsed', { used: plans_used, limit: plans_limit })}</span>
@@ -155,7 +171,7 @@ export default function Training() {
       )}
 
       {/* Rate limit notice */}
-      {plan && !can_generate && !is_free && (
+      {plan && !can_generate && !is_free && !aiOff && (
         <div className="alert" style={{
           background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 15%, transparent)',
           color: 'var(--text-secondary)', marginBottom: 20

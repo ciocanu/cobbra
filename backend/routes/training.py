@@ -9,7 +9,7 @@ from auth import get_current_user
 import models
 import anthropic
 from utils.access import has_full_access
-from utils.ai_budget import SONNET, ai_available, api_key, check_quota, monthly_limit, record_usage
+from utils.ai_budget import SONNET, api_key, check_quota, monthly_limit, record_usage, unavailable_reason
 
 router = APIRouter()
 
@@ -316,7 +316,8 @@ def get_plan(db: Session = Depends(get_db), current_user=Depends(get_current_use
 
     limit = monthly_limit("plan")
     used_this_month = _plans_this_month(db, current_user.id)
-    ai_on = ai_available(db) and not current_user.is_demo
+    ai_reason = "demo" if current_user.is_demo else unavailable_reason(db)
+    ai_on = ai_reason is None
     can_gen = (not is_free) and ai_on and used_this_month < limit
     next_date = None
     if not is_free and used_this_month >= limit and plan:
@@ -329,6 +330,7 @@ def get_plan(db: Session = Depends(get_db), current_user=Depends(get_current_use
         "plans_limit": limit,
         "is_free": is_free,
         "ai_available": ai_on,
+        "ai_unavailable_reason": ai_reason,
     }
 
     if not plan:

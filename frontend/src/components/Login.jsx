@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { login, register } from '../services/api'
 import { markLoggedIn } from '../services/auth'
 import Alert from './Alert'
+import DemoButton from './DemoButton'
 import CobbraLogo from './CobbraLogo'
 import { useTranslation } from 'react-i18next'
 
@@ -165,6 +166,10 @@ export default function Login() {
             }
           </button>
         </form>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+          <DemoButton className="btn btn-ghost login-btn">{t('login.tryDemo')}</DemoButton>
+        </div>
 
         <p style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
           {t('login.cookieNotice')}

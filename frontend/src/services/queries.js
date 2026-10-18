@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from './queryClient'
 import {
-  getMe, getSettings, adminCheck,
+  getConfig, getMe, getSettings, adminCheck,
   getActivities, getActivity,
   getRecords, getHeatmap, getGoals, getSegments,
   getFitnessStats, getWeeklyStats, getDurabilityTrend,
@@ -12,6 +12,16 @@ import {
 // Each returns the unwrapped response data. Slow-changing resources (me,
 // settings) get a long staleTime so they're fetched once and shared across
 // every component that needs them instead of re-fetched on each mount.
+
+// What this instance offers (payments, demo, AI) — public, so it works signed out.
+export function useConfig(options = {}) {
+  return useQuery({
+    queryKey: qk.config,
+    queryFn: () => getConfig().then(r => r.data),
+    staleTime: 10 * 60_000,
+    ...options,
+  })
+}
 
 export function useMe(options = {}) {
   return useQuery({

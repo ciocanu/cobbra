@@ -10,6 +10,7 @@ import {
   adminGetSegments, adminRenameSegment, adminTransferSegment, adminDeleteSegment,
 } from '../services/api'
 import { useTranslation } from 'react-i18next'
+import { useConfig } from '../services/queries'
 
 function fmtUptime(secs) {
   const d = Math.floor(secs / 86400)
@@ -71,6 +72,8 @@ const btnStyle = (variant = 'ghost') => ({
 
 export default function Admin() {
   const { t } = useTranslation()
+  const { data: config } = useConfig()
+  const paymentsOn = !!config?.payments_enabled
   const [stats,    setStats]    = useState(null)
   const [system,   setSystem]   = useState(null)
   const [users,    setUsers]    = useState([])
@@ -384,7 +387,7 @@ export default function Admin() {
                 <td style={{ ...tdStyle, textAlign: 'right' }}>
                   {!u.is_admin && (
                     <div className="admin-action-btns" style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
-                      {u.email && u.membership !== 'lifetime' && (
+                      {paymentsOn && u.email && u.membership !== 'lifetime' && (
                         <button
                           onClick={() => handleSendOffer(u)}
                           title={t('admin.sendOfferTitle')}

@@ -348,8 +348,9 @@ def delete_account(body: dict, db: Session = Depends(get_db), current_user=Depen
         db.query(models.TrackPoint).filter(models.TrackPoint.activity_id.in_(activity_ids)).delete(synchronize_session=False)
         db.query(models.Lap).filter(models.Lap.activity_id.in_(activity_ids)).delete(synchronize_session=False)
 
-    db.query(models.Activity).filter(models.Activity.user_id == uid).delete(synchronize_session=False)
+    # Personal records reference activities, so they go first (PostgreSQL enforces the FK)
     db.query(models.PersonalRecord).filter(models.PersonalRecord.user_id == uid).delete(synchronize_session=False)
+    db.query(models.Activity).filter(models.Activity.user_id == uid).delete(synchronize_session=False)
     db.query(models.Goal).filter(models.Goal.user_id == uid).delete(synchronize_session=False)
 
     # Segments created by this user: delete their efforts first, then the segments

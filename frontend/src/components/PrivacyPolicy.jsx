@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useConfig } from '../services/queries'
 
 const SECTION = ({ title, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -11,6 +12,8 @@ const P = ({ children }) => <p style={{ marginBottom: 12 }}>{children}</p>
 const Li = ({ children }) => <li style={{ marginBottom: 6 }}>{children}</li>
 
 export default function PrivacyPolicy() {
+  const { data: config } = useConfig()
+  const paymentsOn = !!config?.payments_enabled
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
       <Link to="/" style={{ color: 'var(--text-muted)', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 32 }}>
@@ -19,7 +22,7 @@ export default function PrivacyPolicy() {
 
       <h1 style={{ fontSize: 28, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 6 }}>Privacy Policy</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 40 }}>
-        Last updated: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+        Last updated: 18 October 2026
       </p>
 
       <SECTION title="1. Who we are">
@@ -32,7 +35,7 @@ export default function PrivacyPolicy() {
         <P><strong style={{ color: 'var(--text-primary)' }}>Fitness profile:</strong> Age, body weight, maximum heart rate, resting heart rate, FTP (functional threshold power), experience level, and bike type — all entered voluntarily by you in Settings.</P>
         <P><strong style={{ color: 'var(--text-primary)' }}>Activity data:</strong> When you upload a ride (GPX or FIT file) or sync from Strava, we store the full GPS track (latitude, longitude, timestamp, elevation per second), along with heart rate, cadence, speed, power, and distance. We also store derived metrics such as average speed, suffer score, elevation gain, TSS, and any ride notes you write.</P>
         <P><strong style={{ color: 'var(--text-primary)' }}>Segment data:</strong> GPS coordinates of start and end points of any segments you create.</P>
-        <P><strong style={{ color: 'var(--text-primary)' }}>Payment data:</strong> Stripe customer ID and subscription dates. We do not store credit card numbers — all payment processing is handled by Stripe.</P>
+        {paymentsOn && <P><strong style={{ color: 'var(--text-primary)' }}>Payment data:</strong> Stripe customer ID and subscription dates. We do not store credit card numbers — all payment processing is handled by Stripe.</P>}
         <P><strong style={{ color: 'var(--text-primary)' }}>Technical data:</strong> IP address (used only for rate-limiting login/registration attempts and automatically deleted after 2 hours).</P>
       </SECTION>
 
@@ -40,7 +43,7 @@ export default function PrivacyPolicy() {
         <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
           <Li>To provide the service: display your rides, compute statistics, and generate personalised training plans.</Li>
           <Li>To send transactional emails: email verification and (optionally) promotional offers you have explicitly opted into.</Li>
-          <Li>To process payments via Stripe for paid plans.</Li>
+          {paymentsOn && <Li>To process payments via Stripe for paid plans.</Li>}
           <Li>To generate AI ride analysis via Anthropic Claude (see Section 5).</Li>
           <Li>To automatically retrieve weather conditions at the start of each ride from Open-Meteo.</Li>
         </ul>
@@ -59,11 +62,13 @@ export default function PrivacyPolicy() {
         <P>We share data with the following processors, each bound by their own data processing agreements and privacy policies. Where a processor is located outside the European Economic Area (EEA), transfers are made on the basis of Standard Contractual Clauses (SCCs) adopted by the European Commission, or an EU adequacy decision.</P>
         <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
           <Li>
-            <strong style={{ color: 'var(--text-primary)' }}>Anthropic (Claude AI) — United States:</strong> When you click "Analyse Ride", your activity's summary metrics (speed, heart rate, elevation, cadence, power, weather, VAM, HR decoupling) are sent to Anthropic's API to generate a coach-style analysis. No raw GPS coordinates are sent. Your ride notes are also sent to Claude for automated content moderation (to detect prohibited content) each time you save a note. No data is retained by Anthropic beyond the API call. Transfer basis: Standard Contractual Clauses.
+            <strong style={{ color: 'var(--text-primary)' }}>Anthropic (Claude AI) — United States:</strong> When you click "Analyse Ride" or generate a training plan, your activity's summary metrics (speed, heart rate, elevation, cadence, power, weather, VAM, HR decoupling) are sent to Anthropic's API to generate a coach-style analysis or plan. Each time you open the dashboard, aggregate numbers (fitness, fatigue and form, and your latest ride's distance, duration, speed, elevation, heart rate and temperature) are also sent to generate one-line insights. No raw GPS coordinates are sent. Your ride notes are also sent to Claude for automated content moderation (to detect prohibited content) each time you save a note. No data is retained by Anthropic beyond the API call. Transfer basis: Standard Contractual Clauses.
           </Li>
-          <Li>
-            <strong style={{ color: 'var(--text-primary)' }}>Stripe — United States:</strong> Your email address and a Stripe customer ID are used to process subscription payments. Stripe is PCI DSS compliant and handles all card data directly. Transfer basis: Standard Contractual Clauses / EU adequacy decision.
-          </Li>
+          {paymentsOn && (
+            <Li>
+              <strong style={{ color: 'var(--text-primary)' }}>Stripe — United States:</strong> Your email address and a Stripe customer ID are used to process subscription payments. Stripe is PCI DSS compliant and handles all card data directly. Transfer basis: Standard Contractual Clauses / EU adequacy decision.
+            </Li>
+          )}
           <Li>
             <strong style={{ color: 'var(--text-primary)' }}>Strava — United States:</strong> If you connect Strava, we receive an OAuth access token and use it to import your cycling activities. We store only activity data, not your Strava profile beyond the athlete ID. Transfer basis: Standard Contractual Clauses.
           </Li>

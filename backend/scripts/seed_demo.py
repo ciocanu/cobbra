@@ -72,8 +72,14 @@ def _reset(db, client: TestClient) -> None:
     user.is_demo = False
     user.hashed_password = hash_password(password)
     db.commit()
-    _login(client, password)
-    client.request("DELETE", "/api/settings/account", json={"password": password}).raise_for_status()
+    try:
+        _login(client, password)
+        client.request("DELETE", "/api/settings/account", json={"password": password}).raise_for_status()
+    except Exception:
+        db.rollback()
+        user.is_demo = True     # leave the old demo in place rather than a half-unlocked account
+        db.commit()
+        raise
     client.cookies.clear()
     print("Deleted the previous demo account.")
 

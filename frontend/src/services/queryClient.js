@@ -35,6 +35,7 @@ export const queryClient = new QueryClient({
  * and `stats` so the list and dashboard refetch on next view.
  */
 export const qk = {
+  config: ['config'],
   me: ['me'],
   settings: ['settings'],
   adminCheck: ['admin', 'check'],

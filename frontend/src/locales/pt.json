@@ -342,7 +342,11 @@
       "regenerate": "Regenerar",
       "analyseRide": "Analisar Atividade",
       "generating": "A gerar análise…",
-      "prompt": "Clica em \"Analisar Atividade\" para obteres uma análise tipo treinador desta pedalada."
+      "prompt": "Clica em \"Analisar Atividade\" para obteres uma análise tipo treinador desta pedalada.",
+      "quota": "{{used}} de {{limit}} análises usadas este mês",
+      "paused": "A análise com AI está em pausa até ao próximo mês",
+      "demoNone": "Este treino da demo não tem análise guardada.",
+      "notConfigured": "A análise com AI não está configurada neste servidor"
     },
     "notes": {
       "title": "Notas",
@@ -576,7 +580,8 @@
     "errorAgeRequired": "Deves confirmar que tens pelo menos 16 anos.",
     "errorTermsRequired": "Deves concordar com os Termos de Serviço e Política de Privacidade.",
     "errorFallback": "Algo correu mal",
-    "cookieNotice": "Ao usar o Cobbra, concordas que este site usa um cookie de autenticação estritamente necessário para te manter com sessão iniciada. Não são usados cookies de rastreamento ou publicidade."
+    "cookieNotice": "Ao usar o Cobbra, concordas que este site usa um cookie de autenticação estritamente necessário para te manter com sessão iniciada. Não são usados cookies de rastreamento ou publicidade.",
+    "tryDemo": "Experimentar a demo"
   },
   "onboarding": {
     "title": "Configura o teu perfil de forma",
@@ -1025,7 +1030,10 @@
       "Friday": "Sexta-feira",
       "Saturday": "Sábado",
       "Sunday": "Domingo"
-    }
+    },
+    "demoNotice": "Esta demo mostra um plano de AI já guardado. Cria uma conta gratuita para gerares o teu.",
+    "aiPaused": "A geração de planos com AI está em pausa neste servidor até ao próximo mês. O teu plano guardado continua disponível.",
+    "aiNotConfigured": "Os planos de treino com AI não estão configurados neste servidor."
   },
   "upload": {
     "title": "Carregar Atividade",
@@ -1043,5 +1051,9 @@
     "howToStep4": "Guarda o ficheiro e carrega-o aqui",
     "errorUnsupportedFormat": "Apenas ficheiros .gpx e .fit são suportados",
     "errorUploadFailed": "Carregamento falhou. Verifica o ficheiro e tenta novamente."
+  },
+  "layout": {
+    "demoBanner": "Estás a explorar uma demo só de leitura, com treinos de exemplo. Cria uma conta gratuita para carregares os teus.",
+    "demoCta": "Criar conta gratuita"
   }
 }

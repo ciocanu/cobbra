@@ -6,7 +6,7 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 
 ## Features
 
-### Free tier
+### Core
 - Unlimited `.gpx` / `.fit` activity uploads (Cycplus, Garmin, Wahoo, etc.)
 - Metrics: distance, speed, cadence, heart rate, elevation, calories, suffer score, hrTSS
 - Interactive map per activity (dark CARTO tiles)
@@ -32,17 +32,24 @@ A self-hosted cycling training platform. Upload `.gpx` and `.fit` files, track f
 - PT-PT / EN language switcher (auto-detects browser language)
 - Contact form with anti-spam protection
 
-### Pro / Annual tier
-- Everything in Free
+### AI (needs `ANTHROPIC_API_KEY`)
 - AI ride analysis (Claude Haiku, streaming, language-aware)
-- AI fitness insight on dashboard (Claude Sonnet)
-- AI-generated 4-week training plans (up to 3/month, Claude Sonnet, language-aware)
+- One-line ride and fitness insights on the dashboard (Claude Haiku, cached)
+- AI-generated 4-week training plans (Claude Sonnet, language-aware)
+- Spend control: every call's token cost is recorded; monthly quotas per account
+  (`AI_ANALYSES_PER_MONTH`, `AI_PLANS_PER_MONTH`) and a site-wide monthly budget
+  (`AI_MONTHLY_BUDGET_USD`) after which AI switches off until the next month
+
+### Also
 - CSV and GPX export
 - Strava activity import
+- "Try the demo": a shared read-only account with sample rides and saved AI results
+  (see [Demo account](#demo-account))
 
-### Lifetime tier (invite-only)
-- Everything in Pro, forever
-- Sent via time-limited email invite from admin panel
+### Paid plans (optional, off by default)
+Every account gets every feature. Setting `PAYMENTS_ENABLED=true` turns the old
+Free / Pro / Annual / Lifetime plans and the Stripe checkout back on
+(see [Stripe setup](#stripe-setup)).
 
 ### Admin panel
 - User management (view, change membership, delete)
@@ -126,7 +133,7 @@ SMTP_PASSWORD=xxxx xxxx xxxx xxxx
 SMTP_FROM=Cobbra <your_gmail@gmail.com>
 APP_URL=http://localhost:5173
 
-# Stripe
+# Stripe — only with PAYMENTS_ENABLED=true
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_PRO=price_...
@@ -234,9 +241,29 @@ scp -i ~/.ssh/cobbra_hetzner root@cobbra.app:/home/cobbra/cobbra/backups/cobbra_
 
 ---
 
+## Demo account
+
+`scripts/seed_demo.py` creates the shared read-only account behind the "Try the live demo"
+button: six synthetic rides uploaded through the real upload path, a weekly goal, and (with
+`ANTHROPIC_API_KEY` set) a saved AI analysis for each ride plus one training plan. Visitors
+only read those saved results, so the demo costs nothing per visit. Writes from the demo
+account are refused in `get_current_user`.
+
+```bash
+# local (from backend/)
+python scripts/seed_demo.py --reset
+# production
+docker compose -f docker-compose.prod.yml exec backend python scripts/seed_demo.py --reset
+```
+
+Ride dates are relative to the day you run it; re-run with `--reset` every few weeks to keep
+the dashboard current. `--no-ai` skips the API calls.
+
+---
+
 ## Stripe setup
 
-In **dashboard.stripe.com/products**, create three products:
+Only needed with `PAYMENTS_ENABLED=true`. In **dashboard.stripe.com/products**, create three products:
 
 | Product | Price | Billing | Env var |
 |---|---|---|---|
@@ -270,7 +297,7 @@ cobbra/
 │   │   └── fit_parser.py
 │   ├── routes/
 │   │   ├── activities.py        # Upload, list, detail, export
-│   │   ├── analysis.py          # AI ride analysis stream (Pro)
+│   │   ├── analysis.py          # AI ride analysis stream
 │   │   ├── admin.py             # Admin-only endpoints
 │   │   ├── auth.py              # Login, register, me
 │   │   ├── climbs.py            # Climb detection
@@ -287,7 +314,7 @@ cobbra/
 │   │   ├── settings.py          # HR settings, password, email, GDPR export
 │   │   ├── stats.py             # CTL/ATL/TSB, weekly load, year summary
 │   │   ├── strava.py            # Strava OAuth import
-│   │   └── training.py          # AI training plan (Pro)
+│   │   └── training.py          # AI training plan
 │   ├── tests/
 │   │   └── test_hydration.py
 │   ├── requirements.txt
@@ -346,10 +373,14 @@ cobbra/
 | `COOKIE_SECURE` | Yes | `false` locally, `true` on HTTPS |
 | `CORS_ORIGINS` | Yes | Comma-separated allowed origins |
 | `ADMIN_USERNAME` | Yes | Username that gets admin access |
-| `ANTHROPIC_API_KEY` | No | AI analysis, training plans, note moderation |
+| `ANTHROPIC_API_KEY` | No | AI analysis, training plans, dashboard insights, note moderation |
+| `AI_MONTHLY_BUDGET_USD` | No | Site-wide monthly AI spend cap, default `10` (`0` = no cap) |
+| `AI_ANALYSES_PER_MONTH` | No | AI ride analyses per account per month, default `5` |
+| `AI_PLANS_PER_MONTH` | No | AI training plans per account per month, default `1` |
+| `PAYMENTS_ENABLED` | No | `true` turns paid plans and Stripe on; default off |
 | `SMTP_HOST/PORT/USER/PASSWORD/FROM` | No | Email (verification, lifetime offer) |
 | `APP_URL` | No | Base URL used in email links |
-| `STRIPE_SECRET_KEY` | No | Stripe checkout |
+| `STRIPE_SECRET_KEY` | No | Stripe checkout (with `PAYMENTS_ENABLED=true`) |
 | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook validation |
 | `STRIPE_PRICE_PRO` | No | Price ID for Pro monthly |
 | `STRIPE_PRICE_ANNUAL` | No | Price ID for Annual |

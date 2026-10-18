@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
-import { useSettings, useInvalidate } from '../services/queries'
+import { getActivity, deleteActivity, renameActivity, exportCsv, exportGpx, updateNotes, getActivitySegments, getAnalysis, generateAnalysis, clearAnalysis, getAiQuota, getHydrationAnalysis, updateHydrationIntake, getDurabilityAnalysis, overrideEnvironment, getActivityClimbs } from '../services/api'
+import { useMe, useSettings, useInvalidate } from '../services/queries'
 import { format } from 'date-fns'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
@@ -656,6 +656,9 @@ export default function ActivityDetail() {
   const [analysis, setAnalysis] = useState(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
+  const [aiQuota, setAiQuota] = useState(null)
+  const { data: me } = useMe()
+  const isDemo = !!me?.is_demo
   // Profile metrics come from the shared, cached settings query — no separate
   // fetch here (Layout already loaded it).
   const { data: settings } = useSettings()
@@ -734,16 +737,28 @@ export default function ActivityDetail() {
     }, 800)
   }
 
-  const handleAnalyse = async () => {
+  const loadAiQuota = () => getAiQuota().then(r => setAiQuota(r.data)).catch(() => {})
+
+  // The coach tab is always visible, so `tab` (declared above) is safe to use here
+  useEffect(() => {
+    if (tab === 'coach' && !isDemo) loadAiQuota()
+  }, [tab, isDemo])
+
+  // regenerate=true replaces the saved analysis only once the new one is ready,
+  // so a refused request (quota, budget) keeps the old text on screen.
+  const handleAnalyse = async (regenerate = false) => {
     setAnalysisLoading(true)
     setAnalysisError('')
+    const previous = analysis
     setAnalysis('')
     try {
-      const res = await fetch(`/api/activities/${id}/analysis/stream?lang=${encodeURIComponent(i18n.resolvedLanguage || i18n.language)}`, {
+      const lang = encodeURIComponent(i18n.resolvedLanguage || i18n.language)
+      const res = await fetch(`/api/activities/${id}/analysis/stream?lang=${lang}${regenerate ? '&regenerate=true' : ''}`, {
         credentials: 'include',
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
+        setAnalysis(previous)
         throw new Error(body.detail || t('activityDetail.analysisFailed'))
       }
       const reader = res.body.getReader()
@@ -771,6 +786,7 @@ export default function ActivityDetail() {
       setAnalysisError(e.message || t('activityDetail.analysisFailed'))
     } finally {
       setAnalysisLoading(false)
+      if (!isDemo) loadAiQuota()
     }
   }
 
@@ -779,10 +795,7 @@ export default function ActivityDetail() {
     setAnalysis(null)
   }
 
-  const handleRegenerateAnalysis = async () => {
-    await clearAnalysis(id).catch(() => {})
-    handleAnalyse()
-  }
+  const handleRegenerateAnalysis = () => handleAnalyse(true)
 
   const handleLogIntake = async () => {
     const ml = parseInt(intakeInput, 10)
@@ -952,9 +965,11 @@ export default function ActivityDetail() {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1 className="page-title">{activity.name}</h1>
-              <button className="btn btn-ghost" style={{ padding: '4px 8px' }} aria-label={t('activityDetail.editActivityNameAria')} onClick={() => setEditing(true)}>
-                <Pencil size={13} />
-              </button>
+              {!isDemo && (
+                <button className="btn btn-ghost" style={{ padding: '4px 8px' }} aria-label={t('activityDetail.editActivityNameAria')} onClick={() => setEditing(true)}>
+                  <Pencil size={13} />
+                </button>
+              )}
             </div>
           )}
           <p className="page-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -992,7 +1007,7 @@ export default function ActivityDetail() {
           <button className="btn btn-ghost" onClick={handleExportGpx}>
             <FileText size={14} /> GPX
           </button>
-          {deleteConfirm ? (
+          {isDemo ? null : deleteConfirm ? (
             <>
               <button className="btn btn-danger" onClick={handleDelete}>{t('activityDetail.confirmDelete')}</button>
               <button className="btn btn-ghost" onClick={() => setDeleteConfirm(false)}>{t('activityDetail.cancel')}</button>
@@ -2117,14 +2132,23 @@ export default function ActivityDetail() {
             <Sparkles size={14} style={{ display: 'inline', marginRight: 6, color: 'var(--accent)' }} />
             {t('activityDetail.aiAnalysis.title')}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {analysis && !analysisLoading && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {aiQuota && !analysisLoading && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {aiQuota.available
+                  ? t('activityDetail.aiAnalysis.quota', aiQuota.features.analysis)
+                  : aiQuota.reason === 'budget'
+                    ? t('activityDetail.aiAnalysis.paused')
+                    : t('activityDetail.aiAnalysis.notConfigured')}
+              </span>
+            )}
+            {analysis && !analysisLoading && !isDemo && (
               <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={handleRegenerateAnalysis}>
                 <RefreshCw size={12} /> {t('activityDetail.aiAnalysis.regenerate')}
               </button>
             )}
-            {!analysis && !analysisLoading && (
-              <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={handleAnalyse}>
+            {!analysis && !analysisLoading && !isDemo && (
+              <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={() => handleAnalyse()}>
                 <Sparkles size={13} /> {t('activityDetail.aiAnalysis.analyseRide')}
               </button>
             )}
@@ -2162,7 +2186,7 @@ export default function ActivityDetail() {
           <div style={{ textAlign: 'center', padding: '28px 0 20px' }}>
             <Sparkles size={20} style={{ color: 'var(--text-muted)', opacity: 0.35, display: 'block', margin: '0 auto 10px' }} />
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-              {t('activityDetail.aiAnalysis.prompt')}
+              {isDemo ? t('activityDetail.aiAnalysis.demoNone') : t('activityDetail.aiAnalysis.prompt')}
             </p>
           </div>
         )}
@@ -2176,6 +2200,7 @@ export default function ActivityDetail() {
           placeholder={t('activityDetail.notes.placeholder')}
           value={notes}
           onChange={e => handleNotesChange(e.target.value)}
+          readOnly={isDemo}
           rows={4}
         />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>

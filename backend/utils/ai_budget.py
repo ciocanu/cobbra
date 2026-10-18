@@ -68,8 +68,17 @@ def budget_exhausted(db: Session) -> bool:
     return budget > 0 and monthly_spend_usd(db) >= budget
 
 
+def unavailable_reason(db: Session) -> str | None:
+    """Why AI is off site-wide ("not_configured" | "budget"), or None when it is on."""
+    if api_key() is None:
+        return "not_configured"
+    if budget_exhausted(db):
+        return "budget"
+    return None
+
+
 def ai_available(db: Session) -> bool:
-    return api_key() is not None and not budget_exhausted(db)
+    return unavailable_reason(db) is None
 
 
 def _usage_count(db: Session, user_id: int, feature: str, since: datetime) -> int:
@@ -123,8 +132,10 @@ def record_usage(db: Session, user_id: int | None, feature: str, model: str, usa
 
 def quota_status(db: Session, user) -> dict:
     """Remaining monthly AI quota, for the frontend."""
+    reason = "demo" if user.is_demo else unavailable_reason(db)
     return {
-        "available": ai_available(db) and not user.is_demo,
+        "available": reason is None,
+        "reason": reason,
         "features": {
             f: {"used": used_this_month(db, user.id, f), "limit": monthly_limit(f)}
             for f in MONTHLY_FEATURES

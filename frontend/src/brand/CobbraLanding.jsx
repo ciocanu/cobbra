@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CobbraLogo } from './CobbraLogo'
+import DemoButton from '../components/DemoButton'
 
 /* ── Feature data ────────────────────────────────── */
 const FEATURES = [
@@ -314,6 +315,9 @@ export default function CobbraLanding() {
             <a href="/register" className="cb-btn-primary">
               Analyse your first ride →
             </a>
+            <DemoButton className="cb-btn-ghost">
+              Try the live demo
+            </DemoButton>
             <a href="/login" className="cb-btn-ghost">
               Sign in
             </a>

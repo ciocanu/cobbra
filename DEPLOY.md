@@ -89,8 +89,11 @@ All configuration is loaded from `.env.prod` at deploy time. The file is **never
 | `POSTGRES_USER` | Yes | PostgreSQL username (internal to Docker network). |
 | `POSTGRES_PASSWORD` | Yes | PostgreSQL password. Use a strong random value. |
 | `POSTGRES_DB` | Yes | PostgreSQL database name. |
-| `ANTHROPIC_API_KEY` | No | Enables AI ride analysis, training plans, and content moderation. |
-| `STRIPE_SECRET_KEY` | No | Enables payment checkout (`sk_live_...` in production). |
+| `ANTHROPIC_API_KEY` | No | Enables AI ride analysis, training plans, dashboard insights, and content moderation. |
+| `AI_MONTHLY_BUDGET_USD` | No | Monthly AI spend cap for the whole site (default `10`, `0` = no cap). Also set a spend limit in the Anthropic console. |
+| `AI_ANALYSES_PER_MONTH` / `AI_PLANS_PER_MONTH` | No | Per-account monthly AI quotas (defaults `5` / `1`). |
+| `PAYMENTS_ENABLED` | No | `true` turns paid plans and the Stripe routes on. Off by default: every account gets every feature. |
+| `STRIPE_SECRET_KEY` | No | Payment checkout with `PAYMENTS_ENABLED=true` (`sk_live_...` in production). |
 | `STRIPE_WEBHOOK_SECRET` | No | Validates incoming Stripe webhooks (`whsec_...`). |
 | `STRIPE_PRICE_PRO` | No | Stripe price ID for Pro monthly (€7/month). |
 | `STRIPE_PRICE_ANNUAL` | No | Stripe price ID for Annual (€49/year). |

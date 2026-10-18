@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { getSettings, updateSettings, getMe, createCheckout, changePassword, requestEmailChange, stravaAuthUrl, stravaStatus, stravaDisconnect, stravaSync, exportMyData, deleteAccount, getHeatProfile, recordSweatTest, setSweatRateDirect, resetSweatRate, getIndoorOutdoorProfile, recalculateIndoorOutdoor, calibrateIndoorOutdoor, calibratePower, resetPowerCalibration } from '../services/api'
 import { markLoggedOut } from '../services/auth'
-import { useInvalidate } from '../services/queries'
+import { useConfig, useInvalidate } from '../services/queries'
 import {
   Save, Heart, CreditCard, CheckCircle, Zap, Star,
   Lock, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Mail, Send, Bike,
@@ -113,6 +113,7 @@ export default function Settings() {
   const [searchParams] = useSearchParams()
   const justUpgraded   = searchParams.get('upgraded') === '1'
   const invalidate     = useInvalidate()
+  const { data: config } = useConfig()
 
   const [user,      setUser]      = useState(null)
   const [loading,   setLoading]   = useState(true)
@@ -549,6 +550,7 @@ export default function Settings() {
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   const membership  = user?.membership || 'free'
+  const paymentsOn  = !!config?.payments_enabled
   const ts          = TIER_STYLE[membership] || TIER_STYLE.free
   const currentRank = TIER_RANK[membership] ?? 0
   const subEnd      = user?.subscription_end ? new Date(user.subscription_end) : null
@@ -609,7 +611,7 @@ export default function Settings() {
               {t('settings.account.welcomeUpgrade', { tier: membership.charAt(0).toUpperCase() + membership.slice(1) })}
             </div>
           )}
-          <div className="settings-layout-top">
+          <div className="settings-layout-top" style={paymentsOn ? undefined : { gridTemplateColumns: '1fr' }}>
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
                 <div style={{ width: 64, height: 64, borderRadius: '50%', flexShrink: 0, background: aColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 800, color: 'oklch(8% 0.005 142)', boxShadow: `0 0 0 3px oklch(8% 0.005 142), 0 0 0 5px color-mix(in srgb, ${aColor} 33%, transparent)` }}>
@@ -620,10 +622,12 @@ export default function Settings() {
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {user?.email || <span style={{ opacity: 0.4 }}>{t('settings.account.noEmail')}</span>}
                   </div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: ts.bg, border: `1px solid ${ts.border}`, color: ts.color, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    {membership === 'lifetime' && <Star size={9} />}
-                    {membership}
-                  </span>
+                  {paymentsOn && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: ts.bg, border: `1px solid ${ts.border}`, color: ts.color, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      {membership === 'lifetime' && <Star size={9} />}
+                      {membership}
+                    </span>
+                  )}
                 </div>
               </div>
               <CollapsibleRow icon={Mail} label={t('settings.account.changeEmail')} open={emailOpen} onToggle={() => { setEmailOpen(o => !o); setEmailError(''); setEmailSent(false); setNewEmail('') }}>
@@ -677,69 +681,71 @@ export default function Settings() {
               </CollapsibleRow>
             </Card>
 
-            <Card>
-              <CardTitle icon={CreditCard}>{t('settings.billing.title')}</CardTitle>
-              <div style={{ border: `1px solid ${ts.border}`, borderRadius: 12, background: ts.bg, padding: '18px 20px', marginBottom: upgradable.length ? 16 : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ts.color, marginBottom: 4 }}>{t('settings.billing.currentPlan')}</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {membership === 'lifetime' && <Star size={18} style={{ color: ts.color }} />}
-                      {membership.charAt(0).toUpperCase() + membership.slice(1)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
-                    {membership === 'free'     && <span>{t('settings.billing.unlimitedActivities')}</span>}
-                    {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>{t('settings.billing.neverExpires')}</span>}
-                    {(membership === 'pro' || membership === 'annual') && subEnd && (
-                      <span>{t('settings.billing.renews', { date: format(subEnd, 'dd MMM yyyy') })}</span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px' }}>
-                  {TIER_FEATURES_KEYS[membership]?.map(key => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-secondary)' }}>
-                      <CheckCircle size={12} style={{ color: ts.color, flexShrink: 0 }} />{t(`settings.${key}`)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {upgradable.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${upgradable.length}, 1fr)`, gap: 12 }}>
-                  {upgradable.map(plan => {
-                    const ps = TIER_STYLE[plan.tier]
-                    return (
-                      <div key={plan.tier} style={{ border: `1px solid ${ps.border}`, borderRadius: 10, padding: '16px 18px', background: ps.bg }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15, color: ps.color }}>{plan.labelKey}</span>
-                          {plan.subKey && <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 7px' }}>{plan.subKey}</span>}
-                        </div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12 }}>{plan.price}</div>
-                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {plan.featuresKeys.map(key => (
-                            <li key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-muted)' }}>
-                              <Zap size={10} style={{ color: ps.color, flexShrink: 0 }} />{t(`settings.${key}`)}
-                            </li>
-                          ))}
-                        </ul>
-                        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: ps.color, color: 'oklch(8% 0.005 142)', fontWeight: 700 }} onClick={() => handleUpgrade(plan.tier)} disabled={checking === plan.tier}>
-                          {checking === plan.tier
-                            ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: 'oklch(8% 0.005 142 / 0.25)', borderTopColor: 'oklch(8% 0.005 142)' }} />
-                            : t('settings.billing.upgradeTo', { plan: plan.labelKey })}
-                        </button>
+            {paymentsOn && (
+              <Card>
+                <CardTitle icon={CreditCard}>{t('settings.billing.title')}</CardTitle>
+                <div style={{ border: `1px solid ${ts.border}`, borderRadius: 12, background: ts.bg, padding: '18px 20px', marginBottom: upgradable.length ? 16 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ts.color, marginBottom: 4 }}>{t('settings.billing.currentPlan')}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {membership === 'lifetime' && <Star size={18} style={{ color: ts.color }} />}
+                        {membership.charAt(0).toUpperCase() + membership.slice(1)}
                       </div>
-                    )
-                  })}
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
+                      {membership === 'free'     && <span>{t('settings.billing.unlimitedActivities')}</span>}
+                      {membership === 'lifetime' && <span style={{ color: ts.color, fontWeight: 600 }}>{t('settings.billing.neverExpires')}</span>}
+                      {(membership === 'pro' || membership === 'annual') && subEnd && (
+                        <span>{t('settings.billing.renews', { date: format(subEnd, 'dd MMM yyyy') })}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px' }}>
+                    {TIER_FEATURES_KEYS[membership]?.map(key => (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-secondary)' }}>
+                        <CheckCircle size={12} style={{ color: ts.color, flexShrink: 0 }} />{t(`settings.${key}`)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-              {checkoutError && <Alert variant="error" style={{ marginTop: 12, fontSize: 12 }}>{checkoutError}</Alert>}
-              {membership === 'lifetime' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--tier-lifetime) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--tier-lifetime) 13%, transparent)', fontSize: 13, color: 'var(--text-muted)' }}>
-                  <Star size={13} style={{ color: 'var(--tier-lifetime)' }} />
-                  {t('settings.billing.lifetimeAccess')}
-                </div>
-              )}
-            </Card>
+                {upgradable.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${upgradable.length}, 1fr)`, gap: 12 }}>
+                    {upgradable.map(plan => {
+                      const ps = TIER_STYLE[plan.tier]
+                      return (
+                        <div key={plan.tier} style={{ border: `1px solid ${ps.border}`, borderRadius: 10, padding: '16px 18px', background: ps.bg }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: ps.color }}>{plan.labelKey}</span>
+                            {plan.subKey && <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 7px' }}>{plan.subKey}</span>}
+                          </div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12 }}>{plan.price}</div>
+                          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {plan.featuresKeys.map(key => (
+                              <li key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-muted)' }}>
+                                <Zap size={10} style={{ color: ps.color, flexShrink: 0 }} />{t(`settings.${key}`)}
+                              </li>
+                            ))}
+                          </ul>
+                          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: ps.color, color: 'oklch(8% 0.005 142)', fontWeight: 700 }} onClick={() => handleUpgrade(plan.tier)} disabled={checking === plan.tier}>
+                            {checking === plan.tier
+                              ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: 'oklch(8% 0.005 142 / 0.25)', borderTopColor: 'oklch(8% 0.005 142)' }} />
+                              : t('settings.billing.upgradeTo', { plan: plan.labelKey })}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {checkoutError && <Alert variant="error" style={{ marginTop: 12, fontSize: 12 }}>{checkoutError}</Alert>}
+                {membership === 'lifetime' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--tier-lifetime) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--tier-lifetime) 13%, transparent)', fontSize: 13, color: 'var(--text-muted)' }}>
+                    <Star size={13} style={{ color: 'var(--tier-lifetime)' }} />
+                    {t('settings.billing.lifetimeAccess')}
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         </div>
       )}
@@ -1237,7 +1243,7 @@ export default function Settings() {
             {stravaConnected && (
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                 {t('settings.integrations.stravaOnlyCycling')}
-                {membership === 'free' && t('settings.integrations.stravaProRequired')}
+                {paymentsOn && membership === 'free' && t('settings.integrations.stravaProRequired')}
                 {t('settings.integrations.stravaNoGps')}
               </div>
             )}

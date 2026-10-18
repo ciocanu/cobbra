@@ -247,6 +247,7 @@ def get_analysis(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
     lang: str = Query(default="en"),
+    regenerate: bool = Query(default=False),
 ):
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
@@ -255,9 +256,11 @@ def get_analysis(
     if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="AI ride analysis is a Pro feature. Upgrade to unlock ride insights.")
 
-    if activity.ai_analysis:
+    if activity.ai_analysis and not regenerate:
         return {"analysis": activity.ai_analysis, "cached": True}
 
+    # The saved analysis is only replaced once a new one exists, so a refused
+    # regeneration (quota, budget) never loses it.
     check_quota(db, current_user, "analysis")
     prompt = _build_prompt(activity, current_user, lang)
 
@@ -284,6 +287,7 @@ async def stream_analysis(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
     lang: str = Query(default="en"),
+    regenerate: bool = Query(default=False),
 ):
     activity = db.query(models.Activity).filter(
         models.Activity.id == activity_id,
@@ -295,7 +299,7 @@ async def stream_analysis(
     if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="AI ride analysis is a Pro feature.")
 
-    if activity.ai_analysis:
+    if activity.ai_analysis and not regenerate:
         async def send_cached():
             yield f"data: {json.dumps({'text': activity.ai_analysis, 'done': True, 'cached': True})}\n\n"
         return StreamingResponse(send_cached(), media_type="text/event-stream",

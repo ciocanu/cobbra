@@ -342,7 +342,11 @@
       "regenerate": "Regenerate",
       "analyseRide": "Analyse Ride",
       "generating": "Generating analysis…",
-      "prompt": "Click \"Analyse Ride\" to get a coach-style breakdown of this ride."
+      "prompt": "Click \"Analyse Ride\" to get a coach-style breakdown of this ride.",
+      "quota": "{{used}} of {{limit}} analyses used this month",
+      "paused": "AI analysis is paused until next month",
+      "demoNone": "This demo ride has no saved analysis.",
+      "notConfigured": "AI analysis isn't set up on this server"
     },
     "notes": {
       "title": "Notes",
@@ -576,7 +580,8 @@
     "errorAgeRequired": "You must confirm that you are at least 16 years old.",
     "errorTermsRequired": "You must agree to the Terms of Service and Privacy Policy.",
     "errorFallback": "Something went wrong",
-    "cookieNotice": "By using Cobbra, you agree that this site uses a strictly necessary authentication cookie to keep you signed in. No tracking or advertising cookies are used."
+    "cookieNotice": "By using Cobbra, you agree that this site uses a strictly necessary authentication cookie to keep you signed in. No tracking or advertising cookies are used.",
+    "tryDemo": "Try the live demo"
   },
   "onboarding": {
     "title": "Set up your fitness profile",
@@ -1025,7 +1030,10 @@
       "Friday": "Friday",
       "Saturday": "Saturday",
       "Sunday": "Sunday"
-    }
+    },
+    "demoNotice": "This demo shows a saved AI plan. Create a free account to generate your own.",
+    "aiPaused": "AI plan generation is paused until next month on this server. Your saved plan is still available.",
+    "aiNotConfigured": "AI training plans aren't set up on this server."
   },
   "upload": {
     "title": "Upload Ride",
@@ -1043,5 +1051,9 @@
     "howToStep4": "Save the file and upload it here",
     "errorUnsupportedFormat": "Only .gpx and .fit files are supported",
     "errorUploadFailed": "Upload failed. Check the file and try again."
+  },
+  "layout": {
+    "demoBanner": "You're exploring a read-only demo with sample rides. Create a free account to upload your own.",
+    "demoCta": "Create free account"
   }
 }

@@ -25,6 +25,9 @@ export const register      = (username, email, password, website = '') => api.po
 export const login         = (username, password) => api.post('/auth/login', { username, password })
 export const logout        = () => api.post('/auth/logout')
 export const getMe         = () => api.get('/auth/me')
+export const demoLogin     = () => api.post('/auth/demo')
+export const getAiQuota    = () => api.get('/auth/ai-quota')
+export const getConfig     = () => api.get('/config')
 
 // Activities
 export const getActivities = (params = {}, cursor = null) =>
