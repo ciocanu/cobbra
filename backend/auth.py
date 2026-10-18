@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from database import get_db
 import models
@@ -37,7 +37,18 @@ def create_token(user_id: int, token_version: int = 1) -> str:
     )
 
 
+# The shared demo account is read-only: besides reads it may only call these
+# endpoints, which change nothing it owns (logout leaves the shared token valid).
+DEMO_ALLOWED_WRITES = {
+    "/api/auth/logout",
+    "/api/dashboard/ride-insight",
+    "/api/dashboard/fitness-insight",
+    "/api/stats/durability-compare",
+}
+
+
 def get_current_user(
+    request: Request,
     access_token: str = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
@@ -56,4 +67,7 @@ def get_current_user(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user or (user.token_version or 1) != token_ver:
         raise exc
+    if user.is_demo and request.method not in ("GET", "HEAD", "OPTIONS") \
+            and request.url.path.rstrip("/") not in DEMO_ALLOWED_WRITES:
+        raise HTTPException(status_code=403, detail="The demo account is read-only. Create a free account to upload your own rides.")
     return user

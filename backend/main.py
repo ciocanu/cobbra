@@ -10,9 +10,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from fastapi import Depends
 from sqlalchemy import text
-from database import engine, _is_sqlite
+from sqlalchemy.orm import Session
+from database import engine, _is_sqlite, get_db
 import models
+from utils.access import payments_enabled
+from utils.ai_budget import ai_available
 from routes import activities, stats, auth, records, heatmap, goals, segments, settings, analysis, training, admin, payments, strava, dashboard, hydration, durability, indoor_outdoor, climbs, contact
 
 
@@ -77,8 +81,10 @@ def _validate_env() -> None:
         warnings.append("ADMIN_USERNAME not set — admin panel will be inaccessible")
     if not os.getenv("ANTHROPIC_API_KEY"):
         warnings.append("ANTHROPIC_API_KEY not set — AI analysis, training plans, and moderation disabled")
-    if not os.getenv("STRIPE_SECRET_KEY"):
-        warnings.append("STRIPE_SECRET_KEY not set — payment checkout disabled")
+    if payments_enabled() and not os.getenv("STRIPE_SECRET_KEY"):
+        warnings.append("PAYMENTS_ENABLED=true but STRIPE_SECRET_KEY not set — payment checkout disabled")
+    if not payments_enabled():
+        log.info("Payments disabled (PAYMENTS_ENABLED unset) — every account gets every feature")
     if not os.getenv("SMTP_HOST"):
         warnings.append("SMTP_HOST not set — email (verification, lifetime offer) disabled")
 
@@ -298,6 +304,8 @@ _MIGRATIONS = [
     )""",
     # Onboarding: track whether max HR came from the user or was auto-estimated
     "ALTER TABLE users ADD COLUMN max_hr_source VARCHAR",
+    # Shared read-only demo account
+    "ALTER TABLE users ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT 0",
 ]
 
 # Assign all legacy (pre-multi-user) records to user id=1
@@ -381,7 +389,8 @@ app.include_router(settings.router,   prefix="/api/settings",   tags=["settings"
 app.include_router(analysis.router,   prefix="/api/activities", tags=["analysis"])
 app.include_router(training.router,   prefix="/api/training",   tags=["training"])
 app.include_router(admin.router,      prefix="/api/admin",      tags=["admin"])
-app.include_router(payments.router,   prefix="/api/payments",   tags=["payments"])
+if payments_enabled():
+    app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(strava.router,     prefix="/api/strava",     tags=["strava"])
 app.include_router(dashboard.router,  prefix="/api/dashboard",  tags=["dashboard"])
 app.include_router(hydration.router,      prefix="/api",  tags=["hydration"])
@@ -394,3 +403,13 @@ app.include_router(contact.router,        prefix="/api",  tags=["contact"])
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/config")
+def public_config(db: Session = Depends(get_db)):
+    """What this instance offers, so the frontend can hide what is switched off."""
+    return {
+        "payments_enabled": payments_enabled(),
+        "demo_available": db.query(models.User.id).filter(models.User.is_demo.is_(True)).first() is not None,
+        "ai_available": ai_available(db),
+    }

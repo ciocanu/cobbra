@@ -1,11 +1,58 @@
-import json
-import os
+import time
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from auth import get_current_user
+from database import get_db
 import anthropic
 from pydantic import BaseModel
+from utils.ai_budget import HAIKU, allow_light_call, api_key, record_usage
 
 router = APIRouter()
+
+# The dashboard asks for both insights on every visit, so identical prompts are
+# answered from memory instead of calling the API again.
+_CACHE_TTL_S = 12 * 3600
+_CACHE_MAX = 2000
+_insight_cache: dict[str, tuple[float, str]] = {}
+
+
+def _cached_insight(prompt: str) -> str | None:
+    hit = _insight_cache.get(prompt)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
+    return None
+
+
+def _store_insight(prompt: str, insight: str) -> None:
+    if len(_insight_cache) >= _CACHE_MAX:
+        now = time.monotonic()
+        for key in [k for k, (exp, _) in _insight_cache.items() if exp <= now]:
+            del _insight_cache[key]
+        if len(_insight_cache) >= _CACHE_MAX:
+            _insight_cache.clear()
+    _insight_cache[prompt] = (time.monotonic() + _CACHE_TTL_S, insight)
+
+
+def _one_line_insight(db: Session, user, feature: str, prompt: str, max_tokens: int) -> str | None:
+    """Cached, budget-checked one-sentence insight; None means use the fallback text."""
+    cached = _cached_insight(prompt)
+    if cached is not None:
+        return cached
+    if not allow_light_call(db, user, feature):
+        return None
+    try:
+        client = anthropic.Anthropic(api_key=api_key())
+        msg = client.messages.create(
+            model=HAIKU,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        return None
+    record_usage(db, user.id, feature, HAIKU, msg.usage)
+    insight = msg.content[0].text.strip().strip('"\'')
+    _store_insight(prompt, insight)
+    return insight
 
 
 class RideInsightRequest(BaseModel):
@@ -57,10 +104,7 @@ def _fallback_fitness_insight(tsb: float, lang: str = "en") -> str:
 
 
 @router.post("/ride-insight")
-def get_ride_insight(req: RideInsightRequest, current_user=Depends(get_current_user)):
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return _fallback_ride_insight(req)
+def get_ride_insight(req: RideInsightRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     h = req.ride_duration_seconds // 3600
@@ -106,25 +150,12 @@ THIS RIDE:
 
 Respond with ONLY the sentence. No quotes, no period at the end unless natural."""
 
-    try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=80,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        insight = msg.content[0].text.strip().strip('"\'')
-        return {"insight": insight}
-    except Exception:
-        return _fallback_ride_insight(req)
+    insight = _one_line_insight(db, current_user, "ride_insight", prompt, max_tokens=80)
+    return {"insight": insight} if insight else _fallback_ride_insight(req)
 
 
 @router.post("/fitness-insight")
-def get_fitness_insight(req: FitnessInsightRequest, current_user=Depends(get_current_user)):
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return {"insight": _fallback_fitness_insight(req.tsb, req.lang)}
-
+def get_fitness_insight(req: FitnessInsightRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     lang_instruction = "Write in European Portuguese (PT-PT)." if req.lang.startswith("pt") else "Write in English."
 
     ctl_trend = ""
@@ -143,14 +174,5 @@ TSB guide: below -20 = significant fatigue, -20 to -5 = training load, -5 to +5 
 
 Respond with ONLY the sentence. No quotes, no explanation."""
 
-    try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=60,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        insight = msg.content[0].text.strip().strip('"\'')
-        return {"insight": insight}
-    except Exception:
-        return {"insight": _fallback_fitness_insight(req.tsb, req.lang)}
+    insight = _one_line_insight(db, current_user, "fitness_insight", prompt, max_tokens=60)
+    return {"insight": insight or _fallback_fitness_insight(req.tsb, req.lang)}

@@ -1,5 +1,4 @@
 import json
-import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -7,6 +6,8 @@ from database import get_db
 from auth import get_current_user
 import models
 import anthropic
+from utils.access import has_full_access
+from utils.ai_budget import HAIKU, api_key, check_quota, record_usage
 
 router = APIRouter()
 
@@ -251,31 +252,26 @@ def get_analysis(
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    if (current_user.membership or "free") == "free":
+    if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="AI ride analysis is a Pro feature. Upgrade to unlock ride insights.")
 
     if activity.ai_analysis:
         return {"analysis": activity.ai_analysis, "cached": True}
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="ANTHROPIC_API_KEY is not set. Add it to your environment and restart the server."
-        )
-
+    check_quota(db, current_user, "analysis")
     prompt = _build_prompt(activity, current_user, lang)
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key())
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=HAIKU,
             max_tokens=900,
             messages=[{"role": "user", "content": prompt}],
         )
         analysis = message.content[0].text
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
+    record_usage(db, current_user.id, "analysis", HAIKU, message.usage)
 
     activity.ai_analysis = analysis
     db.commit()
@@ -296,7 +292,7 @@ async def stream_analysis(
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    if (current_user.membership or "free") == "free":
+    if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="AI ride analysis is a Pro feature.")
 
     if activity.ai_analysis:
@@ -305,25 +301,25 @@ async def stream_analysis(
         return StreamingResponse(send_cached(), media_type="text/event-stream",
                                   headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not set.")
-
+    check_quota(db, current_user, "analysis")
     prompt = _build_prompt(activity, current_user, lang)
     activity_id_val = activity.id
+    user_id_val = current_user.id
 
     async def generate():
         full_text = ""
         try:
-            async_client = anthropic.AsyncAnthropic(api_key=api_key)
+            async_client = anthropic.AsyncAnthropic(api_key=api_key())
             async with async_client.messages.stream(
-                model="claude-haiku-4-5-20251001",
+                model=HAIKU,
                 max_tokens=900,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 async for text in stream.text_stream:
                     full_text += text
                     yield f"data: {json.dumps({'text': text, 'done': False})}\n\n"
+                final = await stream.get_final_message()
+            record_usage(db, user_id_val, "analysis", HAIKU, final.usage)
 
             act = db.query(models.Activity).filter_by(id=activity_id_val).first()
             if act:

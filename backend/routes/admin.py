@@ -8,6 +8,7 @@ from sqlalchemy import func
 from database import get_db, DATABASE_URL, _is_sqlite
 import models
 from auth import get_current_user
+from utils.access import payments_enabled
 
 router = APIRouter()
 
@@ -120,6 +121,8 @@ _OFFER_HOURS = 48
 
 @router.post("/users/{user_id}/offer")
 def send_lifetime_offer(user_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    if not payments_enabled():
+        raise HTTPException(status_code=404, detail="Payments are disabled on this server.")
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")

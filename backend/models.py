@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Index, Integer, Float, String, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, Column, Index, Integer, Float, String, DateTime, ForeignKey, Text, false
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -45,7 +45,23 @@ class User(Base):
     calibrated_cda          = Column(Float, nullable=True)
     calibration_source      = Column(String, nullable=True)
     bike_weight_kg          = Column(Float, nullable=True)
+    # Shared read-only showcase account (see scripts/seed_demo.py)
+    is_demo = Column(Boolean, default=False, server_default=false(), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AIUsage(Base):
+    """One row per Claude API call — feeds the per-user quotas and the global monthly budget."""
+    __tablename__ = "ai_usage"
+
+    id            = Column(Integer, primary_key=True)
+    user_id       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    feature       = Column(String, nullable=False)   # analysis | plan | ride_insight | fitness_insight | moderation
+    model         = Column(String, nullable=False)
+    input_tokens  = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    cost_usd      = Column(Float, nullable=False, default=0.0)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
 class RateAttempt(Base):

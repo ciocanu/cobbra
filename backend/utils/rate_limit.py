@@ -13,6 +13,7 @@ _LIMITS: dict[str, tuple[int, int, str]] = {
     "login":    (300,  10, "Too many login attempts. Try again in 5 minutes."),
     "register": (3600,  5, "Too many registration attempts. Try again later."),
     "upload":   (3600, 30, "Upload limit reached (30 per hour). Try again later."),
+    "demo":     (300,  20, "Too many demo sign-ins. Try again in 5 minutes."),
 }
 
 

@@ -3,7 +3,6 @@ import csv
 import hashlib
 import io
 import json
-import os
 import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Body, Query, BackgroundTasks
@@ -24,26 +23,28 @@ from utils.indoor_outdoor_gap import apply_correction_factors, update_indoor_out
 from utils.climb_detection import detect_climbs
 from utils.power_estimation import estimate_climbing_power, BIKE_DEFAULTS
 from utils.rate_limit import check_rate_limit
+from utils.access import has_full_access
+from utils.ai_budget import HAIKU, allow_light_call, api_key as ai_api_key, record_usage
 from typing import List, Optional
 import httpx
 
 log = logging.getLogger(__name__)
 
 
-def _moderate_notes(text: str) -> tuple[bool, str]:
+def _moderate_notes(text: str, db: Session, user) -> tuple[bool, str]:
     """
-    Returns (is_safe, reason). Defaults to safe on any error so legitimate
-    notes are never blocked by API unavailability.
+    Returns (is_safe, reason). Defaults to safe on any error, or once the AI
+    budget or the user's daily cap is used up, so legitimate notes are never
+    blocked by API unavailability. Notes are only visible to their owner.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key or not text or not text.strip():
+    if not text or not text.strip() or not allow_light_call(db, user, "moderation"):
         return True, ""
 
     try:
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=ai_api_key())
         resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=HAIKU,
             max_tokens=60,
             system=(
                 "You are a content moderator for a cycling training app. "
@@ -57,6 +58,7 @@ def _moderate_notes(text: str) -> tuple[bool, str]:
             ),
             messages=[{"role": "user", "content": text[:2000]}],
         )
+        record_usage(db, user.id, "moderation", HAIKU, resp.usage)
         lines = resp.content[0].text.strip().splitlines()
         verdict = lines[0].strip().upper()
         reason = lines[1].strip() if len(lines) > 1 else ""
@@ -714,7 +716,7 @@ def list_activities(
 
 @router.get("/{activity_id}/export/csv")
 def export_csv(activity_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    if (current_user.membership or "free") == "free":
+    if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="Activity export is a Pro feature. Upgrade to export your rides.")
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
@@ -732,7 +734,7 @@ def export_csv(activity_id: int, db: Session = Depends(get_db), current_user=Dep
 
 @router.get("/{activity_id}/export/gpx")
 def export_gpx(activity_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    if (current_user.membership or "free") == "free":
+    if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="Activity export is a Pro feature. Upgrade to export your rides.")
     activity = db.query(models.Activity).filter(models.Activity.id == activity_id, models.Activity.user_id == current_user.id).first()
     if not activity:
@@ -814,7 +816,7 @@ def update_notes(activity_id: int, notes: str = Body(..., embed=True),
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    is_safe, reason = _moderate_notes(notes)
+    is_safe, reason = _moderate_notes(notes, db, current_user)
     if not is_safe:
         raise HTTPException(status_code=400, detail=f"Note contains inappropriate content and was not saved. {reason}".strip())
 

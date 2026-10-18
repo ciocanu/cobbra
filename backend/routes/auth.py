@@ -6,6 +6,7 @@ import models
 import schemas
 from auth import verify_password, hash_password, create_token, get_current_user, TOKEN_EXPIRE_DAYS, COOKIE_SECURE
 
+from utils.ai_budget import quota_status
 from utils.rate_limit import check_rate_limit as _check_rate_limit
 
 router = APIRouter()
@@ -71,10 +72,26 @@ def login(request: Request, data: schemas.LoginRequest, db: Session = Depends(ge
     return response
 
 
+@router.post("/demo")
+def demo_login(request: Request, db: Session = Depends(get_db)):
+    """Sign in to the shared read-only demo account (created by scripts/seed_demo.py)."""
+    _check_rate_limit(request.client.host, "demo", db)
+    user = db.query(models.User).filter(models.User.is_demo.is_(True)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="The demo is not available on this server.")
+    token = create_token(user.id, user.token_version or 1)
+    response = JSONResponse({"token_type": "bearer"})
+    _set_auth_cookie(response, token)
+    return response
+
+
 @router.post("/logout")
 def logout(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    current_user.token_version = (current_user.token_version or 1) + 1
-    db.commit()
+    # Bumping token_version signs out every session; the demo account is shared,
+    # so one visitor leaving must not sign everyone else out.
+    if not current_user.is_demo:
+        current_user.token_version = (current_user.token_version or 1) + 1
+        db.commit()
     response = JSONResponse({"ok": True})
     response.delete_cookie(key="access_token", path="/")
     return response
@@ -83,6 +100,11 @@ def logout(current_user=Depends(get_current_user), db: Session = Depends(get_db)
 @router.get("/me", response_model=schemas.UserOut)
 def me(current_user=Depends(get_current_user)):
     return current_user
+
+
+@router.get("/ai-quota")
+def ai_quota(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return quota_status(db, current_user)
 
 
 @router.get("/setup")

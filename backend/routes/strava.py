@@ -8,6 +8,7 @@ from database import get_db
 from auth import get_current_user
 import models
 from utils import compute_normalized_power, compute_tss
+from utils.access import has_full_access
 
 router = APIRouter()
 
@@ -249,7 +250,7 @@ def strava_sync(db: Session = Depends(get_db), current_user=Depends(get_current_
         raise HTTPException(status_code=400, detail="Strava is not connected.")
 
     token = _ensure_fresh_token(user, db)
-    is_free = (user.membership or "free") == "free"
+    is_free = not has_full_access(user)
 
     if is_free:
         existing_count = db.query(models.Activity).filter(models.Activity.user_id == current_user.id).count()

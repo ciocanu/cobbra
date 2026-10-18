@@ -26,6 +26,7 @@ class UserOut(BaseModel):
     membership: str = "free"
     subscription_start: Optional[datetime] = None
     subscription_end: Optional[datetime] = None
+    is_demo: bool = False
     created_at: datetime
 
     class Config:

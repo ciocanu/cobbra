@@ -1,4 +1,3 @@
-import os
 import json
 from datetime import date, timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +8,8 @@ from database import get_db
 from auth import get_current_user
 import models
 import anthropic
+from utils.access import has_full_access
+from utils.ai_budget import SONNET, ai_available, api_key, check_quota, monthly_limit, record_usage
 
 router = APIRouter()
 
@@ -28,9 +29,6 @@ def _next_generation_date(plan_date: datetime) -> str:
     if plan_date.month == 12:
         return date(plan_date.year + 1, 1, 1).isoformat()
     return date(plan_date.year, plan_date.month + 1, 1).isoformat()
-
-
-_MONTHLY_LIMIT = 3
 
 
 def _plans_this_month(db: Session, user_id: int) -> int:
@@ -308,7 +306,7 @@ def _build_prompt(request: PlanRequest, user: models.User, db: Session) -> str:
 
 @router.get("/plan")
 def get_plan(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    is_free = (current_user.membership or "free") == "free"
+    is_free = not has_full_access(current_user)
     plan = (
         db.query(models.TrainingPlan)
         .filter(models.TrainingPlan.user_id == current_user.id)
@@ -316,18 +314,21 @@ def get_plan(db: Session = Depends(get_db), current_user=Depends(get_current_use
         .first()
     )
 
+    limit = monthly_limit("plan")
     used_this_month = _plans_this_month(db, current_user.id)
-    can_gen = (not is_free) and used_this_month < _MONTHLY_LIMIT
+    ai_on = ai_available(db) and not current_user.is_demo
+    can_gen = (not is_free) and ai_on and used_this_month < limit
     next_date = None
-    if not is_free and used_this_month >= _MONTHLY_LIMIT and plan:
+    if not is_free and used_this_month >= limit and plan:
         next_date = _next_generation_date(plan.created_at)
 
     meta = {
         "can_generate": can_gen,
         "next_generation_date": next_date,
         "plans_used": used_this_month,
-        "plans_limit": _MONTHLY_LIMIT,
+        "plans_limit": limit,
         "is_free": is_free,
+        "ai_available": ai_on,
     }
 
     if not plan:
@@ -355,12 +356,12 @@ def generate_plan(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if (current_user.membership or "free") == "free":
+    if not has_full_access(current_user):
         raise HTTPException(status_code=403, detail="AI training plans are a Pro feature. Upgrade to generate personalised plans.")
 
-    # Check monthly limit (3/month for paid users)
+    limit = monthly_limit("plan")
     used_this_month = _plans_this_month(db, current_user.id)
-    if used_this_month >= _MONTHLY_LIMIT:
+    if used_this_month >= limit:
         existing = (
             db.query(models.TrainingPlan)
             .filter(models.TrainingPlan.user_id == current_user.id)
@@ -370,25 +371,23 @@ def generate_plan(
         next_date = _next_generation_date(existing.created_at) if existing else None
         raise HTTPException(
             status_code=429,
-            detail=f"You can generate up to {_MONTHLY_LIMIT} plans per month. Next generation available on {next_date}."
+            detail=f"You can generate up to {limit} plans per month. Next generation available on {next_date}."
         )
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not configured.")
+    check_quota(db, current_user, "plan")
 
     prompt = _build_prompt(body, current_user, db)
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key())
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET,
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         plan_text = message.content[0].text
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
+    record_usage(db, current_user.id, "plan", SONNET, message.usage)
 
     plan = models.TrainingPlan(
         user_id=current_user.id,

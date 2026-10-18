@@ -19,9 +19,7 @@ import gzip
 import hashlib
 import http.cookiejar
 import json
-import math
 import os
-import random
 import shutil
 import signal
 import subprocess
@@ -30,7 +28,6 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -151,68 +148,9 @@ def seed_user(py, env):
 
 # ── Sample data ──────────────────────────────────────────────────────────────
 
-def synthetic_gpx():
-    """A deterministic ~32 km loop west of Lisbon with elevation, HR, cadence, power and temperature.
-
-    Sensor tags follow real exports: HR/cadence/temperature in Garmin's TrackPointExtension
-    (<gpxtpx:hr>, <gpxtpx:cad>, <gpxtpx:atemp>) and power as Strava's flat <power>.
-    """
-    rnd = random.Random(42)
-    clat, clon = 38.715, -9.255
-    r_lat, r_lon = 0.046, 0.059                       # ~5 km radius
-    poly = []
-    for i in range(4000):
-        a = 2 * math.pi * i / 4000
-        k = 1 + 0.22 * math.sin(3 * a) + 0.08 * math.sin(7 * a)
-        poly.append((clat + r_lat * k * math.sin(a), clon + r_lon * k * math.cos(a)))
-    poly.append(poly[0])
-
-    def dist(p, q):
-        dy = (q[0] - p[0]) * 111_320
-        dx = (q[1] - p[1]) * 111_320 * math.cos(math.radians(p[0]))
-        return math.hypot(dx, dy)
-
-    cum = [0.0]
-    for p, q in zip(poly, poly[1:]):
-        cum.append(cum[-1] + dist(p, q))
-    total = cum[-1]
-
-    def ele(s):
-        x = s / total
-        return 85 + 55 * math.sin(2 * math.pi * 2 * x) + 22 * math.sin(2 * math.pi * 5 * x + 1)
-
-    start = (datetime.now(timezone.utc) - timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
-    pts, s, t, j, hr = [], 0.0, 0, 0, 118.0
-    while s < total:
-        grade = (ele(s + 10) - ele(s)) / 10
-        v = max(3.5, min(13.5, 8.6 - 55 * grade + rnd.uniform(-0.4, 0.4)))     # m/s
-        hr += ((max(105, min(178, 138 + 650 * grade + t / 300))) - hr) * 0.06 + rnd.uniform(-1, 1)
-        cad = 0 if grade < -0.035 else max(62, min(102, 88 - 160 * grade + rnd.uniform(-3, 3)))
-        # 80 kg rider+bike, Crr 0.005, CdA 0.32 m², 97 % drivetrain; no pedalling when coasting
-        watts = 0 if cad == 0 else max(0, (80 * 9.81 * v * (grade + 0.005) + 0.5 * 1.2 * 0.32 * v ** 3) / 0.97
-                                         + rnd.uniform(-15, 15))
-        while j < len(cum) - 2 and cum[j + 1] < s:
-            j += 1
-        f = (s - cum[j]) / max(cum[j + 1] - cum[j], 1e-9)
-        lat = poly[j][0] + (poly[j + 1][0] - poly[j][0]) * f
-        lon = poly[j][1] + (poly[j + 1][1] - poly[j][1]) * f
-        ts = (start + timedelta(seconds=t)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        pts.append(
-            f'<trkpt lat="{lat:.6f}" lon="{lon:.6f}"><ele>{ele(s):.1f}</ele><time>{ts}</time>'
-            f"<extensions><power>{round(watts)}</power><gpxtpx:TrackPointExtension><gpxtpx:hr>{round(hr)}</gpxtpx:hr>"
-            f"<gpxtpx:cad>{round(cad)}</gpxtpx:cad><gpxtpx:atemp>{19 + 4 * t / 4000:.1f}</gpxtpx:atemp>"
-            f"</gpxtpx:TrackPointExtension></extensions></trkpt>"
-        )
-        s += v * 5
-        t += 5
-    return (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<gpx version="1.1" creator="cobbra-dev" xmlns="http://www.topografix.com/GPX/1/1" '
-        'xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">'
-        "<trk><name>Volta de teste (dev)</name><type>cycling</type><trkseg>"
-        + "".join(pts)
-        + "</trkseg></trk></gpx>"
-    ).encode()
+# The generator lives in the backend so scripts/seed_demo.py can reuse it (stdlib only).
+sys.path.append(str(BACKEND / "scripts"))
+from sample_rides import synthetic_gpx  # noqa: E402
 
 
 class Api:
